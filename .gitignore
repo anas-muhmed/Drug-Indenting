@@ -1,0 +1,102 @@
+# =====================================================================
+# Drug Indenting System — Root .gitignore
+# =====================================================================
+
+# Dependency Directories
+node_modules/
+**/node_modules/
+
+# Production / Build Outputs
+build/
+dist/
+out/
+client/build/
+client/dist/
+
+# Test Coverage & Cache
+coverage/
+.nyc_output/
+jest-cache/
+.cache/
+.parcel-cache/
+.eslintcache
+.next/
+
+# Environment Variables & Sensitive Credentials
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Runtime & Process Files
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Temporary Files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Upload Directories (Generated Dynamically)
+uploads/
+storage/
+public/uploads/
+client/public/uploads/
+# Keep folder structures via .gitkeep
+!uploads/.gitkeep
+!public/uploads/.gitkeep
+!client/public/uploads/.gitkeep
+
+# Exported Reports & Generated Documents
+exports/
+reports/
+generated_reports/
+pdf/
+excel/
+generated_docs/
+*.pdf
+*.xlsx
+*.xls
+*.csv
+
+# Database Dumps
+*.dmp
+*.sql.backup
+*.bak
+*.dump
+
+# Oracle Instant Client / Client Binaries
+instantclient/
+oracle_client/
+
+# IDE Configuration Files
+.vscode/
+.idea/
+*.iml
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS System Files
+Thumbs.db
+Desktop.ini
+.DS_Store
+.AppleDouble
+.LSOverride
+*~
+.svn/

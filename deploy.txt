@@ -1,0 +1,95 @@
+FINAL DEPLOYMENT FLOW
+1. Open project root
+cd D:\drug-indenting-system
+2. Install backend dependencies
+
+npm install --omit=dev
+
+3. Go into frontend
+cd client
+4. Install frontend dependencies
+
+npm install
+
+5. Build React frontend
+npm run build
+
+This creates:
+client/build
+6. Return to root
+
+cd ..
+
+7. Create .env
+
+In root folder:
+
+DB_USER=moscmar18
+DB_PASSWORD=moscmar18
+DB_CONNECT=192.168.1.104:1521/lifetest
+PORT=5000
+GROQ_API_KEY=your_key
+
+8. Install PM2
+
+npm install -g pm2
+
+9. Start application
+
+pm2 start server.js --name drug-indenting-backend
+
+10. Verify logs
+pm2 logs
+
+Expected:
+
+✅ Oracle DB pool created
+✅ Schema setup complete
+🚀 Drug Indenting Server running on http://localhost:5000
+11. Open from browser
+
+From hospital PCs:
+
+http://SERVER-IP:5000
+
+Example:
+
+http://192.168.1.50:5000
+12. Enable auto-start after reboot (Windows)
+npm install -g pm2-windows-service
+
+Then:
+
+pm2-service-install
+Future Update Flow
+
+Whenever updating code:
+
+Stop app
+pm2 stop drug-indenting-backend
+Replace updated files
+If frontend changed
+cd client
+npm run build
+cd ..
+Restart app
+pm2 restart drug-indenting-backend
+
+Your deployment architecture is now production-ready for an internal hospital LAN application.
+
+
+
+
+
+
+
+
+
+
+
+
+
+THIS WAS 18:21-05/06/2026 SORRY FOR THIS MESS :
+
+
+this was 24th june 2026-17:12
