@@ -1435,7 +1435,7 @@ export default function CEOTab({ currentUser, onNotificationsRead }) {
                       <thead>
                         <tr style={{ borderBottom: '1px solid rgba(124, 58, 237, 0.15)', background: 'rgba(124, 58, 237, 0.05)' }}>
                           <th style={{ padding: '8px 14px', textAlign: 'left', fontWeight: 600, fontSize: '0.8rem', color: 'var(--primary-light)' }}>Drug Name</th>
-                          <th style={{ padding: '8px 14px', textAlign: 'left', fontWeight: 600, fontSize: '0.8rem', color: 'var(--primary-light)', width: '30%' }}>Effective Created Date & Time</th>
+                        
                           <th style={{ padding: '8px 14px', textAlign: 'left', fontWeight: 600, fontSize: '0.8rem', color: 'var(--primary-light)', width: '35%' }}>Remarks</th>
                         </tr>
                       </thead>

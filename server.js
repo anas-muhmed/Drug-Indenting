@@ -4718,7 +4718,11 @@ app.get('/api/alternatives/:requestId/selected', async (req, res) => {
               dr.dosage_form AS request_dosage_form,
               dr.dose_strength AS request_dose_strength,
               dr.dtc_final_recommendations,
-              dr.existing_generic_data
+              dr.existing_generic_data,
+              dr.final_selected_brand,
+              dr.final_selected_category,
+              dr.final_selection_reasons,
+              dr.final_recommendation_notes
        FROM drug_requests dr
        WHERE dr.request_id = :requestId`,
       { requestId }
@@ -4907,9 +4911,90 @@ app.get('/api/alternatives/:requestId/selected', async (req, res) => {
       return res.status(404).json({ error: 'final selection not found' });
     }
 
+    // ── Build final_drug: single normalized object for inventory insertion ──
+    // Priority: alternative-type entry (has full pricing) → original-type entry → fallback columns
+    const finalGenericName = dr.REQUEST_GENERIC_NAME || '';
+    let final_drug = null;
+
+    // 1. Find the DTC-selected alternative entry (has complete pricing from drug_alternatives)
+    const finalAltEntry = list.find(item => item.type === 'alternative');
+    if (finalAltEntry) {
+      final_drug = {
+        final_brand_name:      finalAltEntry.brand_name     || '',
+        final_generic_name:    finalGenericName,
+        final_manufacturer:    finalAltEntry.manufacturer   || '',
+        final_marketer:        finalAltEntry.marketer        || '',
+        final_mrp:             finalAltEntry.mrp             != null ? finalAltEntry.mrp    : null,
+        final_rate:            finalAltEntry.rate            != null ? finalAltEntry.rate   : null,
+        final_net_rate:        finalAltEntry.net_rate        != null ? finalAltEntry.net_rate : null,
+        final_profit_margin:   finalAltEntry.profit_margin  != null ? finalAltEntry.profit_margin  : null,
+        final_absolute_margin: finalAltEntry.absolute_margin != null ? finalAltEntry.absolute_margin : null,
+        final_scheme_qty:      finalAltEntry.scheme_qty     != null ? finalAltEntry.scheme_qty  : null,
+        final_scheme_offer:    finalAltEntry.scheme_offer   || '',
+        final_pack:            finalAltEntry.pack            || '',
+        dtc_selected_category:    finalAltEntry.category         || dr.DTC_SELECTED_CATEGORY     || '',
+        dtc_recommendation_notes: finalAltEntry.notes            || dr.DTC_RECOMMENDATION_NOTES  || '',
+        dtc_reviewed_by_name:     dr.DTC_REVIEWED_BY_NAME        || '',
+        dtc_review_signature:     dr.DTC_REVIEW_SIGNATURE        || '',
+        ph_final_recommendation:  dr.PH_FINAL_RECOMMENDATION     || '',
+        dtc_selection_reasons:    finalAltEntry.reasons           || [],
+      };
+    } else {
+      // 2. Original-type entry (DTC selected the originally-requested drug)
+      const finalOrigEntry = list.find(item => item.type === 'original');
+      if (finalOrigEntry) {
+        final_drug = {
+          final_brand_name:      finalOrigEntry.brand_name  || '',
+          final_generic_name:    finalGenericName,
+          final_manufacturer:    finalOrigEntry.manufacturer || '',
+          final_marketer:        finalOrigEntry.marketer     || '',
+          final_mrp:             finalOrigEntry.mrp          != null ? finalOrigEntry.mrp    : null,
+          final_rate:            finalOrigEntry.rate         != null ? finalOrigEntry.rate   : null,
+          final_net_rate:        finalOrigEntry.net_rate     != null ? finalOrigEntry.net_rate : null,
+          final_profit_margin:   finalOrigEntry.profit_margin != null ? finalOrigEntry.profit_margin : null,
+          final_absolute_margin: finalOrigEntry.absolute_margin != null ? finalOrigEntry.absolute_margin : null,
+          final_scheme_qty:      finalOrigEntry.scheme_qty  != null ? finalOrigEntry.scheme_qty : null,
+          final_scheme_offer:    finalOrigEntry.scheme_offer || '',
+          final_pack:            finalOrigEntry.pack         || '',
+          dtc_selected_category:    finalOrigEntry.category       || dr.DTC_SELECTED_CATEGORY     || '',
+          dtc_recommendation_notes: finalOrigEntry.notes          || dr.DTC_RECOMMENDATION_NOTES  || '',
+          dtc_reviewed_by_name:     dr.DTC_REVIEWED_BY_NAME       || '',
+          dtc_review_signature:     dr.DTC_REVIEW_SIGNATURE       || '',
+          ph_final_recommendation:  dr.PH_FINAL_RECOMMENDATION    || '',
+          dtc_selection_reasons:    finalOrigEntry.reasons         || [],
+        };
+      } else {
+        // 3. Fallback: use the stored final_selected_brand column on drug_requests
+        const fallbackBrand = dr.FINAL_SELECTED_BRAND || dr.DTC_SELECTED_BRAND || '';
+        let parsedReasons = [];
+        try { parsedReasons = dr.FINAL_SELECTION_REASONS ? JSON.parse(dr.FINAL_SELECTION_REASONS) : []; } catch (_) {}
+        final_drug = {
+          final_brand_name:      fallbackBrand,
+          final_generic_name:    finalGenericName,
+          final_manufacturer:    dr.REQUEST_MANUFACTURER  || '',
+          final_marketer:        dr.REQUEST_MARKETER       || '',
+          final_mrp:             null,
+          final_rate:            null,
+          final_net_rate:        null,
+          final_profit_margin:   null,
+          final_absolute_margin: null,
+          final_scheme_qty:      null,
+          final_scheme_offer:    '',
+          final_pack:            `${dr.REQUEST_DOSE_STRENGTH || ''} ${dr.REQUEST_DOSAGE_FORM || ''}`.trim(),
+          dtc_selected_category:    dr.FINAL_SELECTED_CATEGORY   || dr.DTC_SELECTED_CATEGORY     || '',
+          dtc_recommendation_notes: dr.FINAL_RECOMMENDATION_NOTES || dr.DTC_RECOMMENDATION_NOTES  || '',
+          dtc_reviewed_by_name:     dr.DTC_REVIEWED_BY_NAME       || '',
+          dtc_review_signature:     dr.DTC_REVIEW_SIGNATURE       || '',
+          ph_final_recommendation:  dr.PH_FINAL_RECOMMENDATION    || '',
+          dtc_selection_reasons:    parsedReasons,
+        };
+      }
+    }
+
     return res.json({
       type: 'multi',
-      recommendations: list
+      recommendations: list,
+      final_drug,
     });
 
   } catch (err) {
@@ -4919,6 +5004,7 @@ app.get('/api/alternatives/:requestId/selected', async (req, res) => {
     await conn.close();
   }
 });
+
 
 // =============================================================
 // POST /api/dtc/final-select/:requestId — DTC selects final drug

@@ -120,6 +120,8 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
   const [invErr, setInvErr] = useState('');
   const EMPTY_INV = { brandName: '', genericName: '', manufacturerName: '', marketerName: '', mrp: '', rate: '', strength: '', drugForm: '' };
   const [invForm, setInvForm] = useState({ ...EMPTY_INV });
+  // Holds the single normalized DTC-selected CEO-approved drug object for inventory insertion
+  const [finalApprovedDrug, setFinalApprovedDrug] = useState(null);
 
   // Reset inventory state when view modal opens/closes
   const openView = async (req) => {
@@ -132,16 +134,19 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
     setInvErr('');
     setInvModalOpen(false);
     setInvForm({ ...EMPTY_INV });
+    setFinalApprovedDrug(null);
     try {
-      const isOrderStage = req.STATUS === 'APPROVED_PENDING_ORDER';
+      const isOrderStage = req.STATUS === 'APPROVED_PENDING_ORDER' || req.STATUS === 'EMERGENCY_APPROVED';
       if (isOrderStage) {
         const r = await axios.get(`${API}/alternatives/${req.REQUEST_ID}/selected`);
         setExistingAlts(r.data ? [r.data] : []);
+        // Extract the single final DTC-selected CEO-approved drug for inventory insertion
+        setFinalApprovedDrug(r.data?.final_drug || null);
       } else {
         const r = await axios.get(`${API}/alternatives/${req.REQUEST_ID}`);
         setExistingAlts(r.data?.alternatives || []);
       }
-    } catch { setExistingAlts([]); }
+    } catch { setExistingAlts([]); setFinalApprovedDrug(null); }
   };
 
   // Prefill inventory form from final DTC drug data
@@ -2699,10 +2704,11 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                     );
                   }
 
-                  const sel = existingAlts[0];
-                  const drug = sel?.data || sel;
+                  // Use the normalized final_drug object returned by the backend — this is the
+                  // DTC-selected, CEO-approved drug and is the only source for inventory insertion.
+                  const drug = finalApprovedDrug;
 
-                  if (!drug || sel?.error || (sel && Object.keys(sel).length === 0)) {
+                  if (!drug) {
                     return (
                       <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--text-subtle)' }}>
                         Final approved drug details are not available yet.
