@@ -1514,8 +1514,8 @@ export default function ComparisonSheet({
             </button>
           </div>
 
-          {/* Download Button (DTC mode only) */}
-          {mode === 'dtc' && (
+          {/* Download Button (DTC mode or read-only view) */}
+          {(mode === 'dtc' || mode === 'readonly') && (
             <button
               type="button"
               onClick={downloadPDF}

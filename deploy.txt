@@ -92,4 +92,35 @@ Your deployment architecture is now production-ready for an internal hospital LA
 THIS WAS 18:21-05/06/2026 SORRY FOR THIS MESS :
 
 
+
 this was 24th june 2026-17:12
+
+
+
+
+BEGIN
+    -- Workflow & Notifications
+    DELETE FROM notifications;
+    DELETE FROM audit_logs;
+
+    -- Comparison Sheet
+    DELETE FROM drug_alternative_negotiations;
+    DELETE FROM drug_existing_details;
+    DELETE FROM drug_effective_entries;
+    DELETE FROM analysis_drafts;
+    DELETE FROM drug_alternatives;
+
+    -- Main Requests
+    DELETE FROM drug_requests;
+
+    -- Dashboard / Analytics
+    DELETE FROM user_request_quotas;
+    DELETE FROM admin_audit_logs;
+
+    -- Remarks History
+    DELETE FROM rejection_remark_history;
+    DELETE FROM approval_remark_history;
+
+    COMMIT;
+END;
+/

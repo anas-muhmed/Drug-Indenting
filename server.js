@@ -867,6 +867,9 @@ async function setupSchema() {
       { col: 'INVENTORY_ADDED_AT', sql: `ALTER TABLE drug_requests ADD inventory_added_at TIMESTAMP` },
       { col: 'INVENTORY_ADDED_BY', sql: `ALTER TABLE drug_requests ADD inventory_added_by NUMBER` },
       { col: 'INVENTORY_ITEM_NAME', sql: `ALTER TABLE drug_requests ADD inventory_item_name VARCHAR2(500)` },
+      { col: 'INVENTORY_RECEIVED', sql: `ALTER TABLE drug_requests ADD inventory_received NUMBER(1) DEFAULT 0` },
+      { col: 'INVENTORY_RECEIVED_AT', sql: `ALTER TABLE drug_requests ADD inventory_received_at TIMESTAMP` },
+      { col: 'INVENTORY_RECEIVED_BY', sql: `ALTER TABLE drug_requests ADD inventory_received_by NUMBER` },
     ];
     for (const c of invCols) {
       const chk = await conn.execute(
@@ -1333,7 +1336,7 @@ app.get('/api/requests/:role/:userId', async (req, res) => {
           AND dr.status = 'REVERTED_FOR_CORRECTION'
         )
         OR dr.is_emergency = 1
-        OR dr.status IN ('APPROVED_PENDING_ORDER', 'ORDER_PLACED')
+        OR dr.status IN ('APPROVED_PENDING_ORDER', 'ORDER_PLACED', 'INVENTORY_RECEIVED')
         OR dr.created_by_user_id = :userId
       `;
 
@@ -2050,10 +2053,10 @@ app.get('/api/analytics/summary', async (req, res) => {
       SELECT
         COUNT(*) AS total_requests,
         SUM(CASE WHEN status = 'Pending' THEN 1 ELSE 0 END) AS total_pending,
-        SUM(CASE WHEN status IN ('Approved','HOD_APPROVED','APPROVED_PENDING_ORDER','EMERGENCY_APPROVED') THEN 1 ELSE 0 END) AS total_approved,
+        SUM(CASE WHEN status IN ('Approved','HOD_APPROVED','APPROVED_PENDING_ORDER','EMERGENCY_APPROVED','INVENTORY_RECEIVED') THEN 1 ELSE 0 END) AS total_approved,
         SUM(CASE WHEN status IN ('Rejected','HOD_REJECTED','PHARMACIST_REJECTED','PHARMACY_HEAD_REJECTED','PHARMACY_HEAD_REJECTED_PENDING_DTC','CEO_REJECTED','EMERGENCY_REJECTED') THEN 1 ELSE 0 END) AS total_rejected,
         SUM(CASE WHEN status IN ('EMERGENCY_PENDING_DTC','EMERGENCY_APPROVED','EMERGENCY_REJECTED') THEN 1 ELSE 0 END) AS total_emergency,
-        SUM(CASE WHEN status = 'ORDER_PLACED' OR current_stage = 'OrderPlaced' THEN 1 ELSE 0 END) AS total_order_placed,
+        SUM(CASE WHEN status IN ('ORDER_PLACED','INVENTORY_RECEIVED') OR current_stage = 'OrderPlaced' THEN 1 ELSE 0 END) AS total_order_placed,
         SUM(CASE WHEN current_stage = 'Final' THEN 1 ELSE 0 END) AS total_final_approved,
         SUM(CASE WHEN current_stage IN ('DTCCommittee','DTCFinal','EmergencyDTC') THEN 1 ELSE 0 END) AS total_dtc_review,
         SUM(CASE WHEN current_stage = 'CEO' THEN 1 ELSE 0 END) AS total_ceo_review,
@@ -2113,7 +2116,7 @@ app.get('/api/analytics/doctor-performance', async (req, res) => {
         u.role,
         u.department,
         COUNT(dr.request_id) AS total_requests,
-        SUM(CASE WHEN dr.status IN ('Approved','HOD_APPROVED','APPROVED_PENDING_ORDER','EMERGENCY_APPROVED') THEN 1 ELSE 0 END) AS approved,
+        SUM(CASE WHEN dr.status IN ('Approved','HOD_APPROVED','APPROVED_PENDING_ORDER','EMERGENCY_APPROVED','INVENTORY_RECEIVED') THEN 1 ELSE 0 END) AS approved,
         SUM(CASE WHEN dr.status IN ('Rejected','HOD_REJECTED','PHARMACIST_REJECTED','PHARMACY_HEAD_REJECTED','CEO_REJECTED','EMERGENCY_REJECTED') THEN 1 ELSE 0 END) AS rejected,
         SUM(CASE WHEN dr.status = 'Pending' OR dr.status LIKE '%PENDING%' THEN 1 ELSE 0 END) AS pending,
         SUM(CASE WHEN dr.status IN ('EMERGENCY_PENDING_DTC','EMERGENCY_APPROVED','EMERGENCY_REJECTED') THEN 1 ELSE 0 END) AS emergency_count,
@@ -2538,13 +2541,13 @@ app.get('/api/analytics/drilldown', async (req, res) => {
       } else if (key === 'total_pending') {
         whereClause = "dr.status = 'Pending' OR dr.status LIKE '%PENDING%'";
       } else if (key === 'total_approved') {
-        whereClause = "dr.status IN ('Approved','HOD_APPROVED','APPROVED_PENDING_ORDER','EMERGENCY_APPROVED')";
+        whereClause = "dr.status IN ('Approved','HOD_APPROVED','APPROVED_PENDING_ORDER','EMERGENCY_APPROVED','INVENTORY_RECEIVED')";
       } else if (key === 'total_rejected') {
         whereClause = "dr.status IN ('Rejected','HOD_REJECTED','PHARMACIST_REJECTED','PHARMACY_HEAD_REJECTED','PHARMACY_HEAD_REJECTED_PENDING_DTC','CEO_REJECTED','EMERGENCY_REJECTED')";
       } else if (key === 'total_emergency') {
         whereClause = "dr.status IN ('EMERGENCY_PENDING_DTC','EMERGENCY_APPROVED','EMERGENCY_REJECTED')";
       } else if (key === 'total_order_placed') {
-        whereClause = "dr.status = 'ORDER_PLACED' OR dr.current_stage = 'OrderPlaced'";
+        whereClause = "dr.status IN ('ORDER_PLACED','INVENTORY_RECEIVED') OR dr.current_stage = 'OrderPlaced'";
       } else if (key === 'total_final_approved') {
         whereClause = "dr.current_stage = 'Final'";
       } else if (key === 'total_dtc_review') {
@@ -4336,6 +4339,92 @@ app.put('/api/requests/:id/mark-inventory-added', async (req, res) => {
 });
 
 // =============================================================
+// POST /api/requests/:requestId/mark-inventory-received
+// =============================================================
+app.post('/api/requests/:requestId/mark-inventory-received', async (req, res) => {
+  const conn = await getConn();
+  try {
+    const requestId = parseInt(req.params.requestId);
+    const { performed_by } = req.body;
+
+    if (!requestId) return res.status(400).json({ error: 'Request ID required.' });
+
+    const reqResult = await conn.execute(
+      `SELECT r.*, u.name AS doctor_name, u.department AS doctor_dept
+       FROM drug_requests r
+       JOIN users u ON u.user_id = r.doctor_id
+       WHERE r.request_id = :requestId`,
+      { requestId }
+    );
+    if (!reqResult.rows.length) return res.status(404).json({ error: 'Request not found.' });
+
+    const dr = reqResult.rows[0];
+
+    if (dr.STATUS !== 'ORDER_PLACED') {
+      return res.status(400).json({
+        error: 'Inventory can only be marked as received after the purchase order has been placed.'
+      });
+    }
+
+    await conn.execute(
+      `UPDATE drug_requests
+          SET status = 'INVENTORY_RECEIVED',
+              current_stage = 'Completed',
+              inventory_received = 1,
+              inventory_received_at = CURRENT_TIMESTAMP,
+              inventory_received_by = :performedBy,
+              updated_at = CURRENT_TIMESTAMP
+       WHERE request_id = :requestId`,
+      {
+        performedBy: performed_by || null,
+        requestId
+      }
+    );
+
+    await writeAudit(
+      conn, requestId, 'INVENTORY_RECEIVED', performed_by,
+      dr.CURRENT_STAGE, 'Completed',
+      `Drug order received and stocked`
+    );
+
+    // Create notifications
+    const brandName = dr.FINAL_SELECTED_BRAND || dr.BRAND_NAME;
+    const msg = `✅ Ordered drug "${brandName}" for Request #${requestId} has been received and stocked. The workflow is now completed.`;
+
+    // 1. Notify doctor
+    await createNotification(conn, dr.DOCTOR_ID, requestId, msg);
+
+    // 2. Notify HOD if present
+    if (dr.HOD_ID) {
+      await createNotification(conn, dr.HOD_ID, requestId, msg);
+    }
+
+    // 3. Notify CEO
+    const ceoUsers = await conn.execute(
+      `SELECT user_id FROM users WHERE UPPER(role) = 'CEO' AND is_active = 1`
+    );
+    for (const row of ceoUsers.rows) {
+      await createNotification(conn, row.USER_ID, requestId, msg);
+    }
+
+    // 4. Notify Pharmacists
+    const pharmUsers = await conn.execute(
+      `SELECT user_id FROM users WHERE UPPER(role) = 'PHARMACIST' AND is_active = 1`
+    );
+    for (const row of pharmUsers.rows) {
+      await createNotification(conn, row.USER_ID, requestId, msg);
+    }
+
+    res.json({ success: true, message: 'Request marked as inventory received.' });
+  } catch (err) {
+    console.error('POST /api/requests/:requestId/mark-inventory-received error:', err);
+    res.status(500).json({ error: 'Internal server error.', detail: err.message });
+  } finally {
+    try { await conn.close(); } catch (e) { }
+  }
+});
+
+// =============================================================
 // POST /api/alternatives/:requestId — Pharmacist submits alternatives
 // =============================================================
 app.post('/api/alternatives/:requestId', async (req, res) => {
@@ -4920,73 +5009,73 @@ app.get('/api/alternatives/:requestId/selected', async (req, res) => {
     const finalAltEntry = list.find(item => item.type === 'alternative');
     if (finalAltEntry) {
       final_drug = {
-        final_brand_name:      finalAltEntry.brand_name     || '',
-        final_generic_name:    finalGenericName,
-        final_manufacturer:    finalAltEntry.manufacturer   || '',
-        final_marketer:        finalAltEntry.marketer        || '',
-        final_mrp:             finalAltEntry.mrp             != null ? finalAltEntry.mrp    : null,
-        final_rate:            finalAltEntry.rate            != null ? finalAltEntry.rate   : null,
-        final_net_rate:        finalAltEntry.net_rate        != null ? finalAltEntry.net_rate : null,
-        final_profit_margin:   finalAltEntry.profit_margin  != null ? finalAltEntry.profit_margin  : null,
+        final_brand_name: finalAltEntry.brand_name || '',
+        final_generic_name: finalGenericName,
+        final_manufacturer: finalAltEntry.manufacturer || '',
+        final_marketer: finalAltEntry.marketer || '',
+        final_mrp: finalAltEntry.mrp != null ? finalAltEntry.mrp : null,
+        final_rate: finalAltEntry.rate != null ? finalAltEntry.rate : null,
+        final_net_rate: finalAltEntry.net_rate != null ? finalAltEntry.net_rate : null,
+        final_profit_margin: finalAltEntry.profit_margin != null ? finalAltEntry.profit_margin : null,
         final_absolute_margin: finalAltEntry.absolute_margin != null ? finalAltEntry.absolute_margin : null,
-        final_scheme_qty:      finalAltEntry.scheme_qty     != null ? finalAltEntry.scheme_qty  : null,
-        final_scheme_offer:    finalAltEntry.scheme_offer   || '',
-        final_pack:            finalAltEntry.pack            || '',
-        dtc_selected_category:    finalAltEntry.category         || dr.DTC_SELECTED_CATEGORY     || '',
-        dtc_recommendation_notes: finalAltEntry.notes            || dr.DTC_RECOMMENDATION_NOTES  || '',
-        dtc_reviewed_by_name:     dr.DTC_REVIEWED_BY_NAME        || '',
-        dtc_review_signature:     dr.DTC_REVIEW_SIGNATURE        || '',
-        ph_final_recommendation:  dr.PH_FINAL_RECOMMENDATION     || '',
-        dtc_selection_reasons:    finalAltEntry.reasons           || [],
+        final_scheme_qty: finalAltEntry.scheme_qty != null ? finalAltEntry.scheme_qty : null,
+        final_scheme_offer: finalAltEntry.scheme_offer || '',
+        final_pack: finalAltEntry.pack || '',
+        dtc_selected_category: finalAltEntry.category || dr.DTC_SELECTED_CATEGORY || '',
+        dtc_recommendation_notes: finalAltEntry.notes || dr.DTC_RECOMMENDATION_NOTES || '',
+        dtc_reviewed_by_name: dr.DTC_REVIEWED_BY_NAME || '',
+        dtc_review_signature: dr.DTC_REVIEW_SIGNATURE || '',
+        ph_final_recommendation: dr.PH_FINAL_RECOMMENDATION || '',
+        dtc_selection_reasons: finalAltEntry.reasons || [],
       };
     } else {
       // 2. Original-type entry (DTC selected the originally-requested drug)
       const finalOrigEntry = list.find(item => item.type === 'original');
       if (finalOrigEntry) {
         final_drug = {
-          final_brand_name:      finalOrigEntry.brand_name  || '',
-          final_generic_name:    finalGenericName,
-          final_manufacturer:    finalOrigEntry.manufacturer || '',
-          final_marketer:        finalOrigEntry.marketer     || '',
-          final_mrp:             finalOrigEntry.mrp          != null ? finalOrigEntry.mrp    : null,
-          final_rate:            finalOrigEntry.rate         != null ? finalOrigEntry.rate   : null,
-          final_net_rate:        finalOrigEntry.net_rate     != null ? finalOrigEntry.net_rate : null,
-          final_profit_margin:   finalOrigEntry.profit_margin != null ? finalOrigEntry.profit_margin : null,
+          final_brand_name: finalOrigEntry.brand_name || '',
+          final_generic_name: finalGenericName,
+          final_manufacturer: finalOrigEntry.manufacturer || '',
+          final_marketer: finalOrigEntry.marketer || '',
+          final_mrp: finalOrigEntry.mrp != null ? finalOrigEntry.mrp : null,
+          final_rate: finalOrigEntry.rate != null ? finalOrigEntry.rate : null,
+          final_net_rate: finalOrigEntry.net_rate != null ? finalOrigEntry.net_rate : null,
+          final_profit_margin: finalOrigEntry.profit_margin != null ? finalOrigEntry.profit_margin : null,
           final_absolute_margin: finalOrigEntry.absolute_margin != null ? finalOrigEntry.absolute_margin : null,
-          final_scheme_qty:      finalOrigEntry.scheme_qty  != null ? finalOrigEntry.scheme_qty : null,
-          final_scheme_offer:    finalOrigEntry.scheme_offer || '',
-          final_pack:            finalOrigEntry.pack         || '',
-          dtc_selected_category:    finalOrigEntry.category       || dr.DTC_SELECTED_CATEGORY     || '',
-          dtc_recommendation_notes: finalOrigEntry.notes          || dr.DTC_RECOMMENDATION_NOTES  || '',
-          dtc_reviewed_by_name:     dr.DTC_REVIEWED_BY_NAME       || '',
-          dtc_review_signature:     dr.DTC_REVIEW_SIGNATURE       || '',
-          ph_final_recommendation:  dr.PH_FINAL_RECOMMENDATION    || '',
-          dtc_selection_reasons:    finalOrigEntry.reasons         || [],
+          final_scheme_qty: finalOrigEntry.scheme_qty != null ? finalOrigEntry.scheme_qty : null,
+          final_scheme_offer: finalOrigEntry.scheme_offer || '',
+          final_pack: finalOrigEntry.pack || '',
+          dtc_selected_category: finalOrigEntry.category || dr.DTC_SELECTED_CATEGORY || '',
+          dtc_recommendation_notes: finalOrigEntry.notes || dr.DTC_RECOMMENDATION_NOTES || '',
+          dtc_reviewed_by_name: dr.DTC_REVIEWED_BY_NAME || '',
+          dtc_review_signature: dr.DTC_REVIEW_SIGNATURE || '',
+          ph_final_recommendation: dr.PH_FINAL_RECOMMENDATION || '',
+          dtc_selection_reasons: finalOrigEntry.reasons || [],
         };
       } else {
         // 3. Fallback: use the stored final_selected_brand column on drug_requests
         const fallbackBrand = dr.FINAL_SELECTED_BRAND || dr.DTC_SELECTED_BRAND || '';
         let parsedReasons = [];
-        try { parsedReasons = dr.FINAL_SELECTION_REASONS ? JSON.parse(dr.FINAL_SELECTION_REASONS) : []; } catch (_) {}
+        try { parsedReasons = dr.FINAL_SELECTION_REASONS ? JSON.parse(dr.FINAL_SELECTION_REASONS) : []; } catch (_) { }
         final_drug = {
-          final_brand_name:      fallbackBrand,
-          final_generic_name:    finalGenericName,
-          final_manufacturer:    dr.REQUEST_MANUFACTURER  || '',
-          final_marketer:        dr.REQUEST_MARKETER       || '',
-          final_mrp:             null,
-          final_rate:            null,
-          final_net_rate:        null,
-          final_profit_margin:   null,
+          final_brand_name: fallbackBrand,
+          final_generic_name: finalGenericName,
+          final_manufacturer: dr.REQUEST_MANUFACTURER || '',
+          final_marketer: dr.REQUEST_MARKETER || '',
+          final_mrp: null,
+          final_rate: null,
+          final_net_rate: null,
+          final_profit_margin: null,
           final_absolute_margin: null,
-          final_scheme_qty:      null,
-          final_scheme_offer:    '',
-          final_pack:            `${dr.REQUEST_DOSE_STRENGTH || ''} ${dr.REQUEST_DOSAGE_FORM || ''}`.trim(),
-          dtc_selected_category:    dr.FINAL_SELECTED_CATEGORY   || dr.DTC_SELECTED_CATEGORY     || '',
-          dtc_recommendation_notes: dr.FINAL_RECOMMENDATION_NOTES || dr.DTC_RECOMMENDATION_NOTES  || '',
-          dtc_reviewed_by_name:     dr.DTC_REVIEWED_BY_NAME       || '',
-          dtc_review_signature:     dr.DTC_REVIEW_SIGNATURE       || '',
-          ph_final_recommendation:  dr.PH_FINAL_RECOMMENDATION    || '',
-          dtc_selection_reasons:    parsedReasons,
+          final_scheme_qty: null,
+          final_scheme_offer: '',
+          final_pack: `${dr.REQUEST_DOSE_STRENGTH || ''} ${dr.REQUEST_DOSAGE_FORM || ''}`.trim(),
+          dtc_selected_category: dr.FINAL_SELECTED_CATEGORY || dr.DTC_SELECTED_CATEGORY || '',
+          dtc_recommendation_notes: dr.FINAL_RECOMMENDATION_NOTES || dr.DTC_RECOMMENDATION_NOTES || '',
+          dtc_reviewed_by_name: dr.DTC_REVIEWED_BY_NAME || '',
+          dtc_review_signature: dr.DTC_REVIEW_SIGNATURE || '',
+          ph_final_recommendation: dr.PH_FINAL_RECOMMENDATION || '',
+          dtc_selection_reasons: parsedReasons,
         };
       }
     }

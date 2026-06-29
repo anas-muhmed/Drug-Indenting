@@ -122,6 +122,11 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
   const [invForm, setInvForm] = useState({ ...EMPTY_INV });
   // Holds the single normalized DTC-selected CEO-approved drug object for inventory insertion
   const [finalApprovedDrug, setFinalApprovedDrug] = useState(null);
+  // ── Read-only Comparison Sheet overlay for Place-Order view ──────────
+  const [showCompSheet, setShowCompSheet] = useState(false);
+  const [compAlts, setCompAlts] = useState([]);
+  const [compEgd, setCompEgd] = useState({});
+  const [compExistingDetails, setCompExistingDetails] = useState([]);
 
   // Reset inventory state when view modal opens/closes
   const openView = async (req) => {
@@ -135,13 +140,87 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
     setInvModalOpen(false);
     setInvForm({ ...EMPTY_INV });
     setFinalApprovedDrug(null);
+    // Reset comparison sheet overlay state
+    setShowCompSheet(false);
+    setCompAlts([]);
+    setCompEgd({});
+    setCompExistingDetails([]);
     try {
-      const isOrderStage = req.STATUS === 'APPROVED_PENDING_ORDER' || req.STATUS === 'EMERGENCY_APPROVED';
+      const isOrderStage = req.STATUS === 'APPROVED_PENDING_ORDER' || req.STATUS === 'EMERGENCY_APPROVED' || req.STATUS === 'ORDER_PLACED' || req.STATUS === 'INVENTORY_RECEIVED';
       if (isOrderStage) {
         const r = await axios.get(`${API}/alternatives/${req.REQUEST_ID}/selected`);
         setExistingAlts(r.data ? [r.data] : []);
         // Extract the single final DTC-selected CEO-approved drug for inventory insertion
         setFinalApprovedDrug(r.data?.final_drug || null);
+
+        // Also fetch the full comparison sheet data for the read-only PDF download overlay
+        try {
+          const [altsRes, egdRes] = await Promise.all([
+            axios.get(`${API}/alternatives/${req.REQUEST_ID}`),
+            axios.get(`${API}/requests/${req.REQUEST_ID}/existing-generic-data`),
+          ]);
+          const altsRaw = altsRes.data?.alternatives || [];
+          const existingDetailsRaw = altsRes.data?.existing_details || [];
+          const egd = egdRes.data?.existing_generic_data || null;
+
+          setCompEgd(egd || {});
+          setCompExistingDetails(existingDetailsRaw.map(ed => ({
+            introduced_on: ed.INTRODUCED_ON ?? ed.introduced_on ?? '',
+            brand_name: ed.BRAND_NAME ?? ed.brand_name ?? '',
+            manufacturer: ed.MANUFACTURER ?? ed.manufacturer ?? '',
+            marketer: ed.MARKETER ?? ed.marketer ?? '',
+            consultant: ed.CONSULTANT ?? ed.consultant ?? '',
+            present_stock: ed.PRESENT_STOCK ?? ed.present_stock ?? '',
+            purchase_qty: ed.PURCHASE_QTY ?? ed.purchase_qty ?? '',
+            sale_qty: ed.SALE_QTY ?? ed.sale_qty ?? '',
+            pack: ed.PACK ?? ed.pack ?? '',
+            mrp_inc_gst_nos: ed.MRP_INC_GST_NOS ?? ed.mrp_inc_gst_nos ?? '',
+            rate_inc_gst_nos: ed.RATE_INC_GST_NOS ?? ed.rate_inc_gst_nos ?? '',
+            markup_margin: ed.MARKUP_MARGIN ?? ed.markup_margin ?? '',
+            scheme_qty: ed.SCHEME_QTY ?? ed.scheme_qty ?? '',
+            scheme_offer: ed.SCHEME_OFFER ?? ed.scheme_offer ?? '',
+            net_rate: ed.NET_RATE ?? ed.net_rate ?? '',
+            profit_margin: ed.PROFIT_MARGIN ?? ed.profit_margin ?? '',
+            absolute_margin: ed.ABSOLUTE_MARGIN ?? ed.absolute_margin ?? '',
+            total_margin: ed.TOTAL_MARGIN ?? ed.total_margin ?? '',
+            remark: ed.REMARK ?? ed.remark ?? '',
+          })));
+          setCompAlts(altsRaw.map(a => ({
+            brand_name: a.BRAND_NAME || a.brand_name || '',
+            manufacturer: a.MANUFACTURER || a.manufacturer || '',
+            marketer: a.MARKETER || a.marketer || '',
+            mrp_per_pack: a.MRP_PER_PACK ?? a.mrp_per_pack ?? '',
+            rate_per_pack: a.RATE_PER_PACK ?? a.rate_per_pack ?? '',
+            gst_percent: a.GST_PERCENT ?? a.gst_percent ?? '',
+            mrp: a.MRP ?? a.mrp ?? '',
+            rate: a.RATE ?? a.rate ?? '',
+            qty: a.QTY ?? a.qty ?? '',
+            offer: a.OFFER ?? a.offer ?? '',
+            net_rate: a.NET_RATE ?? a.net_rate ?? '',
+            margin: a.ABSOLUTE_MARGIN ?? a.margin ?? '',
+            markupmargin: a.MARKUP_MARGIN ?? a.markupmargin ?? '',
+            profit_margin: a.PROFIT_MARGIN ?? a.profit_margin ?? '',
+            stock: a.STOCK || a.stock || '',
+            purchase_qty: a.PURCHASE_QUANTITY ?? a.purchase_qty ?? '',
+            consultant: a.CONSULTANT || a.consultant || '',
+            sale_qty: a.SALE_QTY ?? a.sale_qty ?? '',
+            pack: a.PACK || a.pack || '',
+            introduced_on: a.INTRODUCED_ON || a.introduced_on || 'New Item',
+            remark: a.REMARK || a.remark || '',
+            negorate: a.NEGOTIATED_RATE ?? a.negorate ?? '',
+            comparison_type: a.COMPARISON_TYPE || a.comparison_type || '',
+            submitted_by: a.SUBMITTED_BY || a.submitted_by || '',
+            // Negotiated fields
+            negotiated_mrp: a.NEGOTIATED_MRP ?? a.negotiated_mrp ?? a.MRP_PER_PACK ?? a.mrp_per_pack ?? '',
+            negotiated_rate: a.NEGOTIATED_RATE ?? a.negotiated_rate ?? a.RATE_PER_PACK ?? a.rate_per_pack ?? '',
+            negotiated_gst: a.NEGOTIATED_GST ?? a.negotiated_gst ?? a.GST_PERCENT ?? a.gst_percent ?? '',
+            negotiated_scheme_qty: a.NEGOTIATED_SCHEME_QTY ?? a.negotiated_scheme_qty ?? a.QTY ?? a.qty ?? '',
+            negotiated_scheme_offer: a.NEGOTIATED_SCHEME_OFFER ?? a.negotiated_scheme_offer ?? a.OFFER ?? a.offer ?? '',
+            negotiation_remarks: a.NEGOTIATION_REMARKS ?? a.negotiation_remarks ?? a.REMARK ?? a.remark ?? '',
+          })));
+        } catch (compErr) {
+          console.error('Failed to load comparison sheet data for PDF view:', compErr);
+        }
       } else {
         const r = await axios.get(`${API}/alternatives/${req.REQUEST_ID}`);
         setExistingAlts(r.data?.alternatives || []);
@@ -279,7 +358,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
   const updateAlternativeCalculations = (i, field, val) => {
     setAlternatives(prev => prev.map((alt, idx) => {
       if (idx !== i) return alt;
-      
+
       const newAlt = { ...alt, [field]: val };
       const mrp = parseFloat(newAlt.mrp) || 0;
       const rate = parseFloat(newAlt.rate) || 0;
@@ -785,17 +864,17 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
     setIrDosageFilter('');
     setIrDosageFormFilter('');
     setIrShowGenericPopup(true);
-    
+
     try {
       const searchRes = await axios.get(`${API}/generics/search?q=${encodeURIComponent(genericName)}`);
       const suggestions = searchRes.data || [];
       setIrGenericSuggestions(suggestions);
-      
+
       const match = suggestions.find(s => s.drug_gen_name.toLowerCase() === genericName.toLowerCase()) || suggestions[0];
       if (match) {
         setIrSelectedGeneric(match);
         setIrSearchQuery(match.drug_gen_name);
-        
+
         const formattedFrom = irFromDate.split('-').reverse().join('/') + ' 00:00:00';
         const formattedTo = irToDate.split('-').reverse().join('/') + ' 23:59:59';
         setIrLoadingReport(true);
@@ -936,14 +1015,32 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
   };
 
   const placeOrder = async (reqId) => {
-    if (!window.confirm(`Are you sure you want to place the order for Emergency Request #${reqId}?`)) return;
+    if (!window.confirm(`Are you sure you want to place the order for Request #${reqId}?`)) return;
     try {
       await axios.post(`${API}/requests/${reqId}/place_order`, { performed_by: currentUser.USER_ID });
       setAlertMsg({ type: 'success', msg: `✅ Order placed successfully for Request #${reqId}.` });
       await loadRequests();
+      if (viewReq && viewReq.REQUEST_ID === reqId) {
+        setViewReq(prev => ({ ...prev, STATUS: 'ORDER_PLACED', CURRENT_STAGE: 'OrderPlaced' }));
+      }
       setDashKey(k => k + 1);
     } catch (err) {
       setAlertMsg({ type: 'error', msg: err.response?.data?.error || 'Failed to place order.' });
+    }
+  };
+
+  const markInventoryReceived = async (reqId) => {
+    if (!window.confirm(`Are you sure you want to confirm stock receipt for Request #${reqId}?`)) return;
+    try {
+      await axios.post(`${API}/requests/${reqId}/mark-inventory-received`, { performed_by: currentUser.USER_ID });
+      setAlertMsg({ type: 'success', msg: `✅ Request #${reqId} successfully marked as inventory received.` });
+      await loadRequests();
+      if (viewReq && viewReq.REQUEST_ID === reqId) {
+        setViewReq(prev => ({ ...prev, STATUS: 'INVENTORY_RECEIVED', CURRENT_STAGE: 'Completed' }));
+      }
+      setDashKey(k => k + 1);
+    } catch (err) {
+      setAlertMsg({ type: 'error', msg: err.response?.data?.error || 'Failed to mark inventory as received.' });
     }
   };
 
@@ -1012,7 +1109,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
           { key: 'corrections', label: `🔁 Corrections (${correctionRequests.length})` },
           { key: 'pending', label: `💊 Analysis Queue (${normalPending.length})` },
           { key: 'emergency', label: `🚨 Emergency (${emergencyView.length})` },
-          { key: 'orders', label: `📦 Pending Orders (${requests.filter(r => r.STATUS === 'APPROVED_PENDING_ORDER' || r.STATUS === 'EMERGENCY_APPROVED').length})` },
+          { key: 'orders', label: `📦 Pending Orders (${requests.filter(r => ['APPROVED_PENDING_ORDER', 'EMERGENCY_APPROVED', 'ORDER_PLACED'].includes(r.STATUS)).length})` },
           { key: 'drafts', label: `📁 My Drafts (${drafts.length})` },
           { key: 'form', label: '📝 Create Drug Request' },
           { key: 'dashboard', label: '📊 Dashboard' },
@@ -1270,7 +1367,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
               <span>🔍 Search Existing Drugs in Formulary</span>
               <button className="btn btn-ghost btn-sm" onClick={() => { setIrShowGenericPopup(false); setIrDosageFilter(''); setIrDosageFormFilter(''); }}>✕ Close</button>
             </div>
-            
+
             <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1, background: '#f8fafc' }}>
               {/* Explorer Panel */}
               <div style={{
@@ -1939,7 +2036,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
           <div className="alert alert-info" style={{ marginBottom: 18, fontSize: '0.82rem' }}>
             💡 Requests here have received Final/CEO approval and require order placement.
           </div>
-          {requests.filter(r => r.STATUS === 'APPROVED_PENDING_ORDER' || r.STATUS === 'EMERGENCY_APPROVED').length === 0 ? (
+          {requests.filter(r => ['APPROVED_PENDING_ORDER', 'EMERGENCY_APPROVED', 'ORDER_PLACED', 'INVENTORY_RECEIVED'].includes(r.STATUS)).length === 0 ? (
             <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-subtle)' }}>
               <div style={{ fontSize: '3rem', marginBottom: 12 }}>✅</div>No pending orders.
             </div>
@@ -1958,7 +2055,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {requests.filter(r => r.STATUS === 'APPROVED_PENDING_ORDER' || r.STATUS === 'EMERGENCY_APPROVED').map(r => {
+                  {requests.filter(r => ['APPROVED_PENDING_ORDER', 'EMERGENCY_APPROVED', 'ORDER_PLACED', 'INVENTORY_RECEIVED'].includes(r.STATUS)).map(r => {
                     const invAdded = r.INVENTORY_ADDED === 1;
                     return (
                       <tr key={r.REQUEST_ID}>
@@ -1988,7 +2085,9 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                         <td>
                           <div style={{ display: 'flex', gap: 6 }}>
                             <button className="btn btn-ghost btn-sm" onClick={() => openView(r)}>👁 View Details</button>
-                            <button className="btn btn-primary btn-sm" onClick={() => placeOrder(r.REQUEST_ID)}>📦 Place Order</button>
+                            {(r.STATUS === 'APPROVED_PENDING_ORDER' || r.STATUS === 'EMERGENCY_APPROVED') && (
+                              <button className="btn btn-primary btn-sm" onClick={() => placeOrder(r.REQUEST_ID)}>📦 Place Order</button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -2694,7 +2793,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
             </div>
             <div style={{ overflowY: 'auto', flex: 1, padding: '20px 24px' }}>
               {(() => {
-                const isOrderStage = viewReq?.STATUS === 'APPROVED_PENDING_ORDER' || viewReq?.STATUS === 'EMERGENCY_APPROVED';
+                const isOrderStage = viewReq?.STATUS === 'APPROVED_PENDING_ORDER' || viewReq?.STATUS === 'EMERGENCY_APPROVED' || viewReq?.STATUS === 'ORDER_PLACED' || viewReq?.STATUS === 'INVENTORY_RECEIVED';
                 if (isOrderStage) {
                   if (existingAlts.length === 0) {
                     return (
@@ -2795,6 +2894,96 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                             <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>DTC Signature</div>
                             <div style={{ fontSize: '0.875rem', fontFamily: 'cursive', color: '#0284c7', marginTop: 2 }}>{drug.dtc_review_signature || '—'}</div>
                           </div>
+                        </div>
+
+                        {/* ── Download Comparison Sheet ── */}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px dashed #cbd5e1', paddingTop: 14, marginTop: 14 }}>
+                          <button
+                            type="button"
+                            onClick={() => setShowCompSheet(true)}
+                            style={{
+                              background: 'linear-gradient(135deg,#10b981,#059669)',
+                              border: 'none',
+                              color: '#fff',
+                              padding: '10px 20px',
+                              borderRadius: 8,
+                              cursor: 'pointer',
+                              fontWeight: 700,
+                              fontSize: '0.875rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              boxShadow: '0 4px 12px rgba(16,185,129,0.3)',
+                              transition: 'box-shadow 0.2s',
+                            }}
+                          >
+                            📥 Download Comparison Sheet
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* ── Order & Stocking Actions ── */}
+                      <div style={{
+                        background: '#f8fafc',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: 12,
+                        padding: '18px 20px',
+                        marginBottom: 16
+                      }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#0f172a', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                          📦 Order & Stocking Actions
+                        </div>
+                        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                          {/* Place Order Actions */}
+                          {(viewReq.STATUS === 'APPROVED_PENDING_ORDER' || viewReq.STATUS === 'EMERGENCY_APPROVED') ? (
+                            <button
+                              onClick={() => placeOrder(viewReq.REQUEST_ID)}
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 6,
+                                padding: '10px 20px', borderRadius: 8, border: 'none',
+                                fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer',
+                                background: 'linear-gradient(135deg,#2563eb,#1d4ed8)',
+                                color: '#fff',
+                                boxShadow: '0 2px 8px rgba(37,99,235,0.25)'
+                              }}
+                            >
+                              📦 Place Order
+                            </button>
+                          ) : (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#dbeafe', color: '#1e40af', borderRadius: 20, padding: '4px 12px', fontSize: '0.78rem', fontWeight: 700 }}>
+                              ✓ Order Placed
+                            </span>
+                          )}
+
+                          {/* Inventory Received status action */}
+                          {viewReq.STATUS !== 'INVENTORY_RECEIVED' ? (
+                            (() => {
+                              const isOrderPlaced = viewReq.STATUS === 'ORDER_PLACED';
+                              return (
+                                <button
+                                  disabled={!isOrderPlaced}
+                                  onClick={() => markInventoryReceived(viewReq.REQUEST_ID)}
+                                  title={!isOrderPlaced ? "Inventory can only be marked as received after the purchase order has been placed." : ""}
+                                  style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                                    padding: '10px 20px', borderRadius: 8,
+                                    border: isOrderPlaced ? '1.5px solid #cbd5e1' : '1.5px solid #e2e8f0',
+                                    fontWeight: 700, fontSize: '0.85rem',
+                                    cursor: isOrderPlaced ? 'pointer' : 'not-allowed',
+                                    background: isOrderPlaced ? '#fff' : '#f1f5f9',
+                                    color: isOrderPlaced ? '#334155' : '#94a3b8',
+                                    transition: 'all 0.2s',
+                                  }}
+                                >
+                                  ✅ Mark as Inventory Received
+                                </button>
+                              );
+                            })()
+                          ) : (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#dcfce7', color: '#166534', borderRadius: 20, padding: '4px 12px', fontSize: '0.78rem', fontWeight: 700 }}>
+                              🏁 Completed & Stocked
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -3409,6 +3598,51 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
           correctionErr={altErr}
           onAddAlt={addAlt}
           onBack={() => { setShowComparisonSheet(false); if (isCorrectionMode) setView('corrections'); }}
+        />
+      )}
+
+      {/* ── Read-Only Comparison Sheet Overlay (Pharmacist Place-Order Download) ── */}
+      {showCompSheet && viewReq && (
+        <ComparisonSheet
+          mode="readonly"
+          compType={
+            (compAlts.length > 0 && compAlts[0].comparison_type) ||
+            (((viewReq.REQUEST_TYPE || viewReq.request_type || '').toLowerCase() === 'new molecule') ? 'new_generic' : 'existing_generic')
+          }
+          alternatives={compAlts}
+          existingGenericData={compEgd}
+          existingDetails={compExistingDetails}
+          pharmRemarks={viewReq.PHARMACIST_REMARKS || ''}
+          phRemarks={viewReq.PH_REVIEW_REMARKS || viewReq.PH_REVIEW2_REMARKS || viewReq.PH_REMARKS2 || ''}
+          requestInfo={viewReq}
+          dtcSelectedBrand={viewReq.DTC_SELECTED_BRAND || ''}
+          dtcSelectedCategory={viewReq.DTC_SELECTED_CATEGORY || viewReq.FORMULARY_REQUEST_TYPE || ''}
+          dtcSelectionReasons={(() => {
+            if (!viewReq.DTC_SELECTION_REASONS) return [];
+            try {
+              return typeof viewReq.DTC_SELECTION_REASONS === 'string'
+                ? JSON.parse(viewReq.DTC_SELECTION_REASONS)
+                : viewReq.DTC_SELECTION_REASONS;
+            } catch {
+              return viewReq.DTC_SELECTION_REASONS.split(',').map(r => r.trim()).filter(Boolean);
+            }
+          })()}
+          dtcRecommendationNotes={viewReq.DTC_RECOMMENDATION_NOTES || viewReq.DTC_FINAL_SELECTION_NOTES || ''}
+          dtcReviewedByName={viewReq.DTC_REVIEWED_BY_NAME || ''}
+          dtcReviewSignature={viewReq.DTC_REVIEW_SIGNATURE || ''}
+          dtcRemarks={viewReq.DTC_REMARKS || viewReq.DTC_FINAL_REMARKS || ''}
+          dtcReviewedAt={viewReq.DTC_REVIEWED_AT || ''}
+          dtcFinalRecommendations={(() => {
+            if (!viewReq.DTC_FINAL_RECOMMENDATIONS) return [];
+            try {
+              return typeof viewReq.DTC_FINAL_RECOMMENDATIONS === 'string'
+                ? JSON.parse(viewReq.DTC_FINAL_RECOMMENDATIONS)
+                : viewReq.DTC_FINAL_RECOMMENDATIONS;
+            } catch {
+              return [];
+            }
+          })()}
+          onBack={() => setShowCompSheet(false)}
         />
       )}
 

@@ -20,7 +20,11 @@ const STAGE_NORMALIZER = {
   'DTCFinalReview': 'DTCFinalReview',
   'CEO': 'CEO',
   'Final': 'Final',
-  'OrderPlaced': 'Final'
+  'OrderPlaced': 'OrderPlaced',
+  'INVENTORY_RECEIVED': 'InventoryReceived',
+  'INVENTORY_STOCKED': 'InventoryReceived',
+  'ORDER_RECEIVED': 'InventoryReceived',
+  'Completed': 'Completed'
 };
 
 export const FLOW_CONFIG = {
@@ -34,7 +38,10 @@ export const FLOW_CONFIG = {
     { key: 'PharmacyHeadReview2', label: 'Pharmacy Head' },
     { key: 'DTCFinalReview', label: 'DTC' },
     { key: 'CEO', label: 'CEO' },
-    { key: 'Final', label: 'Approved' }
+    { key: 'Final', label: 'Approved' },
+    { key: 'OrderPlaced', label: 'Order Placed' },
+    { key: 'InventoryReceived', label: 'Inventory Received' },
+    { key: 'Completed', label: 'Completed' }
   ],
   HOD: [
     { key: 'HOD', label: 'HOD' },
@@ -45,7 +52,10 @@ export const FLOW_CONFIG = {
     { key: 'PharmacyHeadReview2', label: 'Pharmacy Head' },
     { key: 'DTCFinalReview', label: 'DTC' },
     { key: 'CEO', label: 'CEO' },
-    { key: 'Final', label: 'Approved' }
+    { key: 'Final', label: 'Approved' },
+    { key: 'OrderPlaced', label: 'Order Placed' },
+    { key: 'InventoryReceived', label: 'Inventory Received' },
+    { key: 'Completed', label: 'Completed' }
   ]
 };
 
@@ -60,7 +70,10 @@ export const STAGE_INDEX_MAP = {
     'PharmacyHeadReview2': 6,
     'DTCFinalReview': 7,
     'CEO': 8,
-    'Final': 9
+    'Final': 9,
+    'OrderPlaced': 10,
+    'InventoryReceived': 11,
+    'Completed': 12
   },
   HOD: {
     'HOD': 0,
@@ -71,7 +84,10 @@ export const STAGE_INDEX_MAP = {
     'PharmacyHeadReview2': 5,
     'DTCFinalReview': 6,
     'CEO': 7,
-    'Final': 8
+    'Final': 8,
+    'OrderPlaced': 9,
+    'InventoryReceived': 10,
+    'Completed': 11
   }
 };
 
@@ -95,10 +111,10 @@ export function getRejectionStage(r) {
 
 export function getStageIndex(stage, status, requestSource = 'DOCTOR', request = null) {
   const source = String(requestSource).toUpperCase() === 'HOD' ? 'HOD' : 'DOCTOR';
-  
+
   // Identify rejection statuses
   const isRejected = ['Rejected', 'HOD_REJECTED', 'PHARMACIST_REJECTED', 'PHARMACY_HEAD_REJECTED', 'CEO_REJECTED', 'EMERGENCY_REJECTED'].includes(status);
-  
+
   let targetStage = stage;
   if (isRejected || stage === 'Rejected') {
     if (request) {
@@ -111,8 +127,14 @@ export function getStageIndex(stage, status, requestSource = 'DOCTOR', request =
       else if (status === 'CEO_REJECTED') targetStage = 'CEO';
       else targetStage = 'CEO';
     }
+  } else {
+    if (status === 'ORDER_PLACED') {
+      targetStage = 'OrderPlaced';
+    } else if (status === 'INVENTORY_RECEIVED' || status === 'INVENTORY_STOCKED' || status === 'ORDER_RECEIVED') {
+      targetStage = 'Completed';
+    }
   }
-  
+
   const normalizedKey = STAGE_NORMALIZER[targetStage] || targetStage;
   const index = STAGE_INDEX_MAP[source][normalizedKey];
   return index !== undefined ? index : 0;
@@ -141,6 +163,8 @@ export const STATUS_BADGE_MAP = {
   EMERGENCY_REJECTED: <span className="badge" style={{ background: '#fee2e2', color: '#991b1b' }}>❌ Emergency Rejected</span>,
   ORDER_PLACED: <span className="badge" style={{ background: '#dbeafe', color: '#1e40af' }}>📦 Order Placed</span>,
   APPROVED_PENDING_ORDER: <span className="badge badge-approved">✅ Approved (Pending Order)</span>,
+  INVENTORY_RECEIVED: <span className="badge badge-approved" style={{ background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0' }}>🏁 Completed</span>,
+  INVENTORY_STOCKED: <span className="badge badge-approved" style={{ background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0' }}>🏁 Completed</span>,
 };
 
 export function getStatusBadge(status, role) {
