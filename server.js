@@ -3519,7 +3519,7 @@ app.post('/api/getPatientInfo', async (req, res) => {
 
 //ai generate prompt
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
-const GROQ_MODEL = "llama-3.3-70b-versatile";
+const GROQ_MODEL = "openai/gpt-oss-120b";
 
 if (!GROQ_API_KEY) {
   console.error("❌ GROQ_API_KEY missing in .env");

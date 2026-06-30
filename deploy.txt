@@ -96,7 +96,17 @@ THIS WAS 18:21-05/06/2026 SORRY FOR THIS MESS :
 this was 24th june 2026-17:12
 
 
+Execute these queries first to confirm you're in the correct schema:>>>
 
+SELECT USER FROM dual;
+
+
+
+Also check how many requests currently exist:>>
+
+SELECT COUNT(*) FROM drug_requests;
+
+after every this this should return 0
 
 BEGIN
     -- Workflow & Notifications
