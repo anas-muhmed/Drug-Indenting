@@ -904,7 +904,7 @@ export default function DoctorTab({ currentUser, onNotificationsRead }) {
                     </div>
                     <div className="form-group">
                       <label className="form-label">
-                        Medicine Quantity <span className="req">*</span>
+                        Medicine Quantity /Month <span className="req">*</span>
                       </label>
                       <input
                         {...fld('medicine_quantity')}
