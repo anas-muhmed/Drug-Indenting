@@ -1111,10 +1111,12 @@ app.post('/api/requests', async (req, res) => {
     const creatorRole = creatorRes.rows[0].ROLE;
     const creatorDept = creatorRes.rows[0].DEPARTMENT;
 
-    let initialStatus = 'Pending';
-    let initialStage = 'PharmacyHead';
+    // Initialize workflow variables
+    let initialStatus = 'HOD_APPROVED';
+    let initialStage = 'PharmacistInitialReview';
     let hodId = null;
 
+    // Determine workflow based on role
     if (creatorRole && creatorRole.toLowerCase() === 'doctor') {
       // Only attempt HOD routing if the doctor has a department set
       if (creatorDept && creatorDept.trim() !== '') {
@@ -1128,16 +1130,16 @@ app.post('/api/requests', async (req, res) => {
           initialStatus = 'PENDING_HOD';
           initialStage = 'HOD';
         } else {
-          // No HOD for this department → fall back to Pharmacy Head directly
-          console.warn(`[WARN] No HOD found for department '${creatorDept}'. Routing directly to PharmacyHead.`);
-          initialStatus = 'Pending';
-          initialStage = 'PharmacyHead';
+          // No HOD for this department → route to Pharmacist (Initial Review)
+          console.warn(`[WARN] No HOD found for department '${creatorDept}'. Routing to PharmacistInitialReview.`);
+          initialStatus = 'HOD_APPROVED';
+          initialStage = 'PharmacistInitialReview';
         }
       } else {
-        // Doctor has no department set → fall back to Pharmacy Head directly
-        console.warn(`[WARN] Doctor (user_id=${doctor_id}) has no department set. Routing directly to PharmacyHead.`);
-        initialStatus = 'Pending';
-        initialStage = 'PharmacyHead';
+        // Doctor has no department set → route to Pharmacist (Initial Review)
+        console.warn(`[WARN] Doctor (user_id=${doctor_id}) has no department set. Routing to PharmacistInitialReview.`);
+        initialStatus = 'HOD_APPROVED';
+        initialStage = 'PharmacistInitialReview';
       }
     } else if (creatorRole && creatorRole.toLowerCase() === 'hod') {
       initialStatus = 'HOD_APPROVED';
