@@ -2900,19 +2900,20 @@ app.post('/api/getGeneric', async (req, res) => {
   const conn = await getConn();
 
   try {
-    const search = req.body.search;
+    const search = req.body.search?.trim();
 
-    console.log(search, req.body);
-
-    if (!search || search.trim() === '') {
+    if (!search) {
       return res.status(400).json({
         error: 'Search term is required.'
       });
     }
 
+    console.log('Searching Generic:', search);
+
     const result = await conn.execute(
       `
       SELECT DISTINCT
+          i.ID,
           i.NAME,
 
           dg.DRUG_GEN_NAME,
@@ -2936,9 +2937,6 @@ app.post('/api/getGeneric', async (req, res) => {
             INNER JOIN ISSUEHEADER ih
               ON ih.TRANSACTION_ID = id.ISSUEHEADER_ID
             WHERE id.ITEM = i.ID
-              AND ih.CREATEDDT BETWEEN
-                  TO_DATE('01-06-2023', 'DD-MM-YYYY')
-                  AND TO_DATE('31-08-2023', 'DD-MM-YYYY')
           ) AS TOTAL_SALE_QTY,
 
           (
@@ -2947,40 +2945,44 @@ app.post('/api/getGeneric', async (req, res) => {
             WHERE li.ITEM = i.ID
               AND li.ITEMRATE IS NOT NULL
               AND li.ITEMRATE > 0
-            ORDER BY li.DOCDETAILID ASC
+            ORDER BY li.DOCDETAILID DESC
             FETCH FIRST 1 ROW ONLY
-          ) AS FIRST_PURCHASE_RATE
+          ) AS LATEST_PURCHASE_RATE
 
       FROM ITEM i
 
       INNER JOIN DRUGDETAIL dd
-        ON dd.ITEM_REFID = i.ID
+          ON dd.ITEM_REFID = i.ID
 
       INNER JOIN GENERICDRUGMAPPING dgm
-        ON dgm.ITEMGENERICID = dd.ITEMGENERICID
+          ON dgm.ITEMGENERICID = dd.ITEMGENERICID
 
       INNER JOIN DRUGGENERICS dg
-        ON dg.DRUG_GEN_ID = dgm.DRUGGENERICS
+          ON dg.DRUG_GEN_ID = dgm.DRUGGENERICS
 
       LEFT JOIN CURRENTSTOCK cs
-        ON cs.ITEM = i.ID
+          ON cs.ITEM = i.ID
 
       LEFT JOIN MARKETTERMASTER mm
-        ON mm.ID = i.MARKETTER_ID
+          ON mm.ID = i.MARKETTER_ID
 
       LEFT JOIN MANUFACTURER mf
-        ON mf.ID = i.MANUFACTURER_ID
+          ON mf.ID = i.MANUFACTURER_ID
 
-      WHERE LOWER(dg.DRUG_GEN_NAME) = LOWER(:search)
+      WHERE LOWER(dg.DRUG_GEN_NAME) LIKE '%' || LOWER(:search) || '%'
 
-      ORDER BY i.CREATEDDATETIME DESC
+      ORDER BY
+          dg.DRUG_GEN_NAME,
+          i.CREATEDDATETIME DESC
       `,
       {
-        search: search.trim()
+        search
       }
     );
 
     res.json({
+      success: true,
+      search,
       count: result.rows.length,
       list: result.rows
     });
@@ -2989,6 +2991,7 @@ app.post('/api/getGeneric', async (req, res) => {
     console.error('POST /api/getGeneric error:', err);
 
     res.status(500).json({
+      success: false,
       error: 'Internal server error.',
       detail: err.message
     });
@@ -2999,9 +3002,6 @@ app.post('/api/getGeneric', async (req, res) => {
     }
   }
 });
-
-
-
 // =============================================================
 // POST /api/saveGenericItem
 // Save a new drug item into existing HIS inventory tables.
