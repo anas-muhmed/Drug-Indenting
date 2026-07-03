@@ -18,7 +18,75 @@ const EMPTY_FORM = {
   request_type: '', category: '',
   brand_name: '', generic_name: '', dose_strength: '', dosage_form: '',
   manufacturer: '', marketer: '', existing_brands: '',
+  selected_existing_brands: [],
   clinical_justification: '', expected_patients_pm: '', medicine_quantity: '', cost_reduction_benefit: false, ai_content: '',
+};
+
+// ── Existing-brands serialization helpers ────────────────────────────────────
+const serializeExistingBrands = (list) => {
+  if (!list || list.length === 0) return '';
+  const items = list.map(item => {
+    const parts = [];
+    if (item.NAME) parts.push(item.NAME);
+    if (item.DRUG_GEN_NAME) parts.push(item.DRUG_GEN_NAME);
+    if (item.MRP) parts.push(`MRP: ${item.MRP}`);
+    if (item.MANUFACTURER_NAME) parts.push(`Mfr: ${item.MANUFACTURER_NAME}`);
+    if (item.MARKETTER_NAME) parts.push(`Mkt: ${item.MARKETTER_NAME}`);
+    return parts.join(' — ');
+  });
+  let result = items.join(', ');
+  if (result.length > 495) result = result.substring(0, 492) + '...';
+  return result;
+};
+
+const parseExistingBrands = (str) => {
+  if (!str || !str.trim()) return [];
+  return str.split(/,\s*(?=[A-Z])/).map(item => {
+    const parts = item.split(/\s*—\s*/);
+    let name = parts[0] || '';
+    let generic = parts[1] || '';
+    let mrp = '', manufacturer = '', marketer = '';
+    parts.slice(2).forEach(p => {
+      const t = p.trim();
+      if (t.startsWith('MRP:')) mrp = t.replace('MRP:', '').trim();
+      else if (t.startsWith('Mfr:')) manufacturer = t.replace('Mfr:', '').trim();
+      else if (t.startsWith('Mkt:')) marketer = t.replace('Mkt:', '').trim();
+      else if (!manufacturer) manufacturer = t;
+    });
+    return { name: name.trim(), generic: generic.trim(), mrp, manufacturer, marketer };
+  }).filter(item => item.name);
+};
+
+const RenderExistingBrandsTable = ({ text }) => {
+  const parsed = parseExistingBrands(text);
+  if (!parsed || parsed.length === 0) return null;
+  return (
+    <div style={{ marginTop: 16 }}>
+      <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#0891b2', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>🏷️ Existing Brands on Formulary</div>
+      <div style={{ border: '1px solid #bae6fd', borderRadius: 8, overflow: 'hidden' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+          <thead style={{ background: '#e0f2fe' }}>
+            <tr>
+              <th style={{ padding: '6px 10px', textAlign: 'left', color: '#0369a1', fontWeight: 700 }}>Brand</th>
+              <th style={{ padding: '6px 10px', textAlign: 'left', color: '#0369a1', fontWeight: 700 }}>Generic</th>
+              <th style={{ padding: '6px 10px', textAlign: 'left', color: '#0369a1', fontWeight: 700 }}>Manufacturer</th>
+              <th style={{ padding: '6px 10px', textAlign: 'left', color: '#0369a1', fontWeight: 700 }}>MRP</th>
+            </tr>
+          </thead>
+          <tbody>
+            {parsed.map((item, idx) => (
+              <tr key={idx} style={{ background: idx % 2 === 0 ? '#f0f9ff' : '#fff' }}>
+                <td style={{ padding: '6px 10px', fontWeight: 600, color: '#0c4a6e' }}>{item.name}</td>
+                <td style={{ padding: '6px 10px', color: '#0c4a6e' }}>{item.generic || '—'}</td>
+                <td style={{ padding: '6px 10px', color: '#0c4a6e' }}>{item.manufacturer || '—'}</td>
+                <td style={{ padding: '6px 10px', fontWeight: 600, color: '#16a34a' }}>{item.mrp ? `₹${item.mrp}` : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 };
 
 const REQUIRED_FIELDS_BASE = [
@@ -193,6 +261,8 @@ export default function HODTab({ currentUser, onNotificationsRead }) {
   const [remainingQuota, setRemainingQuota] = useState(10);
   const [genericlist, setGenericlist] = useState([]);
   const [showGenericPopup, setShowGenericPopup] = useState(false);
+  const [selectedGenericDrugs, setSelectedGenericDrugs] = useState([]);
+  const [popupError, setPopupError] = useState('');
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
   const [showDrugProfilePopup, setShowDrugProfilePopup] = useState(false);
@@ -282,11 +352,19 @@ export default function HODTab({ currentUser, onNotificationsRead }) {
       setPopupGenericName(generic);
       const res = await axios.post(`${API}/getGeneric`, { search: generic });
       const record = res.data;
-      setGenericlist(record.list || []);
+      const list = (record.list || []).map((item, idx) => ({
+        ...item,
+        uiKey: `${item.ID || 'item'}_${idx}`
+      }));
+      setGenericlist(list);
+      setSelectedGenericDrugs(form.selected_existing_brands || []);
+      setPopupError('');
       setShowGenericPopup(true);
     } catch (err) {
       console.error(err);
       setGenericlist([]);
+      setSelectedGenericDrugs(form.selected_existing_brands || []);
+      setPopupError('');
       setShowGenericPopup(true);
     } finally {
       setGenericLoading(false);
@@ -665,12 +743,7 @@ export default function HODTab({ currentUser, onNotificationsRead }) {
 
               {/* Existing brands if any */}
               {selected.EXISTING_BRANDS && (
-                <div style={{ marginTop: 20 }}>
-                  <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#0891b2', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>🏷️ Existing Brands</div>
-                  <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 8, padding: '10px 14px', fontSize: '0.875rem', color: '#0c4a6e' }}>
-                    {selected.EXISTING_BRANDS}
-                  </div>
-                </div>
+                <RenderExistingBrandsTable text={selected.EXISTING_BRANDS} />
               )}
             </div>
 
@@ -980,13 +1053,63 @@ export default function HODTab({ currentUser, onNotificationsRead }) {
                   <input {...fld('marketer')} placeholder="Marketing company" />
                   {errors.marketer && <span className="form-error">{errors.marketer}</span>}
                 </div>
-                <div className="form-group form-full">
-                  <label className="form-label">Existing Brands on Formulary</label>
-                  <input
-                    name="existing_brands" value={form.existing_brands}
-                    onChange={handleChange} className="form-input"
-                    placeholder="List any existing similar brands already in formulary (optional)"
-                  />
+                <div className="form-group form-full" style={{ border: '1px solid #cbd5e1', borderRadius: 12, padding: 16, background: 'var(--bg-card2, #f8fafc)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                    <label className="form-label" style={{ margin: 0, fontWeight: 700 }}>Existing Brands on Formulary</label>
+                    <button
+                      type="button"
+                      onClick={getGenericDetails}
+                      disabled={genericLoading}
+                      style={{ background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: '#fff', border: 'none', borderRadius: 7, padding: '5px 12px', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, opacity: genericLoading ? 0.6 : 1 }}
+                    >
+                      {genericLoading ? '⏳ Loading…' : '🔍 Check & Add Existing Drugs'}
+                    </button>
+                  </div>
+
+                  {(!form.selected_existing_brands || form.selected_existing_brands.length === 0) ? (
+                    <div style={{ textAlign: 'center', padding: '14px 8px', color: '#64748b', fontSize: '0.82rem', border: '1px dashed #cbd5e1', borderRadius: 8, background: '#fff' }}>
+                      No existing brands selected. Click the button above to search the formulary.
+                    </div>
+                  ) : (
+                    <div style={{ border: '1px solid #cbd5e1', borderRadius: 8, overflow: 'hidden' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                        <thead style={{ background: '#f1f5f9' }}>
+                          <tr>
+                            <th style={{ padding: '6px 10px', textAlign: 'left', color: '#334155', fontWeight: 700 }}>Brand</th>
+                            <th style={{ padding: '6px 10px', textAlign: 'left', color: '#334155', fontWeight: 700 }}>Generic</th>
+                            <th style={{ padding: '6px 10px', textAlign: 'left', color: '#334155', fontWeight: 700 }}>Manufacturer</th>
+                            <th style={{ padding: '6px 10px', textAlign: 'left', color: '#334155', fontWeight: 700 }}>MRP</th>
+                            <th style={{ padding: '6px 10px', textAlign: 'center', color: '#334155', fontWeight: 700, width: 60 }}>Remove</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {form.selected_existing_brands.map((item) => (
+                            <tr key={item.uiKey} style={{ borderTop: '1px solid #e2e8f0' }}>
+                              <td style={{ padding: '6px 10px', fontWeight: 600 }}>{item.NAME}</td>
+                              <td style={{ padding: '6px 10px', color: 'var(--text-muted)' }}>{item.DRUG_GEN_NAME || '—'}</td>
+                              <td style={{ padding: '6px 10px', color: 'var(--text-muted)' }}>{item.MANUFACTURER_NAME || '—'}</td>
+                              <td style={{ padding: '6px 10px', fontWeight: 600, color: 'var(--success)' }}>{item.MRP ? `₹${item.MRP}` : '—'}</td>
+                              <td style={{ padding: '6px 10px', textAlign: 'center' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updatedList = form.selected_existing_brands.filter(s => s.uiKey !== item.uiKey);
+                                    setForm(f => ({
+                                      ...f,
+                                      selected_existing_brands: updatedList,
+                                      existing_brands: serializeExistingBrands(updatedList)
+                                    }));
+                                  }}
+                                  style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1rem', color: '#ef4444', lineHeight: 1 }}
+                                  title="Remove this brand"
+                                >❌</button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1125,192 +1248,237 @@ export default function HODTab({ currentUser, onNotificationsRead }) {
       )}
 
       {/* ======== GENERIC POPUP ======== */}
-      {showGenericPopup && (
-        <div
-          className="modal-overlay"
-          style={{ animation: 'none' }}
-          onClick={() => { setShowGenericPopup(false); setDosageFilter(''); setDosageFormFilter(''); }}
-        >
+      {showGenericPopup && (() => {
+        const filtered = genericlist.filter(item => {
+          const dosageMatch = !dosageFilter || extractDosage(item.NAME) === dosageFilter;
+          const formMatch = !dosageFormFilter || extractDosageForm(item.DOSAGE_FORM || item.NAME) === dosageFormFilter;
+          return dosageMatch && formMatch;
+        });
+
+        const allSelected = filtered.length > 0 && filtered.every(item => selectedGenericDrugs.some(selected => selected.uiKey === item.uiKey));
+
+        return (
           <div
-            className="modal"
-            style={{ maxWidth: '92vw', width: '92vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}
-            onClick={(e) => e.stopPropagation()}
+            className="modal-overlay"
+            style={{ animation: 'none' }}
+            onClick={() => {
+              setShowGenericPopup(false);
+              setDosageFilter('');
+              setDosageFormFilter('');
+              setSelectedGenericDrugs([]);
+              setPopupError('');
+            }}
           >
-            {/* Modal Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div className="modal-title" style={{ margin: 0 }}>
-                🔍 Existing Drugs — <span style={{ color: 'var(--primary)', fontStyle: 'italic' }}>{popupGenericName}</span>
+            <div
+              className="modal"
+              style={{ maxWidth: '92vw', width: '92vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, padding: '20px 24px 0', flexShrink: 0 }}>
+                <div className="modal-title" style={{ margin: 0 }}>
+                  🔍 Existing Drugs — <span style={{ color: 'var(--primary)', fontStyle: 'italic' }}>{popupGenericName}</span>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowGenericPopup(false);
+                    setDosageFilter('');
+                    setDosageFormFilter('');
+                    setSelectedGenericDrugs([]);
+                    setPopupError('');
+                  }}
+                  className="btn btn-ghost btn-sm"
+                  style={{ padding: '4px 10px', fontSize: '1rem', lineHeight: 1 }}
+                >
+                  ✕
+                </button>
               </div>
-              <button
-                onClick={() => { setShowGenericPopup(false); setDosageFilter(''); setDosageFormFilter(''); }}
-                className="btn btn-ghost btn-sm"
-                style={{ padding: '4px 10px', fontSize: '1rem', lineHeight: 1 }}
-              >
-                ✕
-              </button>
-            </div>
 
-            {/* Filter Bars — only when there are results */}
-            {genericlist.length > 0 && (() => {
-              const dosages = [...new Set(
-                genericlist.map(item => extractDosage(item.NAME)).filter(Boolean)
-              )].sort((a, b) => parseFloat(a) - parseFloat(b));
+              {/* Validation Warning Alert */}
+              {popupError && (
+                <div className="alert alert-error" style={{ margin: '0 24px 12px', fontSize: '0.82rem', padding: '8px 14px', flexShrink: 0 }}>
+                  ⚠️ {popupError}
+                </div>
+              )}
 
-              const dosageForms = [...new Set(
-                genericlist
-                  .map(item => extractDosageForm(item.DOSAGE_FORM || item.NAME))
-                  .filter(Boolean)
-              )].sort((a, b) => a.localeCompare(b));
+              {/* Scrollable Container for Filters and Body */}
+              <div style={{ overflowY: 'auto', flex: 1, padding: '0 24px' }}>
+                {/* Filter Bars — only when there are results */}
+                {genericlist.length > 0 && (() => {
+                  const dosages = [...new Set(
+                    genericlist.map(item => extractDosage(item.NAME)).filter(Boolean)
+                  )].sort((a, b) => parseFloat(a) - parseFloat(b));
 
-              const CHIP_BASE = {
-                padding: '4px 13px', fontSize: '0.78rem', fontWeight: 600,
-                borderRadius: 20, border: '1.5px solid', cursor: 'pointer', transition: 'all 0.15s',
-              };
+                  const dosageForms = [...new Set(
+                    genericlist
+                      .map(item => extractDosageForm(item.DOSAGE_FORM || item.NAME))
+                      .filter(Boolean)
+                  )].sort((a, b) => a.localeCompare(b));
 
-              return (
-                <>
-                  {/* Dosage Strength filter */}
-                  {dosages.length > 0 && (
-                    <div style={{
-                      background: '#f8fafc', border: '1px solid #e2e8f0',
-                      borderRadius: 10, padding: '12px 16px', marginBottom: 8
-                    }}>
-                      <div style={{
-                        fontSize: '0.72rem', fontWeight: 700, color: '#64748b',
-                        textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8
-                      }}>
-                        🔍 Filter by Dosage Strength
-                        {dosageFilter && (() => {
-                          const cnt = genericlist.filter(i => {
-                            const sM = extractDosage(i.NAME) === dosageFilter;
-                            const fM = !dosageFormFilter || extractDosageForm(i.DOSAGE_FORM || i.NAME) === dosageFormFilter;
-                            return sM && fM;
-                          }).length;
-                          return (
-                            <span style={{ marginLeft: 8, color: '#2563eb', fontWeight: 600, textTransform: 'none' }}>
-                              — {cnt} result{cnt !== 1 ? 's' : ''}
-                            </span>
-                          );
-                        })()}
-                      </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                        <button
-                          onClick={() => setDosageFilter('')}
-                          style={{
-                            ...CHIP_BASE, fontWeight: 700,
-                            borderColor: !dosageFilter ? '#2563eb' : '#cbd5e1',
-                            background: !dosageFilter ? '#2563eb' : '#fff',
-                            color: !dosageFilter ? '#fff' : '#64748b',
-                          }}
-                        >
-                          All ({genericlist.length})
-                        </button>
-                        {dosages.map(d => {
-                          const count = genericlist.filter(i => extractDosage(i.NAME) === d).length;
-                          const isActive = dosageFilter === d;
-                          return (
-                            <button key={d} onClick={() => setDosageFilter(isActive ? '' : d)}
+                  const CHIP_BASE = {
+                    padding: '4px 13px', fontSize: '0.78rem', fontWeight: 600,
+                    borderRadius: 20, border: '1.5px solid', cursor: 'pointer', transition: 'all 0.15s',
+                  };
+
+                  return (
+                    <div style={{ marginBottom: 12 }}>
+                      {/* Dosage Strength filter */}
+                      {dosages.length > 0 && (
+                        <div style={{
+                          background: '#f8fafc', border: '1px solid #e2e8f0',
+                          borderRadius: 10, padding: '12px 16px', marginBottom: 8
+                        }}>
+                          <div style={{
+                            fontSize: '0.72rem', fontWeight: 700, color: '#64748b',
+                            textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8
+                          }}>
+                            🔍 Filter by Dosage Strength
+                            {dosageFilter && (() => {
+                              const cnt = genericlist.filter(i => {
+                                const sM = extractDosage(i.NAME) === dosageFilter;
+                                const fM = !dosageFormFilter || extractDosageForm(i.DOSAGE_FORM || i.NAME) === dosageFormFilter;
+                                return sM && fM;
+                              }).length;
+                              return (
+                                <span style={{ marginLeft: 8, color: '#2563eb', fontWeight: 600, textTransform: 'none' }}>
+                                  — {cnt} result{cnt !== 1 ? 's' : ''}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                            <button
+                              onClick={() => setDosageFilter('')}
                               style={{
-                                ...CHIP_BASE,
-                                borderColor: isActive ? '#7c3aed' : '#cbd5e1',
-                                background: isActive ? '#7c3aed' : '#fff',
-                                color: isActive ? '#fff' : '#475569',
+                                ...CHIP_BASE, fontWeight: 700,
+                                borderColor: !dosageFilter ? '#2563eb' : '#cbd5e1',
+                                background: !dosageFilter ? '#2563eb' : '#fff',
+                                color: !dosageFilter ? '#fff' : '#64748b',
                               }}
                             >
-                              {d}
-                              <span style={{
-                                marginLeft: 5, fontSize: '0.7rem', fontWeight: 700,
-                                background: isActive ? 'rgba(255,255,255,0.25)' : '#e2e8f0',
-                                color: isActive ? '#fff' : '#64748b',
-                                borderRadius: 10, padding: '1px 6px',
-                              }}>{count}</span>
+                              All ({genericlist.length})
                             </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+                            {dosages.map(d => {
+                              const count = genericlist.filter(i => extractDosage(i.NAME) === d).length;
+                              const isActive = dosageFilter === d;
+                              return (
+                                <button key={d} onClick={() => setDosageFilter(isActive ? '' : d)}
+                                  style={{
+                                    ...CHIP_BASE,
+                                    borderColor: isActive ? '#7c3aed' : '#cbd5e1',
+                                    background: isActive ? '#7c3aed' : '#fff',
+                                    color: isActive ? '#fff' : '#475569',
+                                  }}
+                                >
+                                  {d}
+                                  <span style={{
+                                    marginLeft: 5, fontSize: '0.7rem', fontWeight: 700,
+                                    background: isActive ? 'rgba(255,255,255,0.25)' : '#e2e8f0',
+                                    color: isActive ? '#fff' : '#64748b',
+                                    borderRadius: 10, padding: '1px 6px',
+                                  }}>{count}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
 
-                  {/* Dosage Form filter */}
-                  {dosageForms.length > 0 && (
-                    <div style={{
-                      background: '#f8fafc', border: '1px solid #e2e8f0',
-                      borderRadius: 10, padding: '12px 16px', marginBottom: 14
-                    }}>
-                      <div style={{
-                        fontSize: '0.72rem', fontWeight: 700, color: '#64748b',
-                        textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8
-                      }}>
-                        💊 Filter by Dosage Form
-                        {dosageFormFilter && (() => {
-                          const cnt = genericlist.filter(i => {
-                            const sM = !dosageFilter || extractDosage(i.NAME) === dosageFilter;
-                            const fM = extractDosageForm(i.DOSAGE_FORM || i.NAME) === dosageFormFilter;
-                            return sM && fM;
-                          }).length;
-                          return (
-                            <span style={{ marginLeft: 8, color: '#059669', fontWeight: 600, textTransform: 'none' }}>
-                              — {cnt} result{cnt !== 1 ? 's' : ''}
-                            </span>
-                          );
-                        })()}
-                      </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                        <button
-                          onClick={() => setDosageFormFilter('')}
-                          style={{
-                            ...CHIP_BASE, fontWeight: 700,
-                            borderColor: !dosageFormFilter ? '#059669' : '#cbd5e1',
-                            background: !dosageFormFilter ? '#059669' : '#fff',
-                            color: !dosageFormFilter ? '#fff' : '#64748b',
-                          }}
-                        >
-                          All ({genericlist.length})
-                        </button>
-                        {dosageForms.map(form => {
-                          const count = genericlist.filter(i =>
-                            extractDosageForm(i.DOSAGE_FORM || i.NAME) === form
-                          ).length;
-                          const isActive = dosageFormFilter === form;
-                          return (
-                            <button key={form} onClick={() => setDosageFormFilter(isActive ? '' : form)}
+                      {/* Dosage Form filter */}
+                      {dosageForms.length > 0 && (
+                        <div style={{
+                          background: '#f8fafc', border: '1px solid #e2e8f0',
+                          borderRadius: 10, padding: '12px 16px'
+                        }}>
+                          <div style={{
+                            fontSize: '0.72rem', fontWeight: 700, color: '#64748b',
+                            textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8
+                          }}>
+                            💊 Filter by Dosage Form
+                            {dosageFormFilter && (() => {
+                              const cnt = genericlist.filter(i => {
+                                const sM = !dosageFilter || extractDosage(i.NAME) === dosageFilter;
+                                const fM = extractDosageForm(i.DOSAGE_FORM || i.NAME) === dosageFormFilter;
+                                return sM && fM;
+                              }).length;
+                              return (
+                                <span style={{ marginLeft: 8, color: '#059669', fontWeight: 600, textTransform: 'none' }}>
+                                  — {cnt} result{cnt !== 1 ? 's' : ''}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                            <button
+                              onClick={() => setDosageFormFilter('')}
                               style={{
-                                ...CHIP_BASE,
-                                borderColor: isActive ? '#059669' : '#cbd5e1',
-                                background: isActive ? '#059669' : '#fff',
-                                color: isActive ? '#fff' : '#475569',
+                                ...CHIP_BASE, fontWeight: 700,
+                                borderColor: !dosageFormFilter ? '#059669' : '#cbd5e1',
+                                background: !dosageFormFilter ? '#059669' : '#fff',
+                                color: !dosageFormFilter ? '#fff' : '#64748b',
                               }}
                             >
-                              {form}
-                              <span style={{
-                                marginLeft: 5, fontSize: '0.7rem', fontWeight: 700,
-                                background: isActive ? 'rgba(255,255,255,0.25)' : '#e2e8f0',
-                                color: isActive ? '#fff' : '#64748b',
-                                borderRadius: 10, padding: '1px 6px',
-                              }}>{count}</span>
+                              All ({genericlist.length})
                             </button>
-                          );
-                        })}
-                      </div>
+                            {dosageForms.map(form => {
+                              const count = genericlist.filter(i =>
+                                extractDosageForm(i.DOSAGE_FORM || i.NAME) === form
+                              ).length;
+                              const isActive = dosageFormFilter === form;
+                              return (
+                                <button key={form} onClick={() => setDosageFormFilter(isActive ? '' : form)}
+                                  style={{
+                                    ...CHIP_BASE,
+                                    borderColor: isActive ? '#059669' : '#cbd5e1',
+                                    background: isActive ? '#059669' : '#fff',
+                                    color: isActive ? '#fff' : '#475569',
+                                  }}
+                                >
+                                  {form}
+                                  <span style={{
+                                    marginLeft: 5, fontSize: '0.7rem', fontWeight: 700,
+                                    background: isActive ? 'rgba(255,255,255,0.25)' : '#e2e8f0',
+                                    color: isActive ? '#fff' : '#64748b',
+                                    borderRadius: 10, padding: '1px 6px',
+                                  }}>{count}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </>
-              );
-            })()}
+                  );
+                })()}
 
-            {/* Modal Body */}
-            <div style={{ overflowY: 'auto', flex: 1 }}>
-              {(() => {
-                const filtered = genericlist.filter(item => {
-                  const dosageMatch = !dosageFilter || extractDosage(item.NAME) === dosageFilter;
-                  const formMatch = !dosageFormFilter || extractDosageForm(item.DOSAGE_FORM || item.NAME) === dosageFormFilter;
-                  return dosageMatch && formMatch;
-                });
-                return filtered.length > 0 ? (
+                {filtered.length > 0 ? (
                   <div className="table-wrap">
                     <table className="data-table">
                       <thead>
                         <tr>
+                          <th style={{ width: 50, textAlign: 'center' }}>
+                            <input
+                              type="checkbox"
+                              checked={allSelected}
+                              onChange={(e) => {
+                                setPopupError('');
+                                if (e.target.checked) {
+                                  setSelectedGenericDrugs(prev => {
+                                    const added = [...prev];
+                                    filtered.forEach(item => {
+                                      if (!added.some(selected => selected.uiKey === item.uiKey)) {
+                                        added.push(item);
+                                      }
+                                    });
+                                    return added;
+                                  });
+                                } else {
+                                  setSelectedGenericDrugs(prev => prev.filter(selected => !filtered.some(item => item.uiKey === selected.uiKey)));
+                                }
+                              }}
+                              style={{ cursor: 'pointer', transform: 'scale(1.1)' }}
+                            />
+                          </th>
                           <th>Brand Name</th>
                           <th>Generic Name</th>
                           <th>Status</th>
@@ -1320,63 +1488,85 @@ export default function HODTab({ currentUser, onNotificationsRead }) {
                         </tr>
                       </thead>
                       <tbody>
-                        {filtered.map((item, index) => (
-                          <tr key={index}>
-                            <td style={{ fontWeight: 500 }}>
-                              {item.NAME}
-
-                              {extractDosage(item.NAME) && (
-                                <span style={{
-                                  marginLeft: 6,
-                                  fontSize: '0.68rem',
-                                  fontWeight: 700,
-                                  background: '#ede9fe',
-                                  color: '#6d28d9',
-                                  borderRadius: 8,
-                                  padding: '1px 7px',
-                                }}>
-                                  {extractDosage(item.NAME)}
+                        {filtered.map((item) => {
+                          const isSelected = selectedGenericDrugs.some(selected => selected.uiKey === item.uiKey);
+                          return (
+                            <tr
+                              key={item.uiKey}
+                              onClick={() => {
+                                setPopupError('');
+                                setSelectedGenericDrugs(prev => {
+                                  if (prev.some(selected => selected.uiKey === item.uiKey)) {
+                                    return prev.filter(selected => selected.uiKey !== item.uiKey);
+                                  } else {
+                                    return [...prev, item];
+                                  }
+                                });
+                              }}
+                              style={{
+                                cursor: 'pointer',
+                                background: isSelected ? 'rgba(37,99,235,0.06)' : 'inherit',
+                                transition: 'background 0.15s'
+                              }}
+                            >
+                              <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => {
+                                    setPopupError('');
+                                    setSelectedGenericDrugs(prev => {
+                                      if (prev.some(selected => selected.uiKey === item.uiKey)) {
+                                        return prev.filter(selected => selected.uiKey !== item.uiKey);
+                                      } else {
+                                        return [...prev, item];
+                                      }
+                                    });
+                                  }}
+                                  style={{ cursor: 'pointer', transform: 'scale(1.1)' }}
+                                />
+                              </td>
+                              <td style={{ fontWeight: 500 }}>
+                                {item.NAME}
+                                {extractDosage(item.NAME) && (
+                                  <span style={{
+                                    marginLeft: 6,
+                                    fontSize: '0.68rem',
+                                    fontWeight: 700,
+                                    background: '#ede9fe',
+                                    color: '#6d28d9',
+                                    borderRadius: 8,
+                                    padding: '1px 7px',
+                                  }}>
+                                    {extractDosage(item.NAME)}
+                                  </span>
+                                )}
+                              </td>
+                              <td style={{ color: 'var(--text-muted)' }}>
+                                {item.DRUG_GEN_NAME}
+                              </td>
+                              <td>
+                                <span
+                                  style={{
+                                    padding: '3px 10px',
+                                    borderRadius: '12px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 600,
+                                    background: item.STATUS === 'Active✅' ? '#dcfce7' : '#fee2e2',
+                                    color: item.STATUS === 'Active✅' ? '#166534' : '#991b1b'
+                                  }}
+                                >
+                                  {item.STATUS || 'Unknown'}
                                 </span>
-                              )}
-                            </td>
-
-                            <td style={{ color: 'var(--text-muted)' }}>
-                              {item.DRUG_GEN_NAME}
-                            </td>
-                            <td>
-                              <span
-                                style={{
-                                  padding: '3px 10px',
-                                  borderRadius: '12px',
-                                  fontSize: '0.75rem',
-                                  fontWeight: 600,
-                                  background:
-                                    item.STATUS === 'Active✅'
-                                      ? '#dcfce7'
-                                      : '#fee2e2',
-                                  color:
-                                    item.STATUS === 'Active✅'
-                                      ? '#166534'
-                                      : '#991b1b'
-                                }}
-                              >
-                                {item.STATUS || 'Unknown'}
-                              </span>
-                            </td>
-
-                            <td>
-                              {item.MANUFACTURER_NAME || 'N/A'}
-                            </td>
-
-                            <td>
-                              {item.MARKETTER_NAME || 'N/A'}
-                            </td>
-
-                            <td style={{ fontWeight: 600, color: 'var(--success)' }}>
-                              {item.MRP ? `₹${item.MRP}` : 'N/A'}
-                            </td>
-                          </tr>
-                        ))}
+                              </td>
+                              <td>{item.MANUFACTURER_NAME || 'N/A'}</td>
+                              <td>{item.MARKETTER_NAME || 'N/A'}</td>
+                              <td style={{ fontWeight: 600, color: 'var(--success)' }}>
+                                {item.MRP ? `₹${item.MRP}` : 'N/A'}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -1389,22 +1579,112 @@ export default function HODTab({ currentUser, onNotificationsRead }) {
                         : 'No existing drugs found for this generic name.'}
                     </div>
                   </div>
-                );
-              })()}
-            </div>
+                )}
+              </div>
 
-            {/* Modal Footer */}
-            <div className="modal-footer" style={{ marginTop: 16 }}>
-              {(dosageFilter || dosageFormFilter) && (
-                <button className="btn btn-ghost btn-sm" onClick={() => { setDosageFilter(''); setDosageFormFilter(''); }}>↺ Clear All Filters</button>
-              )}
-              <button className="btn btn-primary btn-sm" onClick={() => { setShowGenericPopup(false); setDosageFilter(''); setDosageFormFilter(''); }}>
-                Close
-              </button>
+              {/* Modal Footer */}
+              <div className="modal-footer" style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                borderTop: '1px solid var(--border)',
+                padding: '16px 24px',
+                background: 'var(--bg-card)',
+                flexShrink: 0
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                    Selected: <strong style={{ color: 'var(--primary)' }}>{selectedGenericDrugs.length}</strong>
+                  </span>
+                  {filtered.length > 0 && (
+                    <>
+                      <button
+                        className="btn btn-ghost btn-xs"
+                        onClick={() => {
+                          setPopupError('');
+                          setSelectedGenericDrugs(prev => {
+                            const added = [...prev];
+                            filtered.forEach(item => {
+                              if (!added.some(selected => selected.uiKey === item.uiKey)) {
+                                added.push(item);
+                              }
+                            });
+                            return added;
+                          });
+                        }}
+                        style={{ fontSize: '0.75rem', padding: '3px 8px' }}
+                      >
+                        ☑ Select All Visible
+                      </button>
+                      <button
+                        className="btn btn-ghost btn-xs"
+                        onClick={() => {
+                          setPopupError('');
+                          setSelectedGenericDrugs([]);
+                        }}
+                        style={{ fontSize: '0.75rem', padding: '3px 8px' }}
+                      >
+                        ☒ Clear Selection
+                      </button>
+                    </>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {(dosageFilter || dosageFormFilter) && (
+                    <button className="btn btn-ghost btn-sm" onClick={() => { setDosageFilter(''); setDosageFormFilter(''); }}>↺ Clear Filters</button>
+                  )}
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => {
+                      setShowGenericPopup(false);
+                      setDosageFilter('');
+                      setDosageFormFilter('');
+                      setSelectedGenericDrugs([]);
+                      setPopupError('');
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={() => {
+                      if (selectedGenericDrugs.length === 0) {
+                        setPopupError('Please select at least one drug first.');
+                        return;
+                      }
+                      setPopupError('');
+
+                      const currentList = form.selected_existing_brands || [];
+                      const updatedList = [...currentList];
+                      selectedGenericDrugs.forEach(item => {
+                        if (!updatedList.some(existing => existing.uiKey === item.uiKey)) {
+                          updatedList.push(item);
+                        }
+                      });
+
+                      setForm(f => ({
+                        ...f,
+                        selected_existing_brands: updatedList,
+                        existing_brands: serializeExistingBrands(updatedList)
+                      }));
+                      setShowGenericPopup(false);
+                      setDosageFilter('');
+                      setDosageFormFilter('');
+                      setSelectedGenericDrugs([]);
+                    }}
+                    style={{
+                      background: 'linear-gradient(135deg, var(--primary), var(--primary-dark))',
+                      boxShadow: '0 2px 6px rgba(37,99,235,0.2)'
+                    }}
+                  >
+                    📥 Add Selected to Existing Brands
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ======== NOTIFICATIONS ======== */}
       {view === 'notifications' && (

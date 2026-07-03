@@ -9,7 +9,7 @@ const API = '/api';
 function timeAgo(ts) {
   const diff = Date.now() - new Date(ts).getTime();
   const m = Math.floor(diff / 60000);
-  if (m < 1)  return 'just now';
+  if (m < 1) return 'just now';
   if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h ago`;
@@ -18,7 +18,7 @@ function timeAgo(ts) {
 }
 
 export default function Notifications({ userId, onRead }) {
-  const [notifs,  setNotifs]  = useState([]);
+  const [notifs, setNotifs] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(() => {
@@ -26,7 +26,7 @@ export default function Notifications({ userId, onRead }) {
     setLoading(true);
     axios.get(`${API}/notifications/${userId}`)
       .then(r => setNotifs(r.data))
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false));
   }, [userId]);
 
@@ -39,12 +39,12 @@ export default function Notifications({ userId, onRead }) {
         n.NOTIFICATION_ID === id ? { ...n, IS_READ: 1 } : n
       ));
       if (onRead) onRead();
-    } catch {}
+    } catch { }
   };
 
   const markAllRead = async () => {
     const unread = notifs.filter(n => !n.IS_READ);
-    await Promise.all(unread.map(n => axios.put(`${API}/notifications/${n.NOTIFICATION_ID}/read`).catch(() => {})));
+    await Promise.all(unread.map(n => axios.put(`${API}/notifications/${n.NOTIFICATION_ID}/read`).catch(() => { })));
     setNotifs(prev => prev.map(n => ({ ...n, IS_READ: 1 })));
     if (onRead) onRead();
   };
@@ -54,7 +54,7 @@ export default function Notifications({ userId, onRead }) {
   return (
     <div className="card" style={{ marginBottom: 24 }}>
       <div className="card-title" style={{ justifyContent: 'space-between' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div className="icon">🔔</div>
           Notifications
           {unreadCount > 0 && (
@@ -69,11 +69,11 @@ export default function Notifications({ userId, onRead }) {
       </div>
 
       {loading ? (
-        <div style={{ textAlign:'center', padding:24, color:'var(--text-muted)' }}>
+        <div style={{ textAlign: 'center', padding: 24, color: 'var(--text-muted)' }}>
           <div className="spinner" />
         </div>
       ) : notifs.length === 0 ? (
-        <div style={{ textAlign:'center', padding:32, color:'var(--text-subtle)', fontSize:'0.9rem' }}>
+        <div style={{ textAlign: 'center', padding: 32, color: 'var(--text-subtle)', fontSize: '0.9rem' }}>
           🎉 You're all caught up! No notifications.
         </div>
       ) : (
@@ -92,7 +92,7 @@ export default function Notifications({ userId, onRead }) {
               {!n.IS_READ && (
                 <button
                   className="btn btn-ghost btn-sm"
-                  style={{ fontSize:'0.7rem', padding:'4px 8px', flexShrink:0 }}
+                  style={{ fontSize: '0.7rem', padding: '4px 8px', flexShrink: 0 }}
                   onClick={(e) => { e.stopPropagation(); markRead(n.NOTIFICATION_ID); }}
                 >
                   ✓

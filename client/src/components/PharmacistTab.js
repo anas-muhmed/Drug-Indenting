@@ -38,6 +38,45 @@ const EMPTY_EXISTING = {
   margin_comparison: '', existing_drug_details: '',
 };
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+const extractDosage = (name = '') => {
+  const match = name.match(/(\d+(?:\.\d+)?\s*(?:mg|ml|mcg|g|iu|meg|%|units?))/i);
+  return match ? match[1].trim().toLowerCase().replace(/\s+/, '') : null;
+};
+
+const extractDosageForm = (value = '') => {
+  if (!value) return null;
+  const v = value.trim();
+  const NORMALISE = [
+    [/^inj(ection)?s?\.?$/i, 'Inj.'], [/^tab(let)?s?\.?$/i, 'Tab'],
+    [/^cap(sule)?s?\.?$/i, 'Cap'], [/^syrup\.?$/i, 'Syrup'],
+    [/^susp(ension)?n?\.?$/i, 'Suspn'], [/^oral\s*drops?\.?$/i, 'OralDrops'],
+    [/^drops?\.?$/i, 'Drops'], [/^cream\.?$/i, 'Cream'],
+    [/^ointment\.?$/i, 'Ointment'], [/^gel\.?$/i, 'Gel'],
+    [/^lotion\.?$/i, 'Lotion'], [/^powder\.?$/i, 'Powder'],
+    [/^granules?\.?$/i, 'Granules'], [/^sachet\.?$/i, 'Sachet'],
+    [/^patch\.?$/i, 'Patch'], [/^inhaler?\.?$/i, 'Inhaler'],
+    [/^spray\.?$/i, 'Spray'], [/^suppository\.?$/i, 'Suppository'],
+    [/^solution\.?$/i, 'Solution'], [/^emulsion\.?$/i, 'Emulsion'],
+  ];
+  for (const [rx, label] of NORMALISE) { if (rx.test(v)) return label; }
+  const SCAN = [
+    [/\binjection\b/i, 'Inj.'], [/\binj\.?\b/i, 'Inj.'],
+    [/\btablets?\b/i, 'Tab'], [/\btabs?\.?\b/i, 'Tab'],
+    [/\bcapsules?\b/i, 'Cap'], [/\bcaps?\.?\b/i, 'Cap'],
+    [/\bsyrup\b/i, 'Syrup'], [/\bsuspension\b/i, 'Suspn'],
+    [/\bsuspn\b/i, 'Suspn'], [/\boral\s*drops?\b/i, 'OralDrops'],
+    [/\bdrops?\b/i, 'Drops'], [/\bcream\b/i, 'Cream'],
+    [/\bointment\b/i, 'Ointment'], [/\bgel\b/i, 'Gel'],
+    [/\blotion\b/i, 'Lotion'], [/\bpowder\b/i, 'Powder'],
+    [/\bsachet\b/i, 'Sachet'], [/\bpatch\b/i, 'Patch'],
+    [/\binhaler?\b/i, 'Inhaler'], [/\bspray\b/i, 'Spray'],
+    [/\bsolution\b/i, 'Solution'],
+  ];
+  for (const [rx, label] of SCAN) { if (rx.test(v)) return label; }
+  return v.charAt(0).toUpperCase() + v.slice(1);
+};
+
 export default function PharmacistTab({ currentUser, onNotificationsRead }) {
   const [view, setView] = useState('pending');
   const [requests, setRequests] = useState([]);
@@ -104,8 +143,17 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
   const [draftName, setDraftName] = useState('');
   const [savingDraft, setSavingDraft] = useState(false);
   const [draftSaved, setDraftSaved] = useState(false);
+  const [lastSavedTime, setLastSavedTime] = useState(null);
   const [drafts, setDrafts] = useState([]);
   const [loadingDrafts, setLoadingDrafts] = useState(false);
+
+  // Ref holds the latest state so the 60-second auto-save interval can
+  // always read current values without re-registering the timer on every keystroke.
+  const latestDraftRef = useRef({});
+  latestDraftRef.current = {
+    analysisReq, alternatives, existingGenericData, existingDetails,
+    compType, pharmRemarks, draftName, draftId, showComparisonSheet,
+  };
 
   // View-only modal
   const [viewReq, setViewReq] = useState(null);
@@ -575,10 +623,50 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
     setIsCorrectionMode(false);
   };
 
+  // ── Auto-save: runs every 60 seconds while a request is open ──────────
+  // Does NOT reset the timer on every keystroke; always reads fresh state
+  // from latestDraftRef so the save is never stale.
+  const autoSaveDraft = async (s) => {
+    if (!s.analysisReq) return;
+    try {
+      const r = await axios.post(`${API}/pharmacist/drafts`, {
+        request_id: s.analysisReq.REQUEST_ID,
+        pharmacist_id: currentUser.USER_ID,
+        draft_name: s.draftName?.trim() || undefined,
+        alternatives: s.alternatives,
+        existing_generic_data: s.existingGenericData,
+        existing_details: s.existingDetails,
+        comp_type: s.compType,
+        pharm_remarks: s.pharmRemarks,
+        show_comparison_sheet: s.showComparisonSheet,
+        draft_version: 1,
+      });
+      if (r.data?.draft_id) {
+        setDraftId(r.data.draft_id);
+        if (!s.draftName?.trim()) setDraftName(r.data.draft_name);
+      }
+      const timeStr = new Date().toLocaleTimeString('en-US', { hour12: false });
+      setLastSavedTime(timeStr);
+      setDraftSaved(true);
+      setTimeout(() => setDraftSaved(false), 4000);
+    } catch (err) {
+      console.error('Auto-save failed silently:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (!analysisReq) { setLastSavedTime(null); return; }
+    const interval = setInterval(() => {
+      autoSaveDraft(latestDraftRef.current);
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [analysisReq]);
+
+  // ── Manual save draft ────────────────────────────────────────────────
   const saveDraft = async () => {
     if (!analysisReq) return;
     setSavingDraft(true);
-    setDraftSaved(false);
+    setAltErr('');
     try {
       const r = await axios.post(`${API}/pharmacist/drafts`, {
         request_id: analysisReq.REQUEST_ID,
@@ -589,13 +677,17 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
         existing_details: existingDetails,
         comp_type: compType,
         pharm_remarks: pharmRemarks,
+        show_comparison_sheet: showComparisonSheet,
+        draft_version: 1,
       });
       setDraftId(r.data.draft_id);
       if (!draftName.trim()) setDraftName(r.data.draft_name);
+      const timeStr = new Date().toLocaleTimeString('en-US', { hour12: false });
+      setLastSavedTime(timeStr);
       setDraftSaved(true);
-      setTimeout(() => setDraftSaved(false), 3000);
+      setTimeout(() => setDraftSaved(false), 4000);
     } catch (err) {
-      setAltErr(err.response?.data?.error || 'Failed to save draft.');
+      setAltErr('Draft could not be saved. Please try again.');
     } finally {
       setSavingDraft(false);
     }
@@ -614,25 +706,42 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
       const r = await axios.get(`${API}/pharmacist/drafts/detail/${draft.DRAFT_ID || draft.draft_id}`);
       const d = r.data;
       const parsed = d.DRAFT_DATA || {};
+      // Build the request object restoring all fields needed by the modal
       const req = {
-        REQUEST_ID: d.REQUEST_ID || draft.REQUEST_ID,
-        BRAND_NAME: d.BRAND_NAME || draft.BRAND_NAME,
-        GENERIC_NAME: d.GENERIC_NAME || draft.GENERIC_NAME,
-        REQUEST_TYPE: d.REQUEST_TYPE || '',
+        REQUEST_ID: d.REQUEST_ID || draft.REQUEST_ID || draft.request_id,
+        BRAND_NAME: d.BRAND_NAME || draft.BRAND_NAME || draft.brand_name || '',
+        GENERIC_NAME: d.GENERIC_NAME || draft.GENERIC_NAME || draft.generic_name || '',
+        REQUEST_TYPE: d.REQUEST_TYPE || draft.REQUEST_TYPE || draft.request_type || '',
+        CATEGORY: d.CATEGORY || draft.CATEGORY || draft.category || '',
+        CURRENT_STAGE: d.CURRENT_STAGE || draft.CURRENT_STAGE || draft.current_stage || 'Pharmacist',
+        STATUS: d.STATUS || draft.STATUS || draft.status || 'Pending',
+        DOCTOR_NAME: d.DOCTOR_NAME || draft.DOCTOR_NAME || '',
+        REVERT_REMARKS: d.REVERT_REMARKS || draft.REVERT_REMARKS || '',
+        REVERT_COUNT: d.REVERT_COUNT || draft.REVERT_COUNT || 0,
       };
       setAnalysisReq(req);
+      // Restore correction mode so the banner and submit path are correct
+      setIsCorrectionMode(req.CURRENT_STAGE === 'PharmacistCorrection');
+      // Restore all comparison sheet state exactly
       setCompType(parsed.comp_type || 'new_generic');
       setAlternatives(parsed.alternatives?.length ? parsed.alternatives : [{ ...EMPTY_ALT }, { ...EMPTY_ALT }, { ...EMPTY_ALT }]);
       setExistingGenericData(parsed.existing_generic_data || { ...EMPTY_EXISTING });
       setExistingDetails(parsed.existing_details || []);
       setPharmRemarks(parsed.pharm_remarks || '');
-      setDraftId(d.DRAFT_ID);
-      setDraftName(d.DRAFT_NAME || '');
+      // Restore UI state
+      setShowComparisonSheet(parsed.show_comparison_sheet === true);
+      setDraftId(d.DRAFT_ID || draft.DRAFT_ID || draft.draft_id);
+      setDraftName(d.DRAFT_NAME || draft.DRAFT_NAME || draft.draft_name || '');
+      const timeStr = d.UPDATED_AT
+        ? new Date(d.UPDATED_AT).toLocaleTimeString('en-US', { hour12: false })
+        : null;
+      setLastSavedTime(timeStr);
       setAltErr('');
       setDraftSaved(true);
+      setTimeout(() => setDraftSaved(false), 4000);
       setView('pending');
     } catch (err) {
-      setAlertMsg({ type: 'error', msg: 'Could not load draft. Please try again.' });
+      setAlertMsg({ type: 'error', msg: 'Unable to load draft. Please try again.' });
     }
   };
 
@@ -666,17 +775,27 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
           existing_details: currentExistingDetails,
         });
       }
-      const endpoint = isCorrectionMode
-        ? `${API}/pharmacist/correction-submit/${analysisReq.REQUEST_ID}`
-        : `${API}/alternatives/${analysisReq.REQUEST_ID}`;
 
-      await axios.post(endpoint, {
-        performed_by: currentUser.USER_ID,
-        alternatives: filled,
-        comparison_type: compType,
-        remarks: pharmRemarks,
-        existing_generic_data: compType === 'existing_generic' ? existingGenericData : null,
-      });
+      if (isCorrectionMode) {
+        // Correction resubmit: use the dedicated PUT endpoint which saves corrected
+        // alternatives, remarks, and existing generic data before transitioning the stage.
+        await axios.put(`${API}/requests/${analysisReq.REQUEST_ID}/resubmit-correction`, {
+          performed_by: currentUser.USER_ID,
+          alternatives: filled,
+          comparison_type: compType,
+          remarks: pharmRemarks,
+          existing_generic_data: compType === 'existing_generic' ? existingGenericData : null,
+        });
+      } else {
+        // Normal first-time submission
+        await axios.post(`${API}/alternatives/${analysisReq.REQUEST_ID}`, {
+          performed_by: currentUser.USER_ID,
+          alternatives: filled,
+          comparison_type: compType,
+          remarks: pharmRemarks,
+          existing_generic_data: compType === 'existing_generic' ? existingGenericData : null,
+        });
+      }
 
       const successMsg = isCorrectionMode
         ? `✅ Corrected comparison sheet for Request #${analysisReq.REQUEST_ID} resubmitted to Pharmacy Head.`
@@ -686,6 +805,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
       setIsCorrectionMode(false);
       closeAnalysis();
       await loadRequests();
+      await loadDrafts(); // Refresh draft list since the draft was deleted on submission
       setDashKey(k => k + 1);
     } catch (err) {
       setAltErr(err.response?.data?.error || 'Submission failed. Please try again.');
@@ -725,7 +845,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
   const [irSelectedGeneric, setIrSelectedGeneric] = useState(null);
   const [irFromDate, setIrFromDate] = useState(() => {
     const d = new Date();
-    d.setFullYear(d.getFullYear() - 1); // default 1 year ago
+    d.setMonth(d.getMonth() - 3); // default 3 months ago
     return d.toISOString().split('T')[0];
   });
   const [irToDate, setIrToDate] = useState(() => {
@@ -814,44 +934,6 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
     } catch (e) {
       return String(val);
     }
-  };
-
-  const extractDosage = (name = '') => {
-    const match = name.match(/(\d+(?:\.\d+)?\s*(?:mg|ml|mcg|g|iu|meg|%|units?))/i);
-    return match ? match[1].trim().toLowerCase().replace(/\s+/, '') : null;
-  };
-
-  const extractDosageForm = (value = '') => {
-    if (!value) return null;
-    const v = value.trim();
-    const NORMALISE = [
-      [/^inj(ection)?s?\.?$/i, 'Inj.'], [/^tab(let)?s?\.?$/i, 'Tab'],
-      [/^cap(sule)?s?\.?$/i, 'Cap'], [/^syrup\.?$/i, 'Syrup'],
-      [/^susp(ension)?n?\.?$/i, 'Suspn'], [/^oral\s*drops?\.?$/i, 'OralDrops'],
-      [/^drops?\.?$/i, 'Drops'], [/^cream\.?$/i, 'Cream'],
-      [/^ointment\.?$/i, 'Ointment'], [/^gel\.?$/i, 'Gel'],
-      [/^lotion\.?$/i, 'Lotion'], [/^powder\.?$/i, 'Powder'],
-      [/^granules?\.?$/i, 'Granules'], [/^sachet\.?$/i, 'Sachet'],
-      [/^patch\.?$/i, 'Patch'], [/^inhaler?\.?$/i, 'Inhaler'],
-      [/^spray\.?$/i, 'Spray'], [/^suppository\.?$/i, 'Suppository'],
-      [/^solution\.?$/i, 'Solution'], [/^emulsion\.?$/i, 'Emulsion'],
-    ];
-    for (const [rx, label] of NORMALISE) { if (rx.test(v)) return label; }
-    const SCAN = [
-      [/\binjection\b/i, 'Inj.'], [/\binj\.?\b/i, 'Inj.'],
-      [/\btablets?\b/i, 'Tab'], [/\btabs?\.?\b/i, 'Tab'],
-      [/\bcapsules?\b/i, 'Cap'], [/\bcaps?\.?\b/i, 'Cap'],
-      [/\bsyrup\b/i, 'Syrup'], [/\bsuspension\b/i, 'Suspn'],
-      [/\bsuspn\b/i, 'Suspn'], [/\boral\s*drops?\b/i, 'OralDrops'],
-      [/\bdrops?\b/i, 'Drops'], [/\bcream\b/i, 'Cream'],
-      [/\bointment\b/i, 'Ointment'], [/\bgel\b/i, 'Gel'],
-      [/\blotion\b/i, 'Lotion'], [/\bpowder\b/i, 'Powder'],
-      [/\bsachet\b/i, 'Sachet'], [/\bpatch\b/i, 'Patch'],
-      [/\binhaler?\b/i, 'Inhaler'], [/\bspray\b/i, 'Spray'],
-      [/\bsolution\b/i, 'Solution'],
-    ];
-    for (const [rx, label] of SCAN) { if (rx.test(v)) return label; }
-    return v.charAt(0).toUpperCase() + v.slice(1);
   };
 
   const getIrGenericDetails = async (genericName) => {
@@ -1050,6 +1132,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
   };
 
   // Opens the analysis sheet preloaded with existing alternatives (Correction mode)
+  // Checks for a saved draft first; falls back to database records if none exists.
   const openCorrectionAnalysis = async (req) => {
     setIsCorrectionMode(true);
     setCorrectionErr('');
@@ -1059,44 +1142,64 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
     setPharmRemarks(req.PHARMACIST_REMARKS || '');
     setAltErr('');
     setDraftId(null); setDraftName(''); setDraftSaved(false);
+    setLastSavedTime(null);
     try {
-      const [altsRes, egdRes] = await Promise.all([
-        axios.get(`${API}/alternatives/${req.REQUEST_ID}`),
-        axios.get(`${API}/requests/${req.REQUEST_ID}/existing-generic-data`),
-      ]);
-      const altsRaw = altsRes.data?.alternatives || [];
-      const existingDetailsRaw = altsRes.data?.existing_details || [];
-      if (altsRaw.length > 0) {
-        const mapped = altsRaw.map(a => ({
-          brand_name: a.BRAND_NAME || '', manufacturer: a.MANUFACTURER || '',
-          marketer: a.MARKETER || '',
-          mrp_per_pack: a.MRP_PER_PACK ?? '', rate_per_pack: a.RATE_PER_PACK ?? '',
-          gst_percent: a.GST_PERCENT ?? '',
-          mrp: a.MRP ?? '', rate: a.RATE ?? '',
-          qty: a.QTY ?? '', offer: a.OFFER ?? '', net_rate: a.NET_RATE ?? '',
-          margin: a.ABSOLUTE_MARGIN ?? '', markupmargin: a.MARKUP_MARGIN ?? '',
-          profit_margin: a.PROFIT_MARGIN ?? '', stock: a.STOCK || '',
-          purchase_qty: a.PURCHASE_QUANTITY ?? '', remark: a.REMARK || '',
-          consultant: a.CONSULTANT || '', sale_qty: a.SALE_QTY ?? '',
-          pack: a.PACK || '', introduced_on: a.INTRODUCED_ON || 'New Item',
-          negorate: a.NEGOTIATED_RATE ?? '', comparison_type: a.COMPARISON_TYPE || ct,
-        }));
-        setAlternatives(mapped);
+      // 1. Check if a correction draft was already saved for this request
+      const draftRes = await axios.get(`${API}/pharmacist/drafts/for-request/${req.REQUEST_ID}/${currentUser.USER_ID}`);
+      if (draftRes.data) {
+        const { DRAFT_ID, DRAFT_NAME, DRAFT_DATA } = draftRes.data;
+        const d = DRAFT_DATA || {};
+        if (d.alternatives && d.alternatives.length > 0) setAlternatives(d.alternatives);
+        if (d.existing_generic_data) setExistingGenericData(d.existing_generic_data);
+        if (d.existing_details) setExistingDetails(d.existing_details);
+        if (d.comp_type) setCompType(d.comp_type);
+        if (d.pharm_remarks) setPharmRemarks(d.pharm_remarks);
+        setDraftId(DRAFT_ID);
+        setDraftName(DRAFT_NAME || '');
+        setShowComparisonSheet(d.show_comparison_sheet === true);
+        setDraftSaved(true);
+        setTimeout(() => setDraftSaved(false), 4000);
       } else {
-        const defConsultant = req.DOCTOR_NAME || '';
-        setAlternatives([{ ...EMPTY_ALT, consultant: defConsultant }, { ...EMPTY_ALT, consultant: defConsultant }, { ...EMPTY_ALT, consultant: defConsultant }]);
+        // 2. No draft — load from the already-submitted comparison sheet tables
+        const [altsRes, egdRes] = await Promise.all([
+          axios.get(`${API}/alternatives/${req.REQUEST_ID}`),
+          axios.get(`${API}/requests/${req.REQUEST_ID}/existing-generic-data`),
+        ]);
+        const altsRaw = altsRes.data?.alternatives || [];
+        const existingDetailsRaw = altsRes.data?.existing_details || [];
+        if (altsRaw.length > 0) {
+          const mapped = altsRaw.map(a => ({
+            brand_name: a.BRAND_NAME || '', manufacturer: a.MANUFACTURER || '',
+            marketer: a.MARKETER || '',
+            mrp_per_pack: a.MRP_PER_PACK ?? '', rate_per_pack: a.RATE_PER_PACK ?? '',
+            gst_percent: a.GST_PERCENT ?? '',
+            mrp: a.MRP ?? '', rate: a.RATE ?? '',
+            qty: a.QTY ?? '', offer: a.OFFER ?? '', net_rate: a.NET_RATE ?? '',
+            margin: a.ABSOLUTE_MARGIN ?? '', markupmargin: a.MARKUP_MARGIN ?? '',
+            profit_margin: a.PROFIT_MARGIN ?? '', stock: a.STOCK || '',
+            purchase_qty: a.PURCHASE_QUANTITY ?? '', remark: a.REMARK || '',
+            consultant: a.CONSULTANT || '', sale_qty: a.SALE_QTY ?? '',
+            pack: a.PACK || '', introduced_on: a.INTRODUCED_ON || 'New Item',
+            negorate: a.NEGOTIATED_RATE ?? '', comparison_type: a.COMPARISON_TYPE || ct,
+          }));
+          setAlternatives(mapped);
+        } else {
+          const defConsultant = req.DOCTOR_NAME || '';
+          setAlternatives([{ ...EMPTY_ALT, consultant: defConsultant }, { ...EMPTY_ALT, consultant: defConsultant }, { ...EMPTY_ALT, consultant: defConsultant }]);
+        }
+        setExistingDetails(existingDetailsRaw);
+        const egd = egdRes.data?.existing_generic_data || null;
+        setExistingGenericData(egd ? { ...EMPTY_EXISTING, ...egd } : { ...EMPTY_EXISTING });
+        setShowComparisonSheet(true);
       }
-      setExistingDetails(existingDetailsRaw);
-      const egd = egdRes.data?.existing_generic_data || null;
-      setExistingGenericData(egd ? { ...EMPTY_EXISTING, ...egd } : { ...EMPTY_EXISTING });
     } catch {
       const defConsultant = req.DOCTOR_NAME || '';
       setAlternatives([{ ...EMPTY_ALT, consultant: defConsultant }, { ...EMPTY_ALT, consultant: defConsultant }, { ...EMPTY_ALT, consultant: defConsultant }]);
       setExistingGenericData({ ...EMPTY_EXISTING });
       setExistingDetails([]);
+      setShowComparisonSheet(true);
     }
-    setShowComparisonSheet(true);
-    setView('pending'); // reuses the analysis sheet UI
+    setView('pending');
   };
 
   return (
@@ -1195,7 +1298,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                       <td>
                         <div style={{ display: 'flex', gap: 6 }}>
                           <button className="btn btn-success btn-sm" onClick={() => openIrPanel(r, 'approve')}>✓ Approve</button>
-                          <button className="btn btn-danger btn-sm" onClick={() => openIrPanel(r, 'reject')}>✕ Reject</button>
+                          {/* <button className="btn btn-danger btn-sm" onClick={() => openIrPanel(r, 'reject')}>✕ Reject</button> */}
                         </div>
                       </td>
                     </tr>
@@ -2709,7 +2812,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
             <button className="btn btn-ghost btn-sm" onClick={loadDrafts}>↺ Refresh</button>
           </div>
           <div className="alert alert-info" style={{ marginBottom: 18, fontSize: '0.82rem' }}>
-            💡 Drafts are automatically saved when you click <strong>Save Draft</strong> in the analysis modal. Click <strong>Continue</strong> to resume where you left off.
+            💡 Drafts are saved automatically every 60 seconds while editing. Click <strong>Save Draft</strong> at any time to save immediately. Click <strong>Continue</strong> to resume exactly where you left off.
           </div>
           {loadingDrafts ? (
             <div style={{ textAlign: 'center', padding: 60 }}><div className="spinner" /></div>
@@ -2724,14 +2827,20 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Draft Name</th><th>Req #</th><th>Brand Name</th>
-                    <th>Generic Name</th><th>Category</th><th>Last Updated</th><th>Actions</th>
+                    <th>Draft Name</th><th>Req #</th><th>Drug Name</th>
+                    <th>Generic Name</th><th>Request Type</th><th>Last Saved</th>
+                    <th>Stage</th><th>Comp Type</th><th>Status</th><th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {drafts.map(d => {
                     const did = d.DRAFT_ID || d.draft_id;
                     const updatedAt = d.UPDATED_AT || d.updated_at;
+                    const parsedData = d.DRAFT_DATA || {};
+                    const compTypeLabel = parsedData.comp_type === 'existing_generic' ? 'Existing Generic' : 'New Generic';
+                    const stage = d.CURRENT_STAGE || d.current_stage || '—';
+                    const reqStatus = d.REQ_STATUS || d.req_status || '—';
+                    const reqType = d.REQUEST_TYPE || d.request_type || '—';
                     return (
                       <tr key={did}>
                         <td style={{ fontWeight: 600 }}>
@@ -2743,9 +2852,24 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                         <td style={{ fontWeight: 700, color: 'var(--primary-light)' }}>#{d.REQUEST_ID || d.request_id}</td>
                         <td style={{ fontWeight: 500 }}>{d.BRAND_NAME || d.brand_name || '—'}</td>
                         <td style={{ color: 'var(--text-muted)' }}>{d.GENERIC_NAME || d.generic_name || '—'}</td>
-                        <td>{d.CATEGORY || d.category || '—'}</td>
+                        <td style={{ fontSize: '0.78rem' }}>{reqType}</td>
                         <td style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                           {updatedAt ? new Date(updatedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                        </td>
+                        <td>
+                          <span style={{ padding: '3px 8px', borderRadius: 4, background: '#f1f5f9', color: '#475569', fontSize: '0.75rem', fontWeight: 600 }}>
+                            {stage}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ padding: '3px 8px', borderRadius: 4, background: '#e0f2fe', color: '#0369a1', fontSize: '0.75rem', fontWeight: 600 }}>
+                            {compTypeLabel}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ padding: '3px 8px', borderRadius: 4, background: '#fef3c7', color: '#d97706', fontSize: '0.75rem', fontWeight: 600 }}>
+                            {reqStatus}
+                          </span>
                         </td>
                         <td>
                           <div style={{ display: 'flex', gap: 6 }}>
@@ -3515,16 +3639,17 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
               )}
             </div>
 
-            {/* Draft resume indicator strip */}
-            {draftSaved && draftId && (
+            {/* Draft saved indicator strip */}
+            {draftSaved && (
               <div style={{
                 padding: '8px 24px', background: 'linear-gradient(90deg,#f0fdf4,#eff6ff)',
                 borderTop: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: 8,
                 fontSize: '0.8rem', color: '#15803d', flexShrink: 0,
               }}>
                 <span>✅</span>
-                <strong>Draft saved</strong> — your progress is safe.
-                <span style={{ color: '#64748b', marginLeft: 4 }}>Name: {draftName || 'Auto-named'}</span>
+                <strong>Draft Saved</strong>
+                {lastSavedTime && <span style={{ color: '#64748b' }}>— {lastSavedTime}</span>}
+                <span style={{ color: '#94a3b8', marginLeft: 4 }}>{draftName || 'Auto-named'}</span>
               </div>
             )}
 

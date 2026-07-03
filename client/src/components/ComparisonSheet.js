@@ -83,53 +83,53 @@ function calcDerived(mrpPack, ratePack, gstPct, packAmt, qty, offer) {
 // isScheme: true → rendered under merged "Scheme" header
 // existingKey   → key in existingGenericData object (null = blank for existing row)
 const COLS_NEW = [
-  { id: 'introduced_on', label: 'Introduced On', existingKey: 'existing_introduced_on', w: 90 },
-  { id: 'brand_name', label: 'Brand Name', existingKey: 'existing_brand_name', w: 120 },
-  { id: 'manufacturer', label: 'Mfr.', existingKey: 'existing_manufacturer', w: 110 },
-  { id: 'marketer', label: 'Mktr.', existingKey: 'existing_marketer', w: 100 },
-  { id: 'consultant', label: 'Consultant', existingKey: null, w: 90 },
-  { id: 'mrp_per_pack', label: 'MRP/Pack', existingKey: 'existing_mrp_per_pack', w: 80, num: true },
-  { id: 'rate_per_pack', label: 'Rate/Pack', existingKey: 'existing_rate_per_pack', w: 80, num: true },
-  { id: 'gst_percent', label: 'GST%', existingKey: 'existing_gst_percent', w: 55, num: true },
-  { id: 'pack', label: 'Pack', existingKey: 'existing_pack', w: 60 },
-  { id: 'mrp', label: 'MRP (Inc. GST)/Nos', existingKey: null, isCalc: true, w: 95 },
-  { id: 'rate', label: 'Rate (Inc. GST)/Nos', existingKey: null, isCalc: true, w: 95 },
-  { id: 'markupmargin', label: 'Mark Up Margin', existingKey: null, isCalc: true, w: 80 },
-  { id: 'qty', label: 'Qty', isScheme: true, existingKey: 'existing_qty', w: 55, num: true },
-  { id: 'offer', label: 'Offer', isScheme: true, existingKey: 'existing_offer', w: 55, num: true },
-  { id: 'net_rate', label: 'Net Rate', existingKey: null, isCalc: true, w: 80 },
-  { id: 'profit_margin', label: 'Profit Margin', existingKey: null, isCalc: true, w: 80 },
-  { id: 'abs_margin', label: 'Absolute Margin', existingKey: null, isCalc: true, w: 80 },
-  { id: 'margin', label: 'Total Margin (Mark Up)', existingKey: null, isCalc: true, w: 90 },
-  { id: 'remark', label: 'Remarks', existingKey: 'existing_drug_details', w: 130 },
+  { id: 'introduced_on', label: 'Introduced On', existingKey: 'existing_introduced_on', w: 140 },
+  { id: 'brand_name', label: 'Brand Name', existingKey: 'existing_brand_name', w: 240 },
+  { id: 'manufacturer', label: 'Mfr.', existingKey: 'existing_manufacturer', w: 220 },
+  { id: 'marketer', label: 'Mktr.', existingKey: 'existing_marketer', w: 220 },
+  { id: 'consultant', label: 'Consultant', existingKey: null, w: 180 },
+  { id: 'mrp_per_pack', label: 'MRP/Pack', existingKey: 'existing_mrp_per_pack', w: 130, num: true },
+  { id: 'rate_per_pack', label: 'Rate/Pack', existingKey: 'existing_rate_per_pack', w: 130, num: true },
+  { id: 'gst_percent', label: 'GST%', existingKey: 'existing_gst_percent', w: 70, num: true },
+  { id: 'pack', label: 'Pack', existingKey: 'existing_pack', w: 120 },
+  { id: 'mrp', label: 'MRP (Inc. GST)/Nos', existingKey: null, isCalc: true, w: 130 },
+  { id: 'rate', label: 'Rate (Inc. GST)/Nos', existingKey: null, isCalc: true, w: 130 },
+  { id: 'markupmargin', label: 'Mark Up Margin', existingKey: null, isCalc: true, w: 150 },
+  { id: 'qty', label: 'Qty', isScheme: true, existingKey: 'existing_qty', w: 70, num: true },
+  { id: 'offer', label: 'Offer', isScheme: true, existingKey: 'existing_offer', w: 70, num: true },
+  { id: 'net_rate', label: 'Net Rate', existingKey: null, isCalc: true, w: 140 },
+  { id: 'profit_margin', label: 'Profit Margin', existingKey: null, isCalc: true, w: 150 },
+  { id: 'abs_margin', label: 'Absolute Margin', existingKey: null, isCalc: true, w: 170 },
+  { id: 'margin', label: 'Total Margin (Mark Up)', existingKey: null, isCalc: true, w: 180 },
+  { id: 'remark', label: 'Remarks', existingKey: 'existing_drug_details', w: 320 },
 ];
 
 const COLS_EXISTING = [
-  { id: 'introduced_on', label: 'Introduced On', key: 'introduced_on', w: 90 },
-  { id: 'brand_name', label: 'Brand Name', key: 'brand_name', w: 120 },
-  { id: 'manufacturer', label: 'Mfr.', key: 'manufacturer', w: 110 },
-  { id: 'marketer', label: 'Mktr.', key: 'marketer', w: 100 },
-  { id: 'consultant', label: 'Consultant', key: 'consultant', w: 90 },
-  { id: 'present_stock', label: 'Present Stock', key: 'present_stock', w: 80, num: true },
-  { id: 'purchase_qty', label: 'Purchase Quantity', key: 'purchase_qty', w: 80, num: true },
-  { id: 'sale_qty', label: 'Sale Qty', key: 'sale_qty', w: 55, num: true },
-  { id: 'pack', label: 'Pack', key: 'pack', w: 60 },
-  { id: 'mrp_inc_gst_nos', label: 'MRP (Including GST) / Nos', key: 'mrp_inc_gst_nos', w: 95, num: true },
-  { id: 'rate_inc_gst_nos', label: 'Rate (Including GST) / Nos', key: 'rate_inc_gst_nos', w: 95, num: true },
-  { id: 'markup_margin', label: 'Mark Up Margin', key: 'markup_margin', w: 80, num: true },
-  { id: 'scheme_qty', label: 'Qty', isScheme: true, key: 'scheme_qty', w: 55, num: true },
-  { id: 'scheme_offer', label: 'Offer', isScheme: true, key: 'scheme_offer', w: 55 },
-  { id: 'net_rate', label: 'Net Rate', key: 'net_rate', w: 80, num: true },
-  { id: 'profit_margin', label: 'Profit Margin', key: 'profit_margin', w: 80, num: true },
-  { id: 'absolute_margin', label: 'Absolute Margin', key: 'absolute_margin', w: 80, num: true },
-  { id: 'total_margin', label: 'Total Margin (Mark Up)', key: 'total_margin', w: 90, num: true },
-  { id: 'remark', label: 'Remarks', key: 'remark', w: 130 },
+  { id: 'introduced_on', label: 'Introduced On', key: 'introduced_on', w: 140 },
+  { id: 'brand_name', label: 'Brand Name', key: 'brand_name', w: 240 },
+  { id: 'manufacturer', label: 'Mfr.', key: 'manufacturer', w: 220 },
+  { id: 'marketer', label: 'Mktr.', key: 'marketer', w: 220 },
+  { id: 'consultant', label: 'Consultant', key: 'consultant', w: 180 },
+  { id: 'present_stock', label: 'Present Stock', key: 'present_stock', w: 100, num: true },
+  { id: 'purchase_qty', label: 'Purchase Quantity', key: 'purchase_qty', w: 120, num: true },
+  { id: 'sale_qty', label: 'Sale Qty', key: 'sale_qty', w: 100, num: true },
+  { id: 'pack', label: 'Pack', key: 'pack', w: 120 },
+  { id: 'mrp_inc_gst_nos', label: 'MRP (Including GST) / Nos', key: 'mrp_inc_gst_nos', w: 130, num: true },
+  { id: 'rate_inc_gst_nos', label: 'Rate (Including GST) / Nos', key: 'rate_inc_gst_nos', w: 130, num: true },
+  { id: 'markup_margin', label: 'Mark Up Margin', key: 'markup_margin', w: 150, num: true },
+  { id: 'scheme_qty', label: 'Qty', isScheme: true, key: 'scheme_qty', w: 70, num: true },
+  { id: 'scheme_offer', label: 'Offer', isScheme: true, key: 'scheme_offer', w: 70 },
+  { id: 'net_rate', label: 'Net Rate', key: 'net_rate', w: 140, num: true },
+  { id: 'profit_margin', label: 'Profit Margin', key: 'profit_margin', w: 150, num: true },
+  { id: 'absolute_margin', label: 'Absolute Margin', key: 'absolute_margin', w: 170, num: true },
+  { id: 'total_margin', label: 'Total Margin (Mark Up)', key: 'total_margin', w: 180, num: true },
+  { id: 'remark', label: 'Remarks', key: 'remark', w: 320 },
 ];
 
 // ── Shared style tokens ──────────────────────────────────────────────
 const CELL = {
-  border: '1px solid #bbb', padding: '3px 5px', fontSize: '0.73rem',
-  verticalAlign: 'middle', whiteSpace: 'nowrap',
+  border: '1px solid #bbb', padding: '6px 8px', fontSize: '0.73rem',
+  verticalAlign: 'top',
 };
 const HDR = {
   ...CELL, background: '#1e3a5f', color: '#fff', fontWeight: 700,
@@ -146,6 +146,12 @@ const INPUT_STYLE = {
   width: '100%', border: 'none', background: 'transparent',
   padding: '1px 2px', fontSize: '0.73rem', outline: 'none', minWidth: 0,
 };
+const TEXTAREA_STYLE = {
+  width: '100%', border: 'none', background: 'transparent',
+  padding: 0, margin: 0, fontSize: '0.73rem', outline: 'none',
+  resize: 'none', overflowY: 'hidden', fontFamily: 'inherit',
+  lineHeight: '1.3', display: 'block',
+};
 const CALC_STYLE = {
   ...CELL, background: '#eef2ff', color: '#1e40af',
   textAlign: 'right', fontStyle: 'italic', fontSize: '0.72rem',
@@ -154,17 +160,61 @@ const CALC_STYLE = {
 // ── Sub-components ───────────────────────────────────────────────────
 
 /** Standard editable / read-only data cell */
-function SheetCell({ value, onChange, num, editable, style = {} }) {
-  const merged = { ...CELL, ...style };
+function SheetCell({ value, onChange, num, editable, style = {}, colId }) {
+  const isNum = !!num;
+  const useTextarea = !isNum && ['brand_name', 'manufacturer', 'marketer', 'consultant', 'remark'].includes(colId);
+
+  // Center-aligned, right-aligned, or left-aligned depending on data type
+  const textAlign = isNum 
+    ? 'right' 
+    : (colId === 'introduced_on' || colId === 'pack' || colId === 'scheme_offer' ? 'center' : 'left');
+  
+  // Wrap text fields, prevent clipping, allow numeric fields to stay single-line
+  const whiteSpace = isNum ? 'nowrap' : 'pre-wrap';
+  const wordBreak = isNum ? 'normal' : 'break-word';
+  const overflowWrap = isNum ? 'normal' : 'anywhere';
+
+  const merged = { 
+    ...CELL, 
+    textAlign, 
+    whiteSpace, 
+    wordBreak, 
+    overflowWrap,
+    ...style 
+  };
+
+  const textareaRef = React.useRef(null);
+  React.useEffect(() => {
+    if (useTextarea && textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+    }
+  }, [value, useTextarea]);
+
   if (!editable) {
     return (
-      <td style={merged}>
+      <td style={merged} data-col-id={colId}>
         {value !== '' && value !== null && value !== undefined ? value : '—'}
       </td>
     );
   }
+
+  if (useTextarea) {
+    return (
+      <td style={merged} data-col-id={colId}>
+        <textarea
+          ref={textareaRef}
+          value={value ?? ''}
+          onChange={e => onChange && onChange(e.target.value)}
+          style={TEXTAREA_STYLE}
+          rows={1}
+        />
+      </td>
+    );
+  }
+
   return (
-    <td style={merged}>
+    <td style={merged} data-col-id={colId}>
       <input
         type={num ? 'number' : 'text'}
         value={value ?? ''}
@@ -176,15 +226,18 @@ function SheetCell({ value, onChange, num, editable, style = {} }) {
 }
 
 /** Auto-calculated read-only cell — always shaded blue-tint */
-function CalcCell({ value, rowStyle = {} }) {
+function CalcCell({ value, rowStyle = {}, colId }) {
   const merged = {
-    ...CALC_STYLE, ...rowStyle,
+    ...CALC_STYLE,
+    textAlign: 'right',
+    whiteSpace: 'nowrap',
+    ...rowStyle,
     background: rowStyle.background
       ? CALC_STYLE.background   // keep calc shade regardless of row stripe
       : CALC_STYLE.background,
   };
   return (
-    <td style={merged}>
+    <td style={merged} data-col-id={colId}>
       {value !== '' && value !== null && value !== undefined ? value : '—'}
     </td>
   );
@@ -237,49 +290,84 @@ const mapColIdToKey = (id) => {
 };
 
 // ── Section Headers Row Generator ────────────────────────────────────
-function renderSectionHeaders(cols) {
+function renderSectionHeaders(cols, columnWidths, handleMouseDown, handleDoubleClick) {
   return (
     <>
       {/* Row 1: main column headers */}
       <tr>
-        <th style={{ ...HDR, width: 40, minWidth: 40 }}>S.No.</th>
+        <th style={{ ...HDR, width: columnWidths.sno || 40, minWidth: columnWidths.sno || 40, position: 'relative' }} data-col-id="sno">
+          S.No.
+          <div
+            className="resize-handle"
+            onMouseDown={e => handleMouseDown(e, 'sno')}
+            onDoubleClick={() => handleDoubleClick('sno')}
+          />
+        </th>
         {cols.map(col => {
           if (col.isScheme && (col.id === 'offer' || col.id === 'scheme_offer')) return null;
           if (col.isScheme && (col.id === 'qty' || col.id === 'scheme_qty')) {
+            const offerCol = cols.find(c => c.id === 'offer' || c.id === 'scheme_offer');
+            const w1 = columnWidths[col.id] || col.w;
+            const w2 = columnWidths[offerCol.id] || offerCol.w;
             return (
-              <th key={col.id} colSpan={2} style={{ ...HDR, width: col.w + 60, minWidth: col.w + 60 }}>
+              <th key={col.id} colSpan={2} style={{ ...HDR, width: w1 + w2, minWidth: w1 + w2, position: 'relative' }}>
                 Scheme
+                <div
+                  className="resize-handle"
+                  onMouseDown={e => handleMouseDown(e, offerCol.id)}
+                  onDoubleClick={() => handleDoubleClick(offerCol.id)}
+                />
               </th>
             );
           }
+          const colW = columnWidths[col.id] || col.w;
           return (
             <th key={col.id} style={{
               ...HDR,
-              width: col.w, minWidth: col.w,
+              width: colW, minWidth: colW,
               background: col.isCalc ? '#16305a' : '#1e3a5f',
-            }}>
+              position: 'relative',
+            }} data-col-id={col.id}>
               {col.label}
+              <div
+                className="resize-handle"
+                onMouseDown={e => handleMouseDown(e, col.id)}
+                onDoubleClick={() => handleDoubleClick(col.id)}
+              />
             </th>
           );
         })}
       </tr>
       {/* Row 2: sub-labels */}
       <tr>
-        <th style={{ ...HDR, fontSize: '0.62rem' }}></th>
+        <th style={{ ...HDR, fontSize: '0.62rem', width: columnWidths.sno || 40, minWidth: columnWidths.sno || 40, position: 'relative' }} data-col-id="sno">
+          <div
+            className="resize-handle"
+            onMouseDown={e => handleMouseDown(e, 'sno')}
+            onDoubleClick={() => handleDoubleClick('sno')}
+          />
+        </th>
         {cols.map(col => {
           let subLabel = '';
           if (col.isScheme) subLabel = col.label;
           else if (col.isCalc) subLabel = '⟵ auto';
+          const colW = columnWidths[col.id] || col.w;
           return (
             <th key={col.id} style={{
               ...HDR,
-              fontSize: '0.6rem', width: col.w, minWidth: col.w,
+              fontSize: '0.6rem', width: colW, minWidth: colW,
               background: col.isCalc ? '#1a3a6e' : '#253d6e',
               letterSpacing: col.isCalc ? '0em' : undefined,
               fontStyle: col.isCalc ? 'italic' : 'normal',
               opacity: 0.9,
-            }}>
+              position: 'relative',
+            }} data-col-id={col.id}>
               {subLabel}
+              <div
+                className="resize-handle"
+                onMouseDown={e => handleMouseDown(e, col.id)}
+                onDoubleClick={() => handleDoubleClick(col.id)}
+              />
             </th>
           );
         })}
@@ -362,13 +450,141 @@ export default function ComparisonSheet({
   const sheetRef = React.useRef(null);
   const [zoom, setZoom] = React.useState(0.8);
 
+  // ── Column Widths state & resizing handlers ──────────────────────────
+  const [columnWidths, setColumnWidths] = React.useState(() => {
+    const initial = { sno: 40 };
+    COLS_NEW.forEach(col => {
+      initial[col.id] = col.w;
+    });
+    COLS_EXISTING.forEach(col => {
+      initial[col.id] = col.w;
+    });
+    return initial;
+  });
+
+  const getColIndex = React.useCallback((colId) => {
+    let idx = COLS_NEW.findIndex(c => c.id === colId);
+    if (idx === -1) {
+      idx = COLS_EXISTING.findIndex(c => c.id === colId);
+    }
+    return idx;
+  }, []);
+
+  const handleMouseDown = React.useCallback((e, colId) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const colIndex = getColIndex(colId);
+    const startWidth = colId === 'sno' ? (columnWidths.sno || 40) : (columnWidths[colId] || 100);
+
+    const handleMouseMove = (moveEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const newWidth = Math.min(600, Math.max(80, startWidth + deltaX));
+
+      if (colId === 'sno') {
+        setColumnWidths(prev => ({ ...prev, sno: newWidth }));
+      } else if (colIndex !== -1) {
+        const newCol = COLS_NEW[colIndex];
+        const existCol = COLS_EXISTING[colIndex];
+        setColumnWidths(prev => {
+          const updated = { ...prev };
+          if (newCol) updated[newCol.id] = newWidth;
+          if (existCol) updated[existCol.id] = newWidth;
+          return updated;
+        });
+      }
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = 'col-resize';
+  }, [columnWidths, getColIndex]);
+
+  const handleDoubleClick = React.useCallback((colId) => {
+    if (!sheetRef.current) return;
+    const cells = sheetRef.current.querySelectorAll(`[data-col-id="${colId}"]`);
+    let maxW = 80;
+    cells.forEach(cell => {
+      const oldWS = cell.style.whiteSpace;
+      cell.style.whiteSpace = 'nowrap';
+      const w = cell.scrollWidth + 16;
+      cell.style.whiteSpace = oldWS;
+      if (w > maxW) maxW = w;
+    });
+    const finalW = Math.min(600, Math.max(80, maxW));
+
+    const colIndex = getColIndex(colId);
+    if (colId === 'sno') {
+      setColumnWidths(prev => ({ ...prev, sno: finalW }));
+    } else if (colIndex !== -1) {
+      const newCol = COLS_NEW[colIndex];
+      const existCol = COLS_EXISTING[colIndex];
+      setColumnWidths(prev => {
+        const updated = { ...prev };
+        if (newCol) updated[newCol.id] = finalW;
+        if (existCol) updated[existCol.id] = finalW;
+        return updated;
+      });
+    }
+  }, [getColIndex]);
+
+  const autoFitAll = React.useCallback(() => {
+    if (!sheetRef.current) return;
+    const updatedWidths = { ...columnWidths };
+
+    // Fit S.No
+    const snoCells = sheetRef.current.querySelectorAll('[data-col-id="sno"]');
+    let maxSno = 40;
+    snoCells.forEach(cell => {
+      const oldWS = cell.style.whiteSpace;
+      cell.style.whiteSpace = 'nowrap';
+      const w = cell.scrollWidth + 12;
+      cell.style.whiteSpace = oldWS;
+      if (w > maxSno) maxSno = w;
+    });
+    updatedWidths.sno = Math.max(40, maxSno);
+
+    // Fit other columns by index
+    COLS_NEW.forEach((col, idx) => {
+      const existCol = COLS_EXISTING[idx];
+
+      // Query cells matching either column ID since they align vertically
+      const newCells = sheetRef.current.querySelectorAll(`[data-col-id="${col.id}"]`);
+      const existCells = existCol ? sheetRef.current.querySelectorAll(`[data-col-id="${existCol.id}"]`) : [];
+
+      let maxW = 80;
+      const processCell = cell => {
+        const oldWS = cell.style.whiteSpace;
+        cell.style.whiteSpace = 'nowrap';
+        const w = cell.scrollWidth + 16;
+        cell.style.whiteSpace = oldWS;
+        if (w > maxW) maxW = w;
+      };
+
+      newCells.forEach(processCell);
+      existCells.forEach(processCell);
+
+      const finalW = Math.min(600, Math.max(80, maxW));
+      updatedWidths[col.id] = finalW;
+      if (existCol) updatedWidths[existCol.id] = finalW;
+    });
+
+    setColumnWidths(updatedWidths);
+  }, [columnWidths]);
+
+
   // ── Existing Generic Lookup & Report State ──────────────────────────
   const [searchQuery, setSearchQuery] = React.useState('');
   const [genericSuggestions, setGenericSuggestions] = React.useState([]);
   const [selectedGeneric, setSelectedGeneric] = React.useState(null);
   const [fromDate, setFromDate] = React.useState(() => {
     const d = new Date();
-    d.setFullYear(d.getFullYear() - 1); // default 1 year ago
+    d.setMonth(d.getMonth() - 3); // default 3 months ago
     return d.toISOString().split('T')[0];
   });
   const [toDate, setToDate] = React.useState(() => {
@@ -1512,6 +1728,16 @@ export default function ComparisonSheet({
             >
               Full Width
             </button>
+            <button
+              type="button"
+              onClick={autoFitAll}
+              title="Auto Fit Columns"
+              style={{
+                background: 'rgba(255, 255, 255, 0.1)', border: 'none', color: '#fff', cursor: 'pointer', padding: '4px 8px', borderRadius: 4, fontSize: '0.72rem', fontWeight: 600
+              }}
+            >
+              Auto Fit
+            </button>
           </div>
 
           {/* Download Button (DTC mode or read-only view) */}
@@ -2072,9 +2298,38 @@ export default function ComparisonSheet({
             💡 <em>Shaded blue-tint columns</em> are auto-calculated from MRP/Pack, Rate/Pack, GST% and Pack. Edit the base columns to update them.
           </div>
 
+          {/* Style tag for resize handles */}
+          <style>{`
+            .resize-handle {
+              position: absolute;
+              top: 0;
+              right: 0;
+              width: 4px;
+              height: 100%;
+              cursor: col-resize;
+              z-index: 10;
+              background: transparent;
+              transition: background 0.1s;
+            }
+            .resize-handle:hover {
+              background: #0ea5e9;
+              width: 4px;
+            }
+          `}</style>
+
           {/* ── Main Table ── */}
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 'max-content' }}>
+            <table style={{
+              tableLayout: 'fixed',
+              borderCollapse: 'collapse',
+              width: `${(columnWidths.sno || 40) + COLS_NEW.reduce((acc, col) => acc + (columnWidths[col.id] || col.w), 0)}px`,
+            }}>
+              <colgroup>
+                <col style={{ width: columnWidths.sno || 40 }} />
+                {COLS_NEW.map(col => (
+                  <col key={col.id} style={{ width: columnWidths[col.id] || col.w }} />
+                ))}
+              </colgroup>
               <tbody>
                 {/* ── EXISTING DETAILS ── */}
                 {isExisting && (
@@ -2082,10 +2337,10 @@ export default function ComparisonSheet({
                     <tr>
                       <td colSpan={20} style={SECTION_HDR}>EXISTING DETAILS</td>
                     </tr>
-                    {renderSectionHeaders(COLS_EXISTING)}
+                    {renderSectionHeaders(COLS_EXISTING, columnWidths, handleMouseDown, handleDoubleClick)}
                     {existingDetails.map((row, idx) => (
                       <tr key={`exist-${idx}`} style={EXIST_ROW}>
-                        <td style={{ ...CELL, textAlign: 'center', fontWeight: 600, ...EXIST_ROW, position: 'relative' }}>
+                        <td style={{ ...CELL, textAlign: 'center', fontWeight: 600, ...EXIST_ROW, position: 'relative' }} data-col-id="sno">
                           {idx + 1}
                           {mode === 'pharmacist' && existingDetails.length > 1 && (
                             <button
@@ -2112,6 +2367,7 @@ export default function ComparisonSheet({
                               num={col.num}
                               editable={mode === 'pharmacist'}
                               style={EXIST_ROW}
+                              colId={col.id}
                             />
                           );
                         })}
@@ -2137,7 +2393,7 @@ export default function ComparisonSheet({
                     NEW QUOTATION DETAILS
                   </td>
                 </tr>
-                {renderSectionHeaders(COLS_NEW)}
+                {renderSectionHeaders(COLS_NEW, columnWidths, handleMouseDown, handleDoubleClick)}
                 {alternatives.map((alt, i) => {
                   const rowStyle = i === 0 ? DR_ROW : NEW_ROW;
                   const derived = calcDerived(
@@ -2146,13 +2402,13 @@ export default function ComparisonSheet({
                   );
                   return (
                     <tr key={i} style={rowStyle}>
-                      <td style={{ ...CELL, textAlign: 'center', fontWeight: 600, ...rowStyle }}>
+                      <td style={{ ...CELL, textAlign: 'center', fontWeight: 600, ...rowStyle }} data-col-id="sno">
                         {i + 1}
                         {i === 0 && <div style={{ fontSize: '0.6rem', color: '#15803d' }}>Dr. Rec.</div>}
                       </td>
                       {COLS_NEW.map(col => {
                         if (col.isCalc) {
-                          return <CalcCell key={col.id} value={derived[col.id]} rowStyle={rowStyle} />;
+                          return <CalcCell key={col.id} value={derived[col.id]} rowStyle={rowStyle} colId={col.id} />;
                         }
                         return (
                           <SheetCell
@@ -2162,6 +2418,7 @@ export default function ComparisonSheet({
                             num={col.num}
                             editable={mode === 'pharmacist'}
                             style={rowStyle}
+                            colId={col.id}
                           />
                         );
                       })}
@@ -2187,7 +2444,7 @@ export default function ComparisonSheet({
                     AFTER NEGOTIATION
                   </td>
                 </tr>
-                {renderSectionHeaders(COLS_NEW)}
+                {renderSectionHeaders(COLS_NEW, columnWidths, handleMouseDown, handleDoubleClick)}
                 {alternatives.map((alt, i) => {
                   const rowStyle = i === 0 ? DR_ROW : NEW_ROW;
 
@@ -2201,13 +2458,13 @@ export default function ComparisonSheet({
 
                   return (
                     <tr key={`neg-${i}`} style={rowStyle}>
-                      <td style={{ ...CELL, textAlign: 'center', fontWeight: 600, ...rowStyle }}>
+                      <td style={{ ...CELL, textAlign: 'center', fontWeight: 600, ...rowStyle }} data-col-id="sno">
                         {i + 1}
                         {i === 0 && <div style={{ fontSize: '0.6rem', color: '#15803d' }}>Dr. Rec.</div>}
                       </td>
                       {COLS_NEW.map(col => {
                         if (col.isCalc) {
-                          return <CalcCell key={col.id} value={derived[col.id]} rowStyle={rowStyle} />;
+                          return <CalcCell key={col.id} value={derived[col.id]} rowStyle={rowStyle} colId={col.id} />;
                         }
 
                         let fieldVal = '';
@@ -2254,6 +2511,7 @@ export default function ComparisonSheet({
                             num={isNum}
                             editable={cellEditable}
                             style={rowStyle}
+                            colId={col.id}
                           />
                         );
                       })}

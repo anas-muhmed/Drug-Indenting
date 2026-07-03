@@ -3808,88 +3808,276 @@ If uncertain:
 
 
 
-const ALL_PROFILE_SYSTEM_PROMPT2 = `━━━━━━━━━━━━━━━━━━━━━━━
-### SYSTEM ROLE
-You are a senior Indian pharmaceutical market analyst specializing in Kerala and South India hospital and retail drug procurement. Your knowledge covers branded generics, institutional supply chains, KMSCL procurement, and South Indian hospital formularies.
+const ALL_PROFILE_SYSTEM_PROMPT2 = `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SYSTEM ROLE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
----
+You are an Indian pharmaceutical knowledge assistant specializing in branded generic medicines marketed in India.
 
-### TASK
-For the drug molecule or brand provided by the user, generate a structured list of at least 10 alternative brands available in the Indian market, with strict priority given to brands actively available in Kerala and South India.
+Your expertise includes:
 
----
+• Indian branded generic medicines
+• CDSCO-approved pharmaceutical manufacturers
+• Indian hospital formularies
+• South Indian pharmaceutical market
+• Institutional procurement practices
+• Brand-to-generic mapping
 
-### STRICT RULES — READ BEFORE GENERATING
+Your primary responsibility is to identify well-known Indian branded alternatives for a given drug molecule or brand.
 
-1. Minimum 10 alternatives required. Do not stop before 10.
-2. Do NOT include Jan Aushadhi entries. Exclude entirely.
-3. Do NOT include brands unavailable in India or only available in US/EU markets.
-4. Only include brands confirmed or highly likely to be present in:
-   - Kerala retail pharmacies, OR
-   - South India hospital formularies (Tamil Nadu, Karnataka, Andhra Pradesh, Telangana, Kerala)
-5. Do NOT invent contact details, phone numbers, emails, or distributor names.
-6. If regional Kerala/South India contact is not publicly known, use this exact fallback:
-   "Contact official customer care or Kerala CDSCO office for regional procurement contacts."
-7. Mark every entry with: [AI Knowledge] — data based on training; verify before procurement.
-8. Do NOT add pricing, dosage, margins, or clinical notes. Output only what is asked.
+Accuracy is significantly more important than completeness.
 
----
+Never fabricate information.
 
-### PREFERRED MANUFACTURERS (prioritize these)
-Sun Pharma | Cipla | Dr. Reddy's | Lupin | Alkem | Zydus Cadila | Abbott India | Mankind Pharma | Intas Pharmaceuticals | Glenmark | Torrent Pharma | Micro Labs | Eris Lifesciences | KMSCL-linked suppliers | Other reputed CDSCO-approved Indian manufacturers
+If you are uncertain, explicitly return "Unknown" instead of guessing.
 
----
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OBJECTIVE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-### OUTPUT FORMAT — FOLLOW EXACTLY
+Given a drug brand name or generic name, generate **up to 10 verified Indian branded alternatives** marketed in India.
 
-Use this structure for every alternative. Repeat sequentially from 1 to minimum 10.
+If fewer than **10** alternatives can be identified with **MEDIUM** or **HIGH** confidence, return **only those verified alternatives**.
+
+Do NOT invent, infer, or fabricate additional brands simply to reach ten results.
+
+Accuracy and factual correctness are always more important than quantity.
+
+Prioritize medicines marketed by well-established Indian pharmaceutical companies and commonly used in Indian clinical practice.
+
+The output will be used only as an AI suggestion list inside a hospital Drug Indenting System and must never contain fabricated information.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STRICT RULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Generate UP TO 10 alternatives.
+
+2. If fewer than 10 verified alternatives are known,
+   return only the verified ones.
+
+3. Never invent:
+   • Brand names
+   • Manufacturers
+   • Marketing companies
+   • Contact numbers
+   • Email addresses
+   • Websites
+   • Distributor names
+   • Procurement information
+   • Regional office details
+
+4. Never claim:
+
+   • Available in Kerala
+   • Commonly stocked
+   • Hospital formulary availability
+   • KMSCL supplied
+   • Government procurement
+   • Widely used in hospitals
+
+unless highly confident from established pharmaceutical knowledge.
+
+Otherwise write:
+
+Unknown
+
+5. Never create a brand name from the generic.
+
+Example:
+
+❌ Incorrect
+
+Brand:
+Paracetamol
+
+Generic:
+Paracetamol
+
+✅ Correct
+
+Brand:
+Crocin
+
+Generic:
+Paracetamol
+
+6. If a manufacturer's marketed brand is unknown,
+
+write:
+
+Brand:
+Unknown
+
+Do NOT guess.
+
+7. Every alternative should represent a different marketed brand whenever possible.
+
+Avoid duplicate brands.
+
+8. Never include Jan Aushadhi products.
+
+9. Never include brands marketed only outside India.
+
+10. Prefer CDSCO-approved Indian manufacturers.
+
+11. Never fabricate information simply to complete the requested number of alternatives.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PREFERRED SEARCH ORDER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Search your pharmaceutical knowledge in approximately this priority:
+
+1. Cipla
+2. Sun Pharma
+3. Dr. Reddy's Laboratories
+4. Lupin
+5. Abbott India
+6. Alkem Laboratories
+7. Intas Pharmaceuticals
+8. Torrent Pharmaceuticals
+9. Glenmark Pharmaceuticals
+10. Mankind Pharma
+11. Micro Labs
+12. Eris Lifesciences
+13. Zydus Lifesciences
+14. Macleods Pharmaceuticals
+15. Emcure Pharmaceuticals
+16. USV
+17. Aristo Pharmaceuticals
+18. Alembic Pharmaceuticals
+19. Other reputed Indian CDSCO-approved manufacturers
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONFIDENCE RULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Every alternative MUST include one confidence level.
+
+Allowed values:
+
+HIGH
+MEDIUM
+LOW
+
+Definitions:
+
+HIGH
+Brand and manufacturer association is well known and confidently recognized.
+
+MEDIUM
+Likely correct but not fully certain.
+
+LOW
+Significant uncertainty.
+
+Never label an entry HIGH unless genuinely confident.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OUTPUT FORMAT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ════════════════════════════════
-ALTERNATIVE [N]                            [AI Knowledge]
-════════════════════════════════
-Brand Name   : [Full trade name as marketed in India]
-Marketer     : [Indian marketing/sales company name]
-               [Add tag if applicable: ⟨KMSCL/Govt Supply Associated⟩]
-               [Add tag if applicable: ⟨Commonly stocked — Kerala private hospitals⟩]
 
-Contact Details:
-  Company    : [Official legal company name]
-  Phone      : [Official customer care number]
-  Email      : [Official sales or support email]
-  Website    : [Official website URL]
-  Regional   : [Kerala or South India office/contact if publicly known
-                OR: "Contact official customer care or Kerala CDSCO office
-                for regional procurement contacts."]
+ALTERNATIVE N [AI Knowledge]
+
 ════════════════════════════════
 
----
+Brand Name:
+...
 
-### SPECIAL TAGS — APPLY WHERE RELEVANT
+Generic:
+...
 
-⟨KMSCL/Govt Supply Associated⟩
-→ Apply if brand is known to be listed with Kerala Medical Services Corporation Ltd. or supplied via government procurement channels.
+Manufacturer:
+...
 
-⟨Commonly stocked — Kerala private hospitals⟩
-→ Apply if brand is widely stocked in Kerala private multispeciality or corporate hospitals.
+Marketing Company:
+...
 
----
+Confidence:
+HIGH | MEDIUM | LOW
 
-### QUALITY CHECKLIST — VERIFY BEFORE OUTPUTTING
+Reason:
+Maximum 20 words explaining why this alternative is suggested.
 
-Before finalizing your response, confirm:
-[ ] At least 10 alternatives are listed
-[ ] No Jan Aushadhi entries included
-[ ] All brands are India-marketed and South India relevant
-[ ] No invented phone numbers, emails, or distributor names
-[ ] Every entry uses the exact output format above
-[ ] Every entry is marked [AI Knowledge]
-[ ] Fallback contact line used wherever regional contact is unknown
+Availability:
+Unknown
 
----
+Government Procurement:
+Unknown
 
-### BEGIN OUTPUT NOW
+════════════════════════════════
 
-List all alternatives sequentially. Do not add preamble, disclaimers, or explanations before the first alternative. Start directly with ALTERNATIVE 1`;
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+QUALITY VALIDATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Before generating the final answer verify:
+
+✓ Brand name is not identical to the generic unless actually marketed that way.
+
+✓ No duplicate brands.
+
+✓ No fabricated brands.
+
+✓ No fabricated manufacturers.
+
+✓ No fabricated marketing companies.
+
+✓ No fabricated phone numbers.
+
+✓ No fabricated emails.
+
+✓ No fabricated websites.
+
+✓ No fabricated regional contacts.
+
+✓ No fabricated procurement claims.
+
+✓ Generic is included.
+
+✓ Confidence level is included.
+
+✓ Reason is concise.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IMPORTANT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+This output is intended only to provide AI-generated suggestions for hospital pharmacists.
+
+Accuracy is mandatory.
+
+Never fabricate:
+
+• Brand names
+• Manufacturers
+• Marketing companies
+• Procurement information
+• Availability
+• Contact information
+
+If you are uncertain about any field, write:
+
+Unknown
+
+Do NOT guess.
+
+Generate **up to 10 verified Indian branded alternatives**.
+
+If fewer than **10** alternatives can be identified with **MEDIUM** or **HIGH** confidence, return **only those verified alternatives**.
+
+Do NOT invent additional entries simply to reach ten.
+
+Return only information you can confidently support from your knowledge.
+
+Begin directly with:
+
+ALTERNATIVE 1
+`;
 
 // ── AI CALL FUNCTION ─────────────────────────────────────
 
@@ -3908,7 +4096,8 @@ async function askAI(userPrompt, systemPrompt) {
           { role: "user", content: userPrompt }
         ],
         temperature: 0,
-        max_tokens: 2800
+        top_p: 0.1,
+        max_tokens: 3200
       })
     });
 
@@ -4296,6 +4485,7 @@ app.post('/api/requests/:id/place_order', async (req, res) => {
 // PUT /api/requests/:id/mark-inventory-added
 // Pharmacist marks that the final drug was added to HIS inventory
 // =============================================================
+
 app.put('/api/requests/:id/mark-inventory-added', async (req, res) => {
   const conn = await getConn();
   try {
@@ -5378,16 +5568,27 @@ app.put('/api/pharmacist/comparison/:requestId', async (req, res) => {
 // =============================================================
 
 // POST /api/pharmacist/drafts — upsert draft
+// Stores the COMPLETE comparison sheet state as a lossless JSON snapshot.
+// The entire req.body (minus the three metadata keys) becomes draft_data,
+// so any new fields added in the frontend are automatically persisted.
 app.post('/api/pharmacist/drafts', async (req, res) => {
   const conn = await getConn();
   try {
-    const { request_id, pharmacist_id, draft_name, alternatives, comp_type, pharm_remarks } = req.body;
+    const { request_id, pharmacist_id, draft_name } = req.body;
     console.log('Saving draft for request', request_id, 'pharmacist', pharmacist_id);
     if (!request_id || !pharmacist_id) return res.status(400).json({ error: 'request_id and pharmacist_id are required.' });
 
-    const draftData = JSON.stringify({ alternatives, comp_type, pharm_remarks });
+    // Build the draft data object: everything except the three metadata keys
+    const dataObj = { ...req.body };
+    delete dataObj.request_id;
+    delete dataObj.pharmacist_id;
+    delete dataObj.draft_name;
+    const draftData = JSON.stringify(dataObj);
+
+    // Auto-generate a sensible draft name when none is provided
+    const alts = req.body.alternatives;
     const name = draft_name?.trim() ||
-      (alternatives?.find(a => a.brand_name?.trim())?.brand_name?.trim()) ||
+      (Array.isArray(alts) ? alts.find(a => a.brand_name?.trim())?.brand_name?.trim() : undefined) ||
       `Draft - Request #${request_id}`;
 
     const existing = await conn.execute(
@@ -5458,21 +5659,30 @@ app.get('/api/pharmacist/drafts/for-request/:requestId/:pharmacistId', async (re
 });
 
 // GET /api/pharmacist/drafts/:pharmacistId — list all DRAFT records for a pharmacist
+// Returns additional request columns (request_type, current_stage, req_status) and
+// parses draft_data so the frontend can read comp_type for the Comparison Type column.
 app.get('/api/pharmacist/drafts/:pharmacistId', async (req, res) => {
   const conn = await getConn();
   try {
     const pid = parseInt(req.params.pharmacistId);
     const result = await conn.execute(
       `SELECT ad.draft_id, ad.request_id, ad.draft_name, ad.status,
-              ad.created_at, ad.updated_at,
-              dr.brand_name, dr.generic_name, dr.category
+              ad.created_at, ad.updated_at, ad.draft_data,
+              dr.brand_name, dr.generic_name, dr.category,
+              dr.request_type, dr.current_stage, dr.status AS req_status
        FROM analysis_drafts ad
        JOIN drug_requests dr ON dr.request_id = ad.request_id
        WHERE ad.pharmacist_id = :pid AND ad.status = 'DRAFT'
        ORDER BY ad.updated_at DESC`,
       { pid }
     );
-    res.json(result.rows);
+    // Parse draft_data CLOB for each row so the frontend can read comp_type inline
+    const list = result.rows.map(row => {
+      let parsed = {};
+      try { parsed = row.DRAFT_DATA ? JSON.parse(row.DRAFT_DATA) : {}; } catch { parsed = {}; }
+      return { ...row, DRAFT_DATA: parsed };
+    });
+    res.json(list);
   } catch (err) {
     console.error('GET /api/pharmacist/drafts error:', err);
     res.status(500).json({ error: 'Internal server error.', detail: err.message });
@@ -6718,12 +6928,19 @@ app.put('/api/requests/:id/revert-to-pharmacist', async (req, res) => {
 // =============================================================
 // PUT /api/requests/:id/resubmit-correction
 // Pharmacist resubmits corrected comparison sheet to Pharmacy Head
+// Saves corrected alternatives, remarks, and existing generic data before transitioning stage.
 // =============================================================
 app.put('/api/requests/:id/resubmit-correction', async (req, res) => {
   const conn = await getConn();
   try {
     const requestId = parseInt(req.params.id);
-    const { performed_by } = req.body;
+    const {
+      performed_by,
+      alternatives,
+      remarks,
+      comparison_type,
+      existing_generic_data
+    } = req.body;
 
     const reqResult = await conn.execute(
       `SELECT dr.*, u.name AS doctor_name FROM drug_requests dr
@@ -6738,21 +6955,92 @@ app.put('/api/requests/:id/resubmit-correction', async (req, res) => {
       return res.status(400).json({ error: 'Resubmit is only allowed from Pharmacist Correction stage.' });
     }
 
+    // Save corrected alternatives if provided
+    if (alternatives && alternatives.length > 0) {
+      await conn.execute(
+        `DELETE FROM drug_alternatives WHERE request_id = :requestId`,
+        { requestId }
+      );
+      for (const alt of alternatives) {
+        const d = computeAltDerived(alt);
+        await conn.execute(
+          `INSERT INTO drug_alternatives (
+             request_id, brand_name, manufacturer, marketer,
+             mrp_per_pack, rate_per_pack, gst_percent,
+             mrp, rate, qty, offer,
+             markup_margin, net_rate, absolute_margin,
+             negotiated_rate, profit_margin,
+             stock, purchase_quantity,
+             consultant, sale_qty, pack, introduced_on,
+             comparison_type, remark, submitted_by
+           ) VALUES (
+             :request_id, :brand_name, :manufacturer, :marketer,
+             :mrp_per_pack, :rate_per_pack, :gst_percent,
+             :mrp, :rate, :qty, :offer,
+             :markup_margin, :net_rate, :absolute_margin,
+             :negotiated_rate, :profit_margin,
+             :stock, :purchase_quantity,
+             :consultant, :sale_qty, :pack, :introduced_on,
+             :comparison_type, :remark, :submitted_by
+           )`,
+          {
+            request_id: requestId,
+            brand_name: alt.brand_name || null,
+            manufacturer: alt.manufacturer || null,
+            marketer: alt.marketer || null,
+            mrp_per_pack: parseFloat(alt.mrp_per_pack) || null,
+            rate_per_pack: parseFloat(alt.rate_per_pack) || null,
+            gst_percent: parseFloat(alt.gst_percent) || null,
+            mrp: d.mrp || null,
+            rate: d.rate || null,
+            qty: parseFloat(alt.qty) || null,
+            offer: parseFloat(alt.offer) || null,
+            markup_margin: d.markup_margin || null,
+            net_rate: d.net_rate || null,
+            absolute_margin: d.absolute_margin || null,
+            negotiated_rate: parseFloat(alt.negorate) || null,
+            profit_margin: d.profit_margin || null,
+            stock: alt.stock || null,
+            purchase_quantity: parseFloat(alt.purchase_qty) || null,
+            consultant: alt.consultant || null,
+            sale_qty: parseFloat(alt.sale_qty) || null,
+            pack: alt.pack || null,
+            introduced_on: alt.introduced_on || 'New Item',
+            comparison_type: comparison_type || 'new_generic',
+            remark: alt.remark || null,
+            submitted_by: performed_by
+          }
+        );
+      }
+    }
+
+    // Build the UPDATE statement with optional pharmacist_remarks and existing_generic_data
+    const egdJson = existing_generic_data ? JSON.stringify(existing_generic_data) : null;
     await conn.execute(
       `UPDATE drug_requests
-       SET current_stage      = 'PharmacyHeadReview2',
-           status             = 'Pending',
-           is_reverted        = 0,
-           last_corrected_at  = CURRENT_TIMESTAMP,
-           last_corrected_by  = :performed_by,
-           updated_at         = CURRENT_TIMESTAMP
+       SET current_stage         = 'PharmacyHeadReview2',
+           status                = 'Pending',
+           is_reverted           = 0,
+           revert_remarks        = NULL,
+           pharmacist_remarks    = CASE WHEN :remarks IS NOT NULL THEN :remarks ELSE pharmacist_remarks END,
+           existing_generic_data = CASE WHEN :egd IS NOT NULL THEN TO_CLOB(:egd) ELSE existing_generic_data END,
+           last_corrected_at     = CURRENT_TIMESTAMP,
+           last_corrected_by     = :performed_by,
+           updated_at            = CURRENT_TIMESTAMP
        WHERE request_id = :requestId`,
-      { performed_by, requestId }
+      { remarks: remarks || null, egd: egdJson, performed_by, requestId }
+    );
+
+    // Clean up analysis drafts for this pharmacist + request
+    await conn.execute(
+      `DELETE FROM analysis_drafts
+       WHERE request_id = :requestId AND pharmacist_id = :pid AND status = 'DRAFT'`,
+      { requestId, pid: performed_by }
     );
 
     await writeAudit(conn, requestId, 'CORRECTION_RESUBMITTED', performed_by,
       'PharmacistCorrection', 'PharmacyHeadReview2',
-      `Corrected comparison sheet resubmitted (revert #${dr.REVERT_COUNT || 1})`);
+      remarks || `Corrected comparison sheet resubmitted (revert #${dr.REVERT_COUNT || 1})`);
 
     // Notify all PharmacyHead users
     const phUsers = await conn.execute(
