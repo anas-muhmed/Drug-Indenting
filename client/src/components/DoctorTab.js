@@ -1109,7 +1109,7 @@ export default function DoctorTab({ currentUser, onNotificationsRead }) {
                     <span style={{ fontWeight: 800, fontSize: '1.05rem' }}>{r.BRAND_NAME}</span>
                     <span className="badge badge-info">{r.REQUEST_TYPE}</span>
                     {r.REQUEST_SOURCE_TYPE === 'NON_PROMOTIONAL'
-                      ? <span className="badge badge-non-promotional">🩺 Clinical Initiated</span>
+                      ? <span className="badge badge-non-promotional">🩺 Clinician initiated</span>
                       : <span className="badge badge-promotional">📋 Via Medical Representative</span>}
                     {getStatusBadge(r.STATUS, 'DOCTOR')}
                   </div>

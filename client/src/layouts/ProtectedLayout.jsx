@@ -1,11 +1,39 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import DashboardLayout from './DashboardLayout';
 
 const API = '/api';
 
+// Maps each dashboard path to the roles that are allowed to access it
+const PATH_ROLES = {
+  '/dr_dashboard':            ['doctor'],
+  '/hod_dashboard':           ['hod'],
+  '/pharmacist_dashboard':    ['pharmacist'],
+  '/pharmacy_head_dashboard': ['pharmacyhead'],
+  '/dtc_dashboard':           ['dtc', 'dtccommittee'],
+  '/ceo_dashboard':           ['ceo'],
+};
+
+// Returns the home dashboard path for a given role
+function getDashboardPath(role) {
+  switch ((role || '').toLowerCase().trim()) {
+    case 'doctor':       return '/dr_dashboard';
+    case 'pharmacist':   return '/pharmacist_dashboard';
+    case 'ceo':          return '/ceo_dashboard';
+    case 'hod':          return '/hod_dashboard';
+    case 'dtc':
+    case 'dtccommittee': return '/dtc_dashboard';
+    case 'pharmacyhead': return '/pharmacy_head_dashboard';
+    default:             return '/register';
+  }
+}
+
 export default function ProtectedLayout() {
+    // Read credentials synchronously before any hooks ó used for the early-exit guard below
+    const storedUserId = localStorage.getItem('userid');
+    const storedRole   = localStorage.getItem('user_role');
+
     const [users, setUsers] = useState([]);
     const [currentUser, setCurrentUser] = useState(null);
     const [unreadCount, setUnreadCount] = useState(0);
@@ -13,26 +41,40 @@ export default function ProtectedLayout() {
     const [toast, setToast] = useState(null);
     const prevUnread = useRef(0);
     const toastTimer = useRef(null);
-    const navigate = useNavigate();
+    const navigate   = useNavigate();
+    const location   = useLocation();
 
-    // Load all users once on mount
+    // Load all active users once on mount.
+    // Only runs when valid credentials are present (guarded by the early return below).
     useEffect(() => {
+        if (!storedUserId || !storedRole) {
+            setLoadingUsers(false);
+            return;
+        }
+
+        const parsedId = parseInt(storedUserId, 10);
+
         axios.get(`${API}/users`).then(r => {
             setUsers(r.data);
-            if (r.data.length > 0) {
-                const storedUserId = localStorage.getItem('userid');
-                let foundUser = null;
-                if (storedUserId) {
-                    foundUser = r.data.find(u => u.USER_ID === parseInt(storedUserId, 10));
-                }
-                setCurrentUser(foundUser || r.data[0]);
+
+            // Verify the stored userid matches an existing active user
+            const foundUser = r.data.find(u => u.USER_ID === parsedId);
+
+            if (foundUser) {
+                setCurrentUser(foundUser);
+            } else {
+                // Stored userid not found among active users ó invalid / stale session
+                localStorage.removeItem('userid');
+                localStorage.removeItem('user_role');
+                navigate('/register', { replace: true });
             }
         }).catch((err) => {
             console.error("Failed to load users", err);
         }).finally(() => setLoadingUsers(false));
-    }, []);
+    }, []); // runs once on mount
 
-    // Poll unread notification count ‚Äî 10s interval
+    // Poll unread notification count ó 10 s interval.
+    // Only starts after a valid currentUser is set.
     const fetchUnread = useCallback(() => {
         if (!currentUser) return;
         axios.get(`${API}/notifications/${currentUser.USER_ID}`)
@@ -42,7 +84,7 @@ export default function ProtectedLayout() {
                 // Show toast when new notifications arrive
                 if (count > prevUnread.current) {
                     const diff = count - prevUnread.current;
-                    showToast(`üîî ${diff} new notification${diff > 1 ? 's' : ''}`, 'info');
+                    showToast(`?? ${diff} new notification${diff > 1 ? 's' : ''}`, 'info');
                 }
                 prevUnread.current = count;
             })
@@ -68,7 +110,7 @@ export default function ProtectedLayout() {
         if (user) {
             localStorage.setItem('userid', user.USER_ID);
             localStorage.setItem('user_role', user.ROLE?.toLowerCase());
-            
+
             // Redirect to appropriate dashboard based on selected role
             const role = user.ROLE?.toLowerCase();
             if (role === 'doctor') navigate('/dr_dashboard');
@@ -80,11 +122,17 @@ export default function ProtectedLayout() {
         }
     };
 
+    // Guard 1: No credentials -> redirect to login immediately
+    // Must come after all hook declarations (Rules of Hooks).
+    if (!storedUserId || !storedRole) {
+        return <Navigate to="/register" replace />;
+    }
+
     if (loadingUsers) {
         return (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', flexDirection: 'column', gap: 16 }}>
                 <div className="spinner" style={{ width: 36, height: 36, borderWidth: 3 }} />
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>Connecting to server‚Ä¶</p>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>Connecting to server...</p>
             </div>
         );
     }
@@ -93,10 +141,19 @@ export default function ProtectedLayout() {
         return (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
                 <div className="alert alert-error" style={{ maxWidth: 440 }}>
-                    ‚ö†Ô∏è Could not connect to the server. Please ensure the backend is running on port 5000 and the Oracle DB is configured.
+                    Could not connect to the server. Please ensure the backend is running on port 5000 and the Oracle DB is configured.
                 </div>
             </div>
         );
+    }
+
+    // Guard 2: Role authorization ó redirect if accessing another role's path
+    if (currentUser) {
+        const userRole     = currentUser.ROLE?.toLowerCase().trim();
+        const allowedRoles = PATH_ROLES[location.pathname];
+        if (allowedRoles && !allowedRoles.includes(userRole)) {
+            return <Navigate to={getDashboardPath(userRole)} replace />;
+        }
     }
 
     return (
@@ -106,7 +163,6 @@ export default function ProtectedLayout() {
             setCurrentUser={handleSetCurrentUser}
             unreadCount={unreadCount}
         >
-            {/* ---- Toast Notification ---- */}
             {toast && (
                 <div style={{
                     position: 'fixed', bottom: 24, right: 24, zIndex: 9999,
@@ -118,7 +174,7 @@ export default function ProtectedLayout() {
                     maxWidth: 340, cursor: 'pointer',
                 }} onClick={() => setToast(null)}>
                     {toast.msg}
-                    <span style={{ marginLeft: 'auto', opacity: 0.7, fontSize: '0.8rem' }}>‚úï</span>
+                    <span style={{ marginLeft: 'auto', opacity: 0.7, fontSize: '0.8rem' }}>X</span>
                 </div>
             )}
 

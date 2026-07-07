@@ -362,7 +362,7 @@ export default function DTCCommitteeTab({ currentUser, onNotificationsRead }) {
       const existingDetailsRaw = altsRes.data?.existing_details || [];
       setAlternatives(altsRaw);
       setAuditLogs(auditRes.data || []);
-      
+
       const normalizedExistingDetails = existingDetailsRaw.map(ed => ({
         introduced_on: ed.INTRODUCED_ON ?? ed.introduced_on ?? '',
         brand_name: ed.BRAND_NAME ?? ed.brand_name ?? '',
@@ -391,7 +391,7 @@ export default function DTCCommitteeTab({ currentUser, onNotificationsRead }) {
       if (altsRes.data?.effective_drug_entries) {
         setEffectiveDrugEntries(altsRes.data.effective_drug_entries);
       }
-      
+
       // Normalize alternatives for ComparisonSheet
       setDtcAltView(altsRaw.map(a => ({
         brand_name: a.BRAND_NAME || a.brand_name || '',
@@ -692,7 +692,7 @@ export default function DTCCommitteeTab({ currentUser, onNotificationsRead }) {
                     {r.CREATED_BY_ROLE || 'Doctor'} • {r.DOCTOR_DEPT || ''}
                   </small>
                 </td>
-                <td>{r.REQUEST_SOURCE_TYPE === 'NON_PROMOTIONAL' ? <span className="badge badge-non-promotional">Clinical Initiated</span> : <span className="badge badge-promotional">Via Medical Representative</span>}</td>
+                <td>{r.REQUEST_SOURCE_TYPE === 'NON_PROMOTIONAL' ? <span className="badge badge-non-promotional">Clinician initiated</span> : <span className="badge badge-promotional">Via Medical Representative</span>}</td>
                 <td style={{ fontSize: '0.78rem', color: isRejected ? '#991b1b' : 'var(--text-muted)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.PH_REMARKS}>
                   {isRejected && <span style={{ fontWeight: 700 }}>⚠ Rejection Reason: </span>}
                   {r.PH_REMARKS || '—'}
@@ -1231,7 +1231,7 @@ export default function DTCCommitteeTab({ currentUser, onNotificationsRead }) {
                             ? (selected[key] === 'FORMULARY' ? <span className="badge" style={{ background: '#ecfdf5', color: '#065f46' }}>Formulary Drug Addition Request</span> : selected[key] === 'NON_FORMULARY' ? <span className="badge" style={{ background: '#fef2f2', color: '#991b1b' }}>Non-Formulary Drug Request</span> : '—')
                             : key === 'REQUEST_SOURCE_TYPE'
                               ? (selected[key] === 'NON_PROMOTIONAL'
-                                ? <span className="badge badge-non-promotional">Clinical Initiated</span>
+                                ? <span className="badge badge-non-promotional">Clinician initiated</span>
                                 : <span className="badge badge-promotional">Via Medical Representative</span>)
                               : key === 'EFFECTIVE_CREATED_AT'
                                 ? (() => {
@@ -1312,16 +1312,29 @@ export default function DTCCommitteeTab({ currentUser, onNotificationsRead }) {
                   }}>
                     <span>📋</span> Drug Effective Created Entries
                   </div>
-                  <div style={{
-                    background: 'rgba(124, 58, 237, 0.03)', border: '1px solid rgba(124, 58, 237, 0.15)',
-                    borderLeft: '4px solid var(--primary-light)', borderRadius: 10, overflow: 'hidden'
-                  }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-                      <thead>
-                        <tr style={{ borderBottom: '1px solid rgba(124, 58, 237, 0.15)', background: 'rgba(124, 58, 237, 0.05)' }}>
-                          <th style={{ padding: '8px 14px', textAlign: 'left', fontWeight: 600, fontSize: '0.8rem', color: 'var(--primary-light)' }}>Drug Name</th>
-                          <th style={{ padding: '8px 14px', textAlign: 'left', fontWeight: 600, fontSize: '0.8rem', color: 'var(--primary-light)', width: '30%' }}>Effective Created Date & Time</th>
-                          <th style={{ padding: '8px 14px', textAlign: 'left', fontWeight: 600, fontSize: '0.8rem', color: 'var(--primary-light)', width: '35%' }}>Remarks</th>
+                  <div style={{ overflowX: 'auto', border: '1px solid rgba(124, 58, 237, 0.15)', borderRadius: 10, background: '#ffffff' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.72rem', textAlign: 'left', minWidth: '1800px' }}>
+                      <thead style={{ background: 'rgba(124, 58, 237, 0.05)', borderBottom: '2px solid rgba(124, 58, 237, 0.15)' }}>
+                        <tr>
+                          <th style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--primary-light)' }}>Drug Name</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--primary-light)' }}>Brand Name</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--primary-light)' }}>Manufacturer</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--primary-light)' }}>Marketer</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--primary-light)' }}>Consultant</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--primary-light)', textAlign: 'right' }}>Present Stock</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--primary-light)', textAlign: 'right' }}>Purchase Qty</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--primary-light)', textAlign: 'right' }}>Sale Qty</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--primary-light)' }}>Pack</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--primary-light)', textAlign: 'right' }}>MRP</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--primary-light)', textAlign: 'right' }}>Rate</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--primary-light)', textAlign: 'right' }}>Margin</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--primary-light)' }}>Scheme Qty</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--primary-light)' }}>Offer Qty</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--primary-light)', textAlign: 'right' }}>Net Rate</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--primary-light)', textAlign: 'right' }}>Profit Margin</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--primary-light)', textAlign: 'right' }}>Total Margin</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--primary-light)' }}>Effective Created Date</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--primary-light)' }}>Remarks</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1329,16 +1342,26 @@ export default function DTCCommitteeTab({ currentUser, onNotificationsRead }) {
                           const rawDate = entry.effective_created_at || entry.EFFECTIVE_CREATED_AT;
                           const formattedDate = rawDate ? new Date(rawDate).toLocaleString('en-IN') : '—';
                           return (
-                            <tr key={idx} style={{ borderBottom: idx < effectiveDrugEntries.length - 1 ? '1px solid rgba(124, 58, 237, 0.1)' : 'none' }}>
-                              <td style={{ padding: '10px 14px', color: 'var(--text)', fontWeight: 500 }}>
-                                {entry.drug_name || entry.DRUG_NAME || '—'}
-                              </td>
-                              <td style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>
-                                {formattedDate}
-                              </td>
-                              <td style={{ padding: '10px 14px', color: 'var(--text-muted)', fontSize: '0.82rem', whiteSpace: 'pre-line' }}>
-                                {entry.remarks || entry.REMARKS || '—'}
-                              </td>
+                            <tr key={idx} style={{ borderBottom: '1px solid rgba(124, 58, 237, 0.1)', background: idx % 2 === 0 ? '#ffffff' : 'rgba(124, 58, 237, 0.01)' }}>
+                              <td style={{ padding: '6px 8px', fontWeight: 600, color: 'var(--text)' }}>{entry.drug_name || entry.DRUG_NAME || '—'}</td>
+                              <td style={{ padding: '6px 8px' }}>{entry.brand_name || entry.BRAND_NAME || '—'}</td>
+                              <td style={{ padding: '6px 8px' }}>{entry.manufacturer || entry.MANUFACTURER || '—'}</td>
+                              <td style={{ padding: '6px 8px' }}>{entry.marketer || entry.MARKETER || '—'}</td>
+                              <td style={{ padding: '6px 8px' }}>{entry.consultant || entry.CONSULTANT || '—'}</td>
+                              <td style={{ padding: '6px 8px', textAlign: 'right' }}>{entry.present_stock !== undefined ? entry.present_stock : (entry.PRESENT_STOCK !== undefined ? entry.PRESENT_STOCK : '—')}</td>
+                              <td style={{ padding: '6px 8px', textAlign: 'right' }}>{entry.purchase_quantity !== undefined ? entry.purchase_quantity : (entry.PURCHASE_QUANTITY !== undefined ? entry.PURCHASE_QUANTITY : '—')}</td>
+                              <td style={{ padding: '6px 8px', textAlign: 'right' }}>{entry.sale_qty !== undefined ? entry.sale_qty : (entry.SALE_QTY !== undefined ? entry.SALE_QTY : '—')}</td>
+                              <td style={{ padding: '6px 8px' }}>{entry.pack || entry.PACK || '—'}</td>
+                              <td style={{ padding: '6px 8px', textAlign: 'right' }}>{entry.mrp_incl_gst !== undefined ? entry.mrp_incl_gst : (entry.MRP_INCL_GST !== undefined ? entry.MRP_INCL_GST : '—')}</td>
+                              <td style={{ padding: '6px 8px', textAlign: 'right' }}>{entry.rate_incl_gst !== undefined ? entry.rate_incl_gst : (entry.RATE_INCL_GST !== undefined ? entry.RATE_INCL_GST : '—')}</td>
+                              <td style={{ padding: '6px 8px', textAlign: 'right' }}>{entry.absolute_margin !== undefined ? entry.absolute_margin : (entry.ABSOLUTE_MARGIN !== undefined ? entry.ABSOLUTE_MARGIN : '—')}</td>
+                              <td style={{ padding: '6px 8px' }}>{entry.scheme_qty || entry.SCHEME_QTY || '—'}</td>
+                              <td style={{ padding: '6px 8px' }}>{entry.offer_qty || entry.OFFER_QTY || '—'}</td>
+                              <td style={{ padding: '6px 8px', textAlign: 'right' }}>{entry.net_rate !== undefined ? entry.net_rate : (entry.NET_RATE !== undefined ? entry.NET_RATE : '—')}</td>
+                              <td style={{ padding: '6px 8px', textAlign: 'right' }}>{entry.profit_margin !== undefined ? (typeof entry.profit_margin === 'number' ? `${entry.profit_margin}%` : entry.profit_margin) : (entry.PROFIT_MARGIN !== undefined ? (typeof entry.PROFIT_MARGIN === 'number' ? `${entry.PROFIT_MARGIN}%` : entry.PROFIT_MARGIN) : '—')}</td>
+                              <td style={{ padding: '6px 8px', textAlign: 'right' }}>{entry.total_margin_markup !== undefined ? (typeof entry.total_margin_markup === 'number' ? `${entry.total_margin_markup}%` : entry.total_margin_markup) : (entry.TOTAL_MARGIN_MARKUP !== undefined ? (typeof entry.TOTAL_MARGIN_MARKUP === 'number' ? `${entry.TOTAL_MARGIN_MARKUP}%` : entry.TOTAL_MARGIN_MARKUP) : '—')}</td>
+                              <td style={{ padding: '6px 8px' }}>{formattedDate}</td>
+                              <td style={{ padding: '6px 8px' }}>{entry.remarks || entry.REMARKS || '—'}</td>
                             </tr>
                           );
                         })}
@@ -1432,7 +1455,7 @@ export default function DTCCommitteeTab({ currentUser, onNotificationsRead }) {
                   </div>
                 </div>
               )}
-              
+
               {/* Ordered Workflow Remarks timeline */}
               {renderWorkflowRemarks()}
             </div>
@@ -1785,6 +1808,7 @@ export default function DTCCommitteeTab({ currentUser, onNotificationsRead }) {
           pharmRemarks={selected.PHARMACIST_REMARKS || ''}
           phRemarks={selected.PH_REVIEW_REMARKS || selected.PH_REVIEW2_REMARKS || selected.PH_REMARKS2 || ''}
           requestInfo={selected}
+          effectiveDrugEntries={effectiveDrugEntries}
           dtcSelectedBrand={dtcSelectedBrand}
           dtcSelectedCategory={dtcSelectedCategory}
           dtcSelectionReasons={dtcSelectionReasons}

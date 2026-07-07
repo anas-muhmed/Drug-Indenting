@@ -404,6 +404,7 @@ export default function ComparisonSheet({
   finalSelectedCategory = '',
   finalSelectionReasons = [],
   dtcFinalRecommendations = [],
+  effectiveDrugEntries = [],
 
   // callbacks
   onAlternativesChange,
@@ -2731,6 +2732,74 @@ export default function ComparisonSheet({
               )}
             </div>
           </div>
+
+          {/* ── Drug Effective Created Entries Section ── */}
+          {((effectiveDrugEntries && effectiveDrugEntries.length > 0) || (requestInfo.effective_drug_entries && requestInfo.effective_drug_entries.length > 0) || (requestInfo.effectiveDrugEntries && requestInfo.effectiveDrugEntries.length > 0)) && (
+            <div style={{ padding: '10px 14px', borderTop: '2px dashed #cbd5e1', marginTop: 12 }}>
+              <div style={{ fontWeight: 700, color: '#1e3a5f', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>📋</span> DRUG EFFECTIVE CREATED ENTRIES:
+              </div>
+              <div style={{ overflowX: 'auto', border: '1px solid #cbd5e1', borderRadius: 8, background: '#ffffff' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.72rem', textAlign: 'left', minWidth: '1800px' }}>
+                  <thead style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>
+                    <tr style={{ background: '#f1f5f9' }}>
+                      <th style={{ padding: '8px 10px', fontWeight: 600, borderRight: '1px solid #cbd5e1' }}>Drug Name</th>
+                      <th style={{ padding: '8px 10px', fontWeight: 600, borderRight: '1px solid #cbd5e1' }}>Brand Name</th>
+                      <th style={{ padding: '8px 10px', fontWeight: 600, borderRight: '1px solid #cbd5e1' }}>Manufacturer</th>
+                      <th style={{ padding: '8px 10px', fontWeight: 600, borderRight: '1px solid #cbd5e1' }}>Marketer</th>
+                      <th style={{ padding: '8px 10px', fontWeight: 600, borderRight: '1px solid #cbd5e1' }}>Consultant</th>
+                      <th style={{ padding: '8px 10px', fontWeight: 600, borderRight: '1px solid #cbd5e1', textAlign: 'right' }}>Present Stock</th>
+                      <th style={{ padding: '8px 10px', fontWeight: 600, borderRight: '1px solid #cbd5e1', textAlign: 'right' }}>Purchase Qty</th>
+                      <th style={{ padding: '8px 10px', fontWeight: 600, borderRight: '1px solid #cbd5e1', textAlign: 'right' }}>Sale Qty</th>
+                      <th style={{ padding: '8px 10px', fontWeight: 600, borderRight: '1px solid #cbd5e1' }}>Pack</th>
+                      <th style={{ padding: '8px 10px', fontWeight: 600, borderRight: '1px solid #cbd5e1', textAlign: 'right' }}>MRP</th>
+                      <th style={{ padding: '8px 10px', fontWeight: 600, borderRight: '1px solid #cbd5e1', textAlign: 'right' }}>Rate</th>
+                      <th style={{ padding: '8px 10px', fontWeight: 600, borderRight: '1px solid #cbd5e1', textAlign: 'right' }}>Margin</th>
+                      <th style={{ padding: '8px 10px', fontWeight: 600, borderRight: '1px solid #cbd5e1' }}>Scheme Qty</th>
+                      <th style={{ padding: '8px 10px', fontWeight: 600, borderRight: '1px solid #cbd5e1' }}>Offer Qty</th>
+                      <th style={{ padding: '8px 10px', fontWeight: 600, borderRight: '1px solid #cbd5e1', textAlign: 'right' }}>Net Rate</th>
+                      <th style={{ padding: '8px 10px', fontWeight: 600, borderRight: '1px solid #cbd5e1', textAlign: 'right' }}>Profit Margin</th>
+                      <th style={{ padding: '8px 10px', fontWeight: 600, borderRight: '1px solid #cbd5e1', textAlign: 'right' }}>Total Margin</th>
+                      <th style={{ padding: '8px 10px', fontWeight: 600, borderRight: '1px solid #cbd5e1' }}>Effective Created Date</th>
+                      <th style={{ padding: '8px 10px', fontWeight: 600 }}>Remarks</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(effectiveDrugEntries && effectiveDrugEntries.length > 0
+                      ? effectiveDrugEntries
+                      : (requestInfo.effective_drug_entries || requestInfo.effectiveDrugEntries || [])
+                    ).map((entry, idx) => {
+                      const rawDate = entry.effective_created_at || entry.EFFECTIVE_CREATED_AT;
+                      const formattedDate = rawDate ? new Date(rawDate).toLocaleString('en-IN') : '—';
+                      return (
+                        <tr key={idx} style={{ borderBottom: '1px solid #cbd5e1', background: idx % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+                          <td style={{ padding: '6px 8px', fontWeight: 600, borderRight: '1px solid #e2e8f0' }}>{entry.drug_name || entry.DRUG_NAME || '—'}</td>
+                          <td style={{ padding: '6px 8px', borderRight: '1px solid #e2e8f0' }}>{entry.brand_name || entry.BRAND_NAME || '—'}</td>
+                          <td style={{ padding: '6px 8px', borderRight: '1px solid #e2e8f0' }}>{entry.manufacturer || entry.MANUFACTURER || '—'}</td>
+                          <td style={{ padding: '6px 8px', borderRight: '1px solid #e2e8f0' }}>{entry.marketer || entry.MARKETER || '—'}</td>
+                          <td style={{ padding: '6px 8px', borderRight: '1px solid #e2e8f0' }}>{entry.consultant || entry.CONSULTANT || '—'}</td>
+                          <td style={{ padding: '6px 8px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>{entry.present_stock !== undefined ? entry.present_stock : (entry.PRESENT_STOCK !== undefined ? entry.PRESENT_STOCK : '—')}</td>
+                          <td style={{ padding: '6px 8px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>{entry.purchase_quantity !== undefined ? entry.purchase_quantity : (entry.PURCHASE_QUANTITY !== undefined ? entry.PURCHASE_QUANTITY : '—')}</td>
+                          <td style={{ padding: '6px 8px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>{entry.sale_qty !== undefined ? entry.sale_qty : (entry.SALE_QTY !== undefined ? entry.SALE_QTY : '—')}</td>
+                          <td style={{ padding: '6px 8px', borderRight: '1px solid #e2e8f0' }}>{entry.pack || entry.PACK || '—'}</td>
+                          <td style={{ padding: '6px 8px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>{entry.mrp_incl_gst !== undefined ? entry.mrp_incl_gst : (entry.MRP_INCL_GST !== undefined ? entry.MRP_INCL_GST : '—')}</td>
+                          <td style={{ padding: '6px 8px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>{entry.rate_incl_gst !== undefined ? entry.rate_incl_gst : (entry.RATE_INCL_GST !== undefined ? entry.RATE_INCL_GST : '—')}</td>
+                          <td style={{ padding: '6px 8px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>{entry.absolute_margin !== undefined ? entry.absolute_margin : (entry.ABSOLUTE_MARGIN !== undefined ? entry.ABSOLUTE_MARGIN : '—')}</td>
+                          <td style={{ padding: '6px 8px', borderRight: '1px solid #e2e8f0' }}>{entry.scheme_qty || entry.SCHEME_QTY || '—'}</td>
+                          <td style={{ padding: '6px 8px', borderRight: '1px solid #e2e8f0' }}>{entry.offer_qty || entry.OFFER_QTY || '—'}</td>
+                          <td style={{ padding: '6px 8px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>{entry.net_rate !== undefined ? entry.net_rate : (entry.NET_RATE !== undefined ? entry.NET_RATE : '—')}</td>
+                          <td style={{ padding: '6px 8px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>{entry.profit_margin !== undefined ? (typeof entry.profit_margin === 'number' ? `${entry.profit_margin}%` : entry.profit_margin) : (entry.PROFIT_MARGIN !== undefined ? (typeof entry.PROFIT_MARGIN === 'number' ? `${entry.PROFIT_MARGIN}%` : entry.PROFIT_MARGIN) : '—')}</td>
+                          <td style={{ padding: '6px 8px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>{entry.total_margin_markup !== undefined ? (typeof entry.total_margin_markup === 'number' ? `${entry.total_margin_markup}%` : entry.total_margin_markup) : (entry.TOTAL_MARGIN_MARKUP !== undefined ? (typeof entry.TOTAL_MARGIN_MARKUP === 'number' ? `${entry.TOTAL_MARGIN_MARKUP}%` : entry.TOTAL_MARGIN_MARKUP) : '—')}</td>
+                          <td style={{ padding: '6px 8px', borderRight: '1px solid #e2e8f0' }}>{formattedDate}</td>
+                          <td style={{ padding: '6px 8px' }}>{entry.remarks || entry.REMARKS || '—'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
         </div>
       </div>

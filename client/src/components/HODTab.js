@@ -631,7 +631,7 @@ export default function HODTab({ currentUser, onNotificationsRead }) {
                     <span style={{ fontWeight: 800, fontSize: '1.2rem', color: '#0f172a' }}>{selected.BRAND_NAME}</span>
                     <span style={{ fontSize: '0.9rem', color: '#64748b' }}>({selected.GENERIC_NAME})</span>
                     {selected.REQUEST_SOURCE_TYPE === 'NON_PROMOTIONAL'
-                      ? <span style={{ background: '#dcfce7', color: '#166534', borderRadius: 20, padding: '2px 10px', fontSize: '0.72rem', fontWeight: 700, border: '1px solid #bbf7d0' }}>🩺 Clinical Initiated</span>
+                      ? <span style={{ background: '#dcfce7', color: '#166534', borderRadius: 20, padding: '2px 10px', fontSize: '0.72rem', fontWeight: 700, border: '1px solid #bbf7d0' }}>🩺 Clinician initiated</span>
                       : <span style={{ background: '#fef3c7', color: '#92400e', borderRadius: 20, padding: '2px 10px', fontSize: '0.72rem', fontWeight: 700, border: '1px solid #fde68a' }}>📋 Via Medical Representative</span>}
                     {selected.STATUS === 'PENDING_HOD' && <span style={{ background: '#fef9c3', color: '#854d0e', borderRadius: 20, padding: '2px 10px', fontSize: '0.72rem', fontWeight: 700, border: '1px solid #fde047' }}>⏳ Pending HOD Review</span>}
                   </div>
@@ -710,7 +710,7 @@ export default function HODTab({ currentUser, onNotificationsRead }) {
                     ['Department', selected.DOCTOR_DEPT || '—'],
                     ['Submitted Role', selected.CREATED_BY_ROLE || 'Doctor'],
                     ['Submitted On', selected.CREATED_AT ? new Date(selected.CREATED_AT).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'],
-                    ['Source Type', selected.REQUEST_SOURCE_TYPE === 'NON_PROMOTIONAL' ? 'Clinical Initiated' : 'Via Medical Representative'],
+                    ['Source Type', selected.REQUEST_SOURCE_TYPE === 'NON_PROMOTIONAL' ? 'Clinician initiated' : 'Via Medical Representative'],
                     ['Formulary Type', selected.FORMULARY_REQUEST_TYPE === 'FORMULARY' ? 'Formulary Drug Addition Request' : selected.FORMULARY_REQUEST_TYPE === 'NON_FORMULARY' ? 'Non-Formulary Drug Request' : '—'],
                     ['Request Status', selected.STATUS],
                   ].map(([label, val], idx) => (
@@ -800,7 +800,7 @@ export default function HODTab({ currentUser, onNotificationsRead }) {
                       </td>
                       <td>
                         {r.REQUEST_SOURCE_TYPE === 'NON_PROMOTIONAL'
-                          ? <span className="badge badge-non-promotional">🩺 Clinical Initiated</span>
+                          ? <span className="badge badge-non-promotional">🩺 Clinician initiated</span>
                           : <span className="badge badge-promotional">📋 Via Medical Representative</span>}
                       </td>
                       <td>{r.DOCTOR_NAME}</td>
@@ -883,7 +883,7 @@ export default function HODTab({ currentUser, onNotificationsRead }) {
                     }}
                   >
                     <div style={{ fontWeight: 700, fontSize: '0.9rem', color: form.request_source_type === 'NON_PROMOTIONAL' ? '#7c3aed' : 'var(--text)', marginBottom: 4 }}>
-                      🩺 Clinical Initiated
+                      🩺 Clinician initiated
                     </div>
                     <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Clinician-Initiated — self-requested by doctor</div>
                   </button>
@@ -1214,7 +1214,7 @@ export default function HODTab({ currentUser, onNotificationsRead }) {
                     <span style={{ fontWeight: 800, fontSize: '1.05rem' }}>{r.BRAND_NAME}</span>
                     <span className="badge badge-info">{r.REQUEST_TYPE}</span>
                     {r.REQUEST_SOURCE_TYPE === 'NON_PROMOTIONAL'
-                      ? <span className="badge badge-non-promotional">🩺 Clinical Initiated</span>
+                      ? <span className="badge badge-non-promotional">🩺 Clinician initiated</span>
                       : <span className="badge badge-promotional">📋 Via Medical Representative</span>}
                     {getStatusBadge(r.STATUS, 'HOD')}
                   </div>

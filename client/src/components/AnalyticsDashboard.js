@@ -537,7 +537,7 @@ export default function AnalyticsDashboard({ role }) {
                 <KpiCard icon="🏆" label="Final Approved" value={summary?.total_final_approved} color="#059669" sub="Stage: Final" onClick={() => openDrilldown('metric', 'total_final_approved', 'Final Approved Requests')} />
                 <KpiCard icon="🏛️" label="Under DTC Review" value={summary?.total_dtc_review} color="#f59e0b" onClick={() => openDrilldown('metric', 'total_dtc_review', 'Under DTC Review')} />
                 <KpiCard icon="👔" label="Under CEO Review" value={summary?.total_ceo_review} color="#6366f1" onClick={() => openDrilldown('metric', 'total_ceo_review', 'Under CEO Review')} />
-                <KpiCard icon="🩺" label="Clinical Initiated" value={summary?.total_clinical} color="#7c3aed" sub="Non-Promotional" onClick={() => openDrilldown('metric', 'total_clinical', 'Clinical Initiated')} />
+                <KpiCard icon="🩺" label="Clinician initiated" value={summary?.total_clinical} color="#7c3aed" sub="Non-Promotional" onClick={() => openDrilldown('metric', 'total_clinical', 'Clinician initiated')} />
               </div>
             )}
           </div>
@@ -548,7 +548,7 @@ export default function AnalyticsDashboard({ role }) {
               <div className="card" style={{ padding: '18px 20px' }}>
                 <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 14 }}>Request Source Split</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <RankBar name="🩺 Clinical Initiated" count={summary.total_clinical} max={summary.total_requests} color="#7c3aed" />
+                  <RankBar name="🩺 Clinician initiated" count={summary.total_clinical} max={summary.total_requests} color="#7c3aed" />
                   <RankBar name="📋 Via Medical Representative" count={summary.total_via_rep} max={summary.total_requests} color="#0ea5e9" />
                 </div>
               </div>
@@ -684,7 +684,7 @@ export default function AnalyticsDashboard({ role }) {
               requests: []
             };
           }
-          
+
           const statusLower = (r.status || '').toLowerCase();
           const isCompleted = r.current_owner === 'Completed' || statusLower === 'approved' || statusLower === 'order_placed';
           const isRejected = statusLower.includes('rejected') || statusLower === 'rejected';
@@ -759,7 +759,7 @@ export default function AnalyticsDashboard({ role }) {
 
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            
+
             {/* KPI Grid */}
             <div className="analytics-kpi-grid">
               <KpiCard icon="👤" label="Pending at HOD" value={countHOD} color="#0ea5e9" onClick={() => openDrilldown('stage', 'HOD', 'Pending at HOD')} />

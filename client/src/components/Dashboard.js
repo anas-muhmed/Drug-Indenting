@@ -7,43 +7,43 @@ import axios from 'axios';
 const API = '/api';
 
 const STATUS_BADGE = {
-  Pending               : <span className="badge badge-pending">⏳ Pending</span>,
-  PENDING_HOD           : <span className="badge badge-pending">⏳ Pending HOD Approval</span>,
-  Approved              : <span className="badge badge-approved">✅ Approved</span>,
-  HOD_APPROVED          : <span className="badge badge-approved">✅ HOD Approved</span>,
-  HOD_REJECTED          : <span className="badge badge-rejected">❌ Rejected by HOD</span>,
-  Rejected              : <span className="badge badge-rejected">❌ Rejected by DTC Committee</span>,
-  PHARMACIST_REJECTED   : <span className="badge badge-rejected">❌ Rejected by DTC Committee</span>,
+  Pending: <span className="badge badge-pending">⏳ Pending</span>,
+  PENDING_HOD: <span className="badge badge-pending">⏳ Pending HOD Approval</span>,
+  Approved: <span className="badge badge-approved">✅ Approved</span>,
+  HOD_APPROVED: <span className="badge badge-approved">✅ HOD Approved</span>,
+  HOD_REJECTED: <span className="badge badge-rejected">❌ Rejected by HOD</span>,
+  Rejected: <span className="badge badge-rejected">❌ Rejected by DTC Committee</span>,
+  PHARMACIST_REJECTED: <span className="badge badge-rejected">❌ Rejected by DTC Committee</span>,
   PHARMACY_HEAD_REJECTED: <span className="badge badge-rejected">❌ Rejected by DTC Committee</span>,
-  CEO_REJECTED          : <span className="badge badge-rejected">❌ Rejected by DTC Committee</span>,
-  EMERGENCY_PENDING_DTC : <span className="badge" style={{ background: '#fef3c7', color: '#92400e' }}>⏳ Emergency Pending</span>,
-  EMERGENCY_APPROVED    : <span className="badge" style={{ background: '#dcfce7', color: '#166534' }}>✅ Emergency Approved</span>,
-  EMERGENCY_REJECTED    : <span className="badge" style={{ background: '#fee2e2', color: '#991b1b' }}>❌ Emergency Rejected</span>,
-  ORDER_PLACED          : <span className="badge" style={{ background: '#dbeafe', color: '#1e40af' }}>📦 Order Placed</span>,
+  CEO_REJECTED: <span className="badge badge-rejected">❌ Rejected by DTC Committee</span>,
+  EMERGENCY_PENDING_DTC: <span className="badge" style={{ background: '#fef3c7', color: '#92400e' }}>⏳ Emergency Pending</span>,
+  EMERGENCY_APPROVED: <span className="badge" style={{ background: '#dcfce7', color: '#166534' }}>✅ Emergency Approved</span>,
+  EMERGENCY_REJECTED: <span className="badge" style={{ background: '#fee2e2', color: '#991b1b' }}>❌ Emergency Rejected</span>,
+  ORDER_PLACED: <span className="badge" style={{ background: '#dbeafe', color: '#1e40af' }}>📦 Order Placed</span>,
   APPROVED_PENDING_ORDER: <span className="badge badge-approved">✅ Approved (Pending Order)</span>,
   PHARMACY_HEAD_REJECTED_PENDING_DTC: <span className="badge badge-pending" style={{ background: '#fef2f2', color: '#991b1b', border: '1px solid #fca5a5' }}>⏳ Pending DTC (PH Rejected)</span>,
 };
 
 const STAGE_LABEL = {
-  submitted           : 'Submitted',
-  HOD                 : 'HOD Review',
+  submitted: 'Submitted',
+  HOD: 'HOD Review',
   PharmacistInitialReview: '💊 Pharmacist Initial Review',
   PharmacistCorrection: '💊 Pharmacist Correction',
-  PharmacyHead        : 'Pharmacy Head Review 1',
-  PharmacyHeadReview1 : 'Pharmacy Head Review 1',
-  DTCCommittee        : 'DTC Review 1',
-  DTCReview1          : 'DTC Review 1',
-  Pharmacist          : '💊 Pharmacist Analysis',
-  PharmacistReview2   : '💊 Pharmacist Analysis',
-  PharmacyHeadReview2 : '🔁 Pharmacy Head Review 2',
-  DTCFinal            : '🏛️ DTC Final',
-  DTCFinalReview      : '🏛️ DTC Final',
-  CEO                 : 'CEO Approval',
-  Final               : '🏆 Final Approved',
-  PharmacistOrder     : '📦 Pharmacist Order',
-  OrderPlaced         : '📦 Order Placed',
-  EmergencyDTC        : '🚨 Emergency DTC',
-  Rejected            : '❌ Rejected',
+  PharmacyHead: 'Pharmacy Head Review 1',
+  PharmacyHeadReview1: 'Pharmacy Head Review 1',
+  DTCCommittee: 'DTC Review 1',
+  DTCReview1: 'DTC Review 1',
+  Pharmacist: '💊 Pharmacist Analysis',
+  PharmacistReview2: '💊 Pharmacist Analysis',
+  PharmacyHeadReview2: '🔁 Pharmacy Head Review 2',
+  DTCFinal: '🏛️ DTC Final',
+  DTCFinalReview: '🏛️ DTC Final',
+  CEO: 'CEO Approval',
+  Final: '🏆 Final Approved',
+  PharmacistOrder: '📦 Pharmacist Order',
+  OrderPlaced: '📦 Order Placed',
+  EmergencyDTC: '🚨 Emergency DTC',
+  Rejected: '❌ Rejected',
 };
 
 const getDoctorHODStageLabel = (stage) => {
@@ -75,7 +75,7 @@ const getDoctorHODStageLabel = (stage) => {
 
 function fmtDate(ts) {
   if (!ts) return '—';
-  return new Date(ts).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+  return new Date(ts).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 const DASHBOARD_TABS = [
   { key: 'overview', label: '📊 Overview' },
@@ -108,12 +108,12 @@ const KpiCardLocal = ({ icon, label, value, color, sub }) => (
   </div>
 );
 export default function Dashboard({ role, userId, refresh }) {
-  const [metrics,  setMetrics]  = useState(null);
+  const [metrics, setMetrics] = useState(null);
   const [requests, setRequests] = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [filters,  setFilters]  = useState({ status:'', category:'', from_date:'', to_date:'', source_type:'', formulary_type:'' });
+  const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState({ status: '', category: '', from_date: '', to_date: '', source_type: '', formulary_type: '' });
   const [expanded, setExpanded] = useState(null); // request_id for audit trail
-  const [audit,    setAudit]    = useState([]);
+  const [audit, setAudit] = useState([]);
 
   // New tab-based states for Dashboard.js
   const [activeTab, setActiveTab] = useState('overview');
@@ -129,10 +129,10 @@ export default function Dashboard({ role, userId, refresh }) {
     setLoading(true);
     try {
       const params = {};
-      if (filters.status)      params.status      = filters.status;
-      if (filters.category)    params.category    = filters.category;
-      if (filters.from_date)   params.from_date   = filters.from_date;
-      if (filters.to_date)     params.to_date     = filters.to_date;
+      if (filters.status) params.status = filters.status;
+      if (filters.category) params.category = filters.category;
+      if (filters.from_date) params.from_date = filters.from_date;
+      if (filters.to_date) params.to_date = filters.to_date;
       if (filters.source_type) params.source_type = filters.source_type;
       if (filters.formulary_type) params.formulary_type = filters.formulary_type;
 
@@ -188,7 +188,7 @@ export default function Dashboard({ role, userId, refresh }) {
       const r = await axios.get(`${API}/audit/${requestId}?role=${role}`);
       setAudit(r.data);
       setExpanded(requestId);
-    } catch {}
+    } catch { }
   };
 
   return (
@@ -237,7 +237,7 @@ export default function Dashboard({ role, userId, refresh }) {
               <div className="metric-value" style={{ color: '#0ea5e9' }}>{metrics ? metrics.promotional : '—'}</div>
             </div>
             <div className="metric-card" style={{ background: 'linear-gradient(135deg, rgba(124,58,237,0.12), rgba(124,58,237,0.04))', border: '1px solid rgba(124,58,237,0.25)' }}>
-              <div className="metric-label" style={{ color: '#7c3aed' }}>🩺 Clinical Initiated</div>
+              <div className="metric-label" style={{ color: '#7c3aed' }}>🩺 Clinician initiated</div>
               <div className="metric-value" style={{ color: '#7c3aed' }}>{metrics ? metrics.non_promotional : '—'}</div>
             </div>
           </div>
@@ -368,7 +368,7 @@ export default function Dashboard({ role, userId, refresh }) {
               requests: []
             };
           }
-          
+
           const statusLower = (r.status || '').toLowerCase();
           const isCompleted = r.current_owner === 'Completed' || statusLower === 'approved' || statusLower === 'order_placed';
           const isRejected = statusLower.includes('rejected') || statusLower === 'rejected';
@@ -443,7 +443,7 @@ export default function Dashboard({ role, userId, refresh }) {
 
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            
+
             {/* KPI Grid */}
             <div className="analytics-kpi-grid">
               <KpiCardLocal icon="👤" label="Pending at HOD" value={countHOD} color="#0ea5e9" />
@@ -694,7 +694,7 @@ export default function Dashboard({ role, userId, refresh }) {
               >
                 <option value="">All Sources</option>
                 <option value="PROMOTIONAL">📋 Via Medical Representative</option>
-                <option value="NON_PROMOTIONAL">🩺 Clinical Initiated</option>
+                <option value="NON_PROMOTIONAL">🩺 Clinician initiated</option>
               </select>
             </div>
             <div className="form-group">
@@ -709,9 +709,9 @@ export default function Dashboard({ role, userId, refresh }) {
                 <option value="NON_FORMULARY">Non-Formulary</option>
               </select>
             </div>
-            <div className="form-group" style={{ justifyContent:'flex-end' }}>
+            <div className="form-group" style={{ justifyContent: 'flex-end' }}>
               <label className="form-label">&nbsp;</label>
-              <button className="btn btn-ghost" onClick={() => setFilters({ status:'', category:'', from_date:'', to_date:'', source_type:'', formulary_type:'' })}>
+              <button className="btn btn-ghost" onClick={() => setFilters({ status: '', category: '', from_date: '', to_date: '', source_type: '', formulary_type: '' })}>
                 ↺ Reset
               </button>
             </div>
@@ -720,7 +720,7 @@ export default function Dashboard({ role, userId, refresh }) {
           {/* ---- Requests Table ---- */}
           <div className="table-wrap">
             {loading ? (
-              <div style={{ textAlign:'center', padding:40 }}><div className="spinner" /></div>
+              <div style={{ textAlign: 'center', padding: 40 }}><div className="spinner" /></div>
             ) : (
               <table className="data-table">
                 <thead>
@@ -745,9 +745,9 @@ export default function Dashboard({ role, userId, refresh }) {
                   ) : requests.map(r => (
                     <React.Fragment key={r.REQUEST_ID}>
                       <tr>
-                        <td style={{ fontWeight:700, color:'var(--primary-light)' }}>#{r.REQUEST_ID}</td>
-                        <td style={{ fontWeight:600 }}>{r.BRAND_NAME}</td>
-                        <td style={{ color:'var(--text-muted)' }}>{r.GENERIC_NAME}</td>
+                        <td style={{ fontWeight: 700, color: 'var(--primary-light)' }}>#{r.REQUEST_ID}</td>
+                        <td style={{ fontWeight: 600 }}>{r.BRAND_NAME}</td>
+                        <td style={{ color: 'var(--text-muted)' }}>{r.GENERIC_NAME}</td>
                         <td>{r.CATEGORY}</td>
                         <td>{r.REQUEST_TYPE}</td>
                         <td>
@@ -759,7 +759,7 @@ export default function Dashboard({ role, userId, refresh }) {
                         </td>
                         <td>
                           {r.REQUEST_SOURCE_TYPE === 'NON_PROMOTIONAL'
-                            ? <span className="badge badge-non-promotional">Clinical Initiated</span>
+                            ? <span className="badge badge-non-promotional">Clinician initiated</span>
                             : <span className="badge badge-promotional">Via Medical Representative</span>}
                         </td>
                         <td>{r.DOCTOR_NAME || '—'}</td>
@@ -770,14 +770,14 @@ export default function Dashboard({ role, userId, refresh }) {
                               : (STATUS_BADGE[r.STATUS] || r.STATUS)
                           }
                         </td>
-                        <td style={{ fontSize:'0.8rem', color:'var(--text-muted)' }}>
+                        <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                           {
                             (role === 'DOCTOR' || role === 'HOD' || role === 'Doctor' || role === 'HOD')
                               ? getDoctorHODStageLabel(r.CURRENT_STAGE)
                               : (STAGE_LABEL[r.CURRENT_STAGE] || r.CURRENT_STAGE)
                           }
                         </td>
-                        <td style={{ fontSize:'0.8rem', color:'var(--text-muted)' }}>{fmtDate(r.CREATED_AT)}</td>
+                        <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{fmtDate(r.CREATED_AT)}</td>
                         <td>
                           <button
                             className="btn btn-ghost btn-sm"
@@ -789,12 +789,12 @@ export default function Dashboard({ role, userId, refresh }) {
                       </tr>
                       {expanded === r.REQUEST_ID && (
                         <tr>
-                          <td colSpan={12} style={{ background:'var(--bg-card2)', padding:'16px 24px' }}>
-                            <div style={{ fontWeight:600, fontSize:'0.8rem', marginBottom:10, color:'var(--text-muted)' }}>
+                          <td colSpan={12} style={{ background: 'var(--bg-card2)', padding: '16px 24px' }}>
+                            <div style={{ fontWeight: 600, fontSize: '0.8rem', marginBottom: 10, color: 'var(--text-muted)' }}>
                               AUDIT TRAIL — Request #{r.REQUEST_ID}
                             </div>
                             {audit.length === 0 ? (
-                              <div style={{ color:'var(--text-subtle)', fontSize:'0.85rem' }}>No audit entries yet.</div>
+                              <div style={{ color: 'var(--text-subtle)', fontSize: '0.85rem' }}>No audit entries yet.</div>
                             ) : (
                               <div className="audit-timeline">
                                 {audit.map(a => (

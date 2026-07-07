@@ -12,20 +12,27 @@ const DTCDashboard = lazy(() => import('./pages/DTCDashboard'))
 const CEODashboard = lazy(() => import('./pages/CEODashboard'))
 const AdminRegister = lazy(() => import('./components/AdminRegister'))
 
+// Returns the correct dashboard path for a given role string
+function getDashboardPath(role) {
+  if (!role) return '/register';
+  switch ((role || '').toLowerCase().trim()) {
+    case 'doctor': return '/dr_dashboard';
+    case 'pharmacist': return '/pharmacist_dashboard';
+    case 'ceo': return '/ceo_dashboard';
+    case 'hod': return '/hod_dashboard';
+    case 'dtc':
+    case 'dtccommittee': return '/dtc_dashboard';
+    case 'pharmacyhead': return '/pharmacy_head_dashboard';
+    case 'admin': return '/admin_dashboard';
+    default: return '/register';
+  }
+}
 
+// Redirects the current user to their own role's dashboard.
+// If no role is stored, sends to /register.
 const RoleRedirect = () => {
   const role = localStorage.getItem('user_role');
-  if (!role) return <Navigate to="/register" replace />;
-
-  if (role === 'doctor') return <Navigate to="/dr_dashboard" replace />;
-  if (role === 'pharmacist') return <Navigate to="/pharmacist_dashboard" replace />;
-  if (role === 'ceo') return <Navigate to="/ceo_dashboard" replace />;
-  if (role === 'hod') return <Navigate to="/hod_dashboard" replace />;
-  if (role === 'dtc' || role === 'dtccommittee') return <Navigate to="/dtc_dashboard" replace />;
-  if (role === 'pharmacyhead') return <Navigate to="/pharmacy_head_dashboard" replace />;
-  if (role === 'admin') return <Navigate to="/admin_dashboard" replace />;
-
-  return <Navigate to="/register" replace />;
+  return <Navigate to={getDashboardPath(role)} replace />;
 };
 
 const Loader = () => (
@@ -43,14 +50,15 @@ export default function App() {
 
           <Route path="/register" element={<Register />} />
 
-          {/* Admin Portal */}
+          {/* Admin Portal — AdminDashboard has its own internal login gate */}
           <Route path="/admin_register" element={<AdminRegister />} />
-      
           <Route path="/admin_dashboard" element={<AdminDashboard />} />
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
 
+          {/* Protected zone — auth + role checks are handled inside ProtectedLayout */}
           <Route path="/" element={<ProtectedLayout />}>
-            <Route index element={<Navigate to="/register" replace />} />
+            {/* Root redirect: send logged-in users to their dashboard */}
+            <Route index element={<RoleRedirect />} />
 
             <Route path="dr_dashboard" element={<DrDashboard />} />
             <Route path="hod_dashboard" element={<HODDashboard />} />

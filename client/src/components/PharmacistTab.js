@@ -212,6 +212,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
           const egd = egdRes.data?.existing_generic_data || null;
 
           setCompEgd(egd || {});
+          setEffectiveDrugEntries(altsRes.data?.effective_drug_entries || []);
           setCompExistingDetails(existingDetailsRaw.map(ed => ({
             introduced_on: ed.INTRODUCED_ON ?? ed.introduced_on ?? '',
             brand_name: ed.BRAND_NAME ?? ed.brand_name ?? '',
@@ -231,7 +232,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
             profit_margin: ed.PROFIT_MARGIN ?? ed.profit_margin ?? '',
             absolute_margin: ed.ABSOLUTE_MARGIN ?? ed.absolute_margin ?? '',
             total_margin: ed.TOTAL_MARGIN ?? ed.total_margin ?? '',
-            remark: ed.REMARK ?? ed.remark ?? '',
+            // remark: ed.REMARK ?? ed.remark ?? '',
           })));
           setCompAlts(altsRaw.map(a => ({
             brand_name: a.BRAND_NAME || a.brand_name || '',
@@ -436,7 +437,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
   };
 
   const [result, setResult] = useState("");
-  const [alert, setAlert] = useState(null);
+  const [drugProfileAlert, setDrugProfileAlert] = useState(null);
 
   const [showDrugProfilePopup, setShowDrugProfilePopup] = useState(false);
 
@@ -833,10 +834,75 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
   const [irErr, setIrErr] = useState('');
   const EMPTY_EFFECTIVE_ENTRY = {
     drug_name: '',
+    brand_name: '',
+    manufacturer: '',
+    marketer: '',
+    consultant: '',
+    present_stock: '',
+    purchase_quantity: '',
+    sale_qty: '',
+    pack: '',
+    mrp_incl_gst: '',
+    rate_incl_gst: '',
+    absolute_margin: '',
+    scheme_qty: '',
+    offer_qty: '',
+    net_rate: '',
+    profit_margin: '',
+    total_margin_markup: '',
+    // remarks: '',
     effective_created_at: '',
-    remarks: '',
   };
   const [effectiveDrugEntries, setEffectiveDrugEntries] = useState([]);
+  const [selectedIrDrugs, setSelectedIrDrugs] = useState([]);
+
+  const getRowKey = (row) => {
+    return [
+      row.brand_name || '',
+      row.manufacturer || '',
+      row.marketer || '',
+      row.pack || '',
+      row.introduced_on || '',
+      row.sno || '',
+    ].join('|');
+  };
+
+  const isSelected = (row) => {
+    const key = getRowKey(row);
+    return selectedIrDrugs.some(r => getRowKey(r) === key);
+  };
+
+  const handleToggleSelect = (row) => {
+    const key = getRowKey(row);
+    if (isSelected(row)) {
+      setSelectedIrDrugs(prev => prev.filter(r => getRowKey(r) !== key));
+    } else {
+      setSelectedIrDrugs(prev => [...prev, row]);
+    }
+  };
+
+  const mapReportRowToEffectiveEntry = (row, defaultDate) => {
+    return {
+      ...row,
+      drug_name: row.drug_name || row.brand_name || '',
+      effective_created_at: defaultDate || '',
+      remarks: row.remarks || '',
+    };
+  };
+
+  const handleExportSelected = () => {
+    if (selectedIrDrugs.length === 0) {
+      setIrReportError("Please select at least one drug to export.");
+      return;
+    }
+    setIrReportError('');
+    const newEntries = selectedIrDrugs.map(row => mapReportRowToEffectiveEntry(row, irEffectiveDate));
+    setEffectiveDrugEntries(prev => {
+      const cleanedPrev = prev.filter(e => e.drug_name.trim() !== '' || e.remarks.trim() !== '');
+      return [...cleanedPrev, ...newEntries];
+    });
+    setSelectedIrDrugs([]);
+  };
   // Generic popup state for Initial Review (Explorer & Item Margin Report lookup)
   const [irShowGenericPopup, setIrShowGenericPopup] = useState(false);
   const [irGenericLoading, setIrGenericLoading] = useState(false);
@@ -942,6 +1008,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
     setIrGenericSuggestions([]);
     setIrSelectedGeneric(null);
     setIrReportRows([]);
+    setSelectedIrDrugs([]);
     setIrReportError('');
     setIrDosageFilter('');
     setIrDosageFormFilter('');
@@ -978,12 +1045,13 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
 
   const handleIrSearchReport = async () => {
     if (!irSelectedGeneric) {
-      alert('Please select a generic drug from the autocomplete dropdown list.');
+      setIrReportError('Please select a generic drug from the autocomplete dropdown list.');
       return;
     }
     setIrLoadingReport(true);
     setIrReportError('');
     setIrReportRows([]);
+    setSelectedIrDrugs([]);
     try {
       const formattedFrom = irFromDate.split('-').reverse().join('/') + ' 00:00:00';
       const formattedTo = irToDate.split('-').reverse().join('/') + ' 23:59:59';
@@ -1005,6 +1073,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
     setIrSelected(req);
     setIrAction(act);
     setIrErr('');
+    setSelectedIrDrugs([]);
     // Default effective date from existing EFFECTIVE_CREATED_AT or CREATED_AT
     const baseDate = req.EFFECTIVE_CREATED_AT || req.CREATED_AT;
     let local = '';
@@ -1051,6 +1120,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
     setIrRemarks('');
     setIrErr('');
     setEffectiveDrugEntries([]);
+    setSelectedIrDrugs([]);
   };
 
   const submitIrApprove = async () => {
@@ -1272,7 +1342,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                       </td>
                       <td style={{ color: 'var(--text-muted)' }}>
                         {r.GENERIC_NAME}
-                        <button
+                        {/* <button
                           type="button"
                           className="btn btn-ghost btn-sm"
                           style={{ marginTop: 4, borderColor: 'var(--primary)', color: 'var(--primary)' }}
@@ -1280,7 +1350,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                           disabled={irGenericLoading}
                         >
                           {irGenericLoading ? <><div className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> Fetching…</> : '🔍 Search Existing Drugs'}
-                        </button>
+                        </button> */}
                       </td>
                       <td>{r.CATEGORY}</td>
                       <td><span className="badge badge-info">{r.REQUEST_TYPE}</span></td>
@@ -1297,7 +1367,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                       </td>
                       <td>
                         <div style={{ display: 'flex', gap: 6 }}>
-                          <button className="btn btn-success btn-sm" onClick={() => openIrPanel(r, 'approve')}>✓ Approve</button>
+                          <button className="btn btn-success btn-sm" onClick={() => openIrPanel(r, 'approve')}>Add/ove</button>
                           {/* <button className="btn btn-danger btn-sm" onClick={() => openIrPanel(r, 'reject')}>✕ Reject</button> */}
                         </div>
                       </td>
@@ -1329,6 +1399,35 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                       <span style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                         📅 Effective Created Date
                       </span>
+                      <tbody>
+                  {initialReview.map(r => (
+                    <tr key={r.REQUEST_ID} style={irSelected?.REQUEST_ID === r.REQUEST_ID ? { background: 'rgba(37,99,235,0.05)', borderLeft: '3px solid var(--primary)' } : {}}>
+                      <td style={{ fontWeight: 700, color: 'var(--primary-light)' }}>#{r.REQUEST_ID}</td>
+                      <td style={{ fontWeight: 600 }}>
+                        {r.BRAND_NAME}
+                      </td>
+                      <td style={{ color: 'var(--text-muted)' }}>
+                        {r.GENERIC_NAME}
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          style={{ marginTop: 4, borderColor: 'var(--primary)', color: 'var(--primary)' }}
+                          onClick={() => getIrGenericDetails(r.GENERIC_NAME)}
+                          disabled={irGenericLoading}
+                        >
+                          {irGenericLoading ? <><div className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> Fetching…</> : '🔍 Search Existing Drugs'}
+                        </button>
+                      </td>
+                      
+                     
+                     
+                     
+                    
+                    </tr>
+                  ))}
+                </tbody>
+                      
+                     
                       <button
                         type="button"
                         onClick={() => setEffectiveDrugEntries(prev => [...prev, { ...EMPTY_EFFECTIVE_ENTRY, effective_created_at: irEffectiveDate }])}
@@ -1350,79 +1449,146 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                         No structured drug effective entries added. Adjust default effective date above if needed.
                       </div>
                     ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        {effectiveDrugEntries.map((entry, idx) => (
-                          <div key={idx} style={{
-                            background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8,
-                            padding: '12px 16px', position: 'relative'
-                          }}>
-                            <button
-                              type="button"
-                              onClick={() => setEffectiveDrugEntries(prev => prev.filter((_, i) => i !== idx))}
-                              style={{
-                                position: 'absolute', right: 10, top: 10, background: 'none', border: 'none',
-                                color: '#ef4444', cursor: 'pointer', fontSize: '1.2rem', fontWeight: 'bold',
-                                lineHeight: 1
-                              }}
-                              title="Remove drug entry"
-                            >
-                              ×
-                            </button>
+                      <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-card)' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.72rem', textAlign: 'left', minWidth: '1800px' }}>
+                          <thead style={{ background: 'var(--bg-hover)', borderBottom: '2px solid var(--border)' }}>
+                            <tr>
+                              <th style={{ padding: '8px 10px', fontWeight: 600 }}>Drug Name *</th>
+                              <th style={{ padding: '8px 10px', fontWeight: 600 }}>Brand Name</th>
+                              <th style={{ padding: '8px 10px', fontWeight: 600 }}>Manufacturer</th>
+                              <th style={{ padding: '8px 10px', fontWeight: 600 }}>Marketer</th>
+                              <th style={{ padding: '8px 10px', fontWeight: 600 }}>Consultant</th>
+                              <th style={{ padding: '8px 10px', fontWeight: 600, textAlign: 'right' }}>Present Stock</th>
+                              <th style={{ padding: '8px 10px', fontWeight: 600, textAlign: 'right' }}>Purchase Qty</th>
+                              <th style={{ padding: '8px 10px', fontWeight: 600, textAlign: 'right' }}>Sale Qty</th>
+                              <th style={{ padding: '8px 10px', fontWeight: 600 }}>Pack</th>
+                              <th style={{ padding: '8px 10px', fontWeight: 600, textAlign: 'right' }}>MRP</th>
+                              <th style={{ padding: '8px 10px', fontWeight: 600, textAlign: 'right' }}>Rate</th>
+                              <th style={{ padding: '8px 10px', fontWeight: 600, textAlign: 'right' }}>Margin</th>
+                              <th style={{ padding: '8px 10px', fontWeight: 600 }}>Scheme Qty</th>
+                              <th style={{ padding: '8px 10px', fontWeight: 600 }}>Offer Qty</th>
+                              <th style={{ padding: '8px 10px', fontWeight: 600, textAlign: 'right' }}>Net Rate</th>
+                              <th style={{ padding: '8px 10px', fontWeight: 600, textAlign: 'right' }}>Profit Margin</th>
+                              <th style={{ padding: '8px 10px', fontWeight: 600, textAlign: 'right' }}>Total Margin</th>
+                              <th style={{ padding: '8px 10px', fontWeight: 600, width: '180px' }}>Effective Created Date *</th>
+                              <th style={{ padding: '8px 10px', fontWeight: 600, width: '200px' }}>Remarks</th>
+                              <th style={{ padding: '8px 10px', fontWeight: 600, textAlign: 'center', width: '60px' }}>Remove</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {effectiveDrugEntries.map((entry, idx) => (
+                              <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
+                                {/* Drug Name (Editable) */}
+                                <td style={{ padding: '6px 8px' }}>
+                                  <input
+                                    type="text"
+                                    className="form-input"
+                                    style={{ height: 28, fontSize: '0.75rem', padding: '2px 6px', width: '160px' }}
+                                    value={entry.drug_name}
+                                    onChange={e => {
+                                      const val = e.target.value;
+                                      setEffectiveDrugEntries(prev => prev.map((item, i) => i === idx ? { ...item, drug_name: val } : item));
+                                    }}
+                                    required
+                                  />
+                                </td>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 8 }}>
-                              <div className="form-group" style={{ margin: 0 }}>
-                                <label className="form-label" style={{ fontSize: '0.72rem', fontWeight: 600, marginBottom: 4 }}>
-                                  Drug Name *
-                                </label>
-                                <input
-                                  type="text"
-                                  className="form-input"
-                                  style={{ height: 32, fontSize: '0.78rem' }}
-                                  value={entry.drug_name}
-                                  onChange={e => {
-                                    const val = e.target.value;
-                                    setEffectiveDrugEntries(prev => prev.map((item, i) => i === idx ? { ...item, drug_name: val } : item));
-                                  }}
-                                  placeholder="Enter drug brand/generic name..."
-                                  required
-                                />
-                              </div>
+                                {/* Brand Name */}
+                                <td style={{ padding: '6px 8px' }}>{entry.brand_name || '—'}</td>
 
-                              <div className="form-group" style={{ margin: 0 }}>
-                                <label className="form-label" style={{ fontSize: '0.72rem', fontWeight: 600, marginBottom: 4 }}>
-                                  Effective Date & Time
-                                </label>
-                                <input
-                                  type="datetime-local"
-                                  className="form-input"
-                                  style={{ height: 32, fontSize: '0.78rem' }}
-                                  value={entry.effective_created_at}
-                                  onChange={e => {
-                                    const val = e.target.value;
-                                    setEffectiveDrugEntries(prev => prev.map((item, i) => i === idx ? { ...item, effective_created_at: val } : item));
-                                  }}
-                                />
-                              </div>
-                            </div>
+                                {/* Manufacturer */}
+                                <td style={{ padding: '6px 8px' }}>{entry.manufacturer || '—'}</td>
 
-                            <div className="form-group" style={{ margin: 0 }}>
-                              <label className="form-label" style={{ fontSize: '0.72rem', fontWeight: 600, marginBottom: 4 }}>
-                                Remarks (Optional)
-                              </label>
-                              <textarea
-                                className="form-textarea"
-                                rows={1}
-                                style={{ fontSize: '0.78rem', minHeight: 32, padding: '4px 8px' }}
-                                value={entry.remarks}
-                                onChange={e => {
-                                  const val = e.target.value;
-                                  setEffectiveDrugEntries(prev => prev.map((item, i) => i === idx ? { ...item, remarks: val } : item));
-                                }}
-                                placeholder="Optional comments for this drug entry..."
-                              />
-                            </div>
-                          </div>
-                        ))}
+                                {/* Marketer */}
+                                <td style={{ padding: '6px 8px' }}>{entry.marketer || '—'}</td>
+
+                                {/* Consultant */}
+                                <td style={{ padding: '6px 8px' }}>{entry.consultant || '—'}</td>
+
+                                {/* Present Stock */}
+                                <td style={{ padding: '6px 8px', textAlign: 'right' }}>{entry.present_stock !== undefined && entry.present_stock !== '' ? entry.present_stock : '—'}</td>
+
+                                {/* Purchase Qty */}
+                                <td style={{ padding: '6px 8px', textAlign: 'right' }}>{entry.purchase_quantity !== undefined && entry.purchase_quantity !== '' ? entry.purchase_quantity : '—'}</td>
+
+                                {/* Sale Qty */}
+                                <td style={{ padding: '6px 8px', textAlign: 'right' }}>{entry.sale_qty !== undefined && entry.sale_qty !== '' ? entry.sale_qty : '—'}</td>
+
+                                {/* Pack */}
+                                <td style={{ padding: '6px 8px' }}>{entry.pack || '—'}</td>
+
+                                {/* MRP */}
+                                <td style={{ padding: '6px 8px', textAlign: 'right' }}>{entry.mrp_incl_gst !== undefined && entry.mrp_incl_gst !== '' ? entry.mrp_incl_gst : '—'}</td>
+
+                                {/* Rate */}
+                                <td style={{ padding: '6px 8px', textAlign: 'right' }}>{entry.rate_incl_gst !== undefined && entry.rate_incl_gst !== '' ? entry.rate_incl_gst : '—'}</td>
+
+                                {/* Margin */}
+                                <td style={{ padding: '6px 8px', textAlign: 'right' }}>{entry.absolute_margin !== undefined && entry.absolute_margin !== '' ? entry.absolute_margin : '—'}</td>
+
+                                {/* Scheme Qty */}
+                                <td style={{ padding: '6px 8px' }}>{entry.scheme_qty || '—'}</td>
+
+                                {/* Offer Qty */}
+                                <td style={{ padding: '6px 8px' }}>{entry.offer_qty || '—'}</td>
+
+                                {/* Net Rate */}
+                                <td style={{ padding: '6px 8px', textAlign: 'right' }}>{entry.net_rate !== undefined && entry.net_rate !== '' ? entry.net_rate : '—'}</td>
+
+                                {/* Profit Margin */}
+                                <td style={{ padding: '6px 8px', textAlign: 'right' }}>{entry.profit_margin !== undefined && entry.profit_margin !== '' ? `${entry.profit_margin}%` : '—'}</td>
+
+                                {/* Total Margin */}
+                                <td style={{ padding: '6px 8px', textAlign: 'right' }}>{entry.total_margin_markup !== undefined && entry.total_margin_markup !== '' ? `${entry.total_margin_markup}%` : '—'}</td>
+
+                                {/* Effective Created Date (Editable) */}
+                                <td style={{ padding: '6px 8px' }}>
+                                  <input
+                                    type="datetime-local"
+                                    className="form-input"
+                                    style={{ height: 28, fontSize: '0.75rem', padding: '2px 6px', width: '170px' }}
+                                    value={entry.effective_created_at}
+                                    onChange={e => {
+                                      const val = e.target.value;
+                                      setEffectiveDrugEntries(prev => prev.map((item, i) => i === idx ? { ...item, effective_created_at: val } : item));
+                                    }}
+                                    required
+                                  />
+                                </td>
+
+                                {/* Remarks (Editable) */}
+                                <td style={{ padding: '6px 8px' }}>
+                                  <input
+                                    type="text"
+                                    className="form-input"
+                                    style={{ height: 28, fontSize: '0.75rem', padding: '2px 6px', width: '180px' }}
+                                    value={entry.remarks}
+                                    onChange={e => {
+                                      const val = e.target.value;
+                                      setEffectiveDrugEntries(prev => prev.map((item, i) => i === idx ? { ...item, remarks: val } : item));
+                                    }}
+                                    placeholder="Optional remarks..."
+                                  />
+                                </td>
+
+                                {/* Remove Action */}
+                                <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEffectiveDrugEntries(prev => prev.filter((_, i) => i !== idx))}
+                                    style={{
+                                      background: 'none', border: 'none', color: '#ef4444',
+                                      cursor: 'pointer', fontSize: '1.2rem', fontWeight: 'bold'
+                                    }}
+                                    title="Remove entry"
+                                  >
+                                    ×
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     )}
                   </div>
@@ -1718,68 +1884,114 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
 
                 {/* Results Table */}
                 {!irLoadingReport && irReportRows.length > 0 && (
-                  <div className="table-wrap" style={{ overflowX: 'auto', maxHeight: '420px', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.72rem', textAlign: 'left' }}>
-                      <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                        <tr>
-                          <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>S.No.</th>
-                          <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Introduced On</th>
-                          <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Brand Name</th>
-                          <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Manufacturer</th>
-                          <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Marketer</th>
-                          <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Consultant</th>
-                          <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Present Stock</th>
-                          <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Purchase Qty</th>
-                          <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Sale Qty</th>
-                          <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Pack</th>
-                          <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>MRP</th>
-                          <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Rate</th>
-                          <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Margin</th>
-                          <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Scheme</th>
-                          <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Net Rate</th>
-                          <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Profit Margin</th>
-                          <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Total Margin</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {irFilteredReportRows.length === 0 ? (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                      <div style={{ fontSize: '0.82rem', color: '#475569' }}>
+                        Selected: <strong style={{ color: '#10b981' }}>{selectedIrDrugs.length}</strong> brand(s)
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-success"
+                        onClick={handleExportSelected}
+                        disabled={selectedIrDrugs.length === 0}
+                        style={{ padding: '6px 16px', fontSize: '0.82rem', fontWeight: 600 }}
+                      >
+                        Add Selected to Effective Entries
+                      </button>
+                    </div>
+
+                    <div className="table-wrap" style={{ overflowX: 'auto', maxHeight: '420px', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.72rem', textAlign: 'left' }}>
+                        <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
                           <tr>
-                            <td colSpan={17} style={{ padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '0.8rem', background: '#f8fafc' }}>
-                              📭 No brands match the selected filter criteria.
-                            </td>
+                            <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1', textAlign: 'center', width: '40px' }}>
+                              <input
+                                type="checkbox"
+                                checked={irFilteredReportRows.length > 0 && irFilteredReportRows.every(r => isSelected(r))}
+                                onChange={(e) => {
+                                  const checked = e.target.checked;
+                                  if (checked) {
+                                    setSelectedIrDrugs(prev => {
+                                      const next = [...prev];
+                                      irFilteredReportRows.forEach(row => {
+                                        if (!next.some(r => getRowKey(r) === getRowKey(row))) {
+                                          next.push(row);
+                                        }
+                                      });
+                                      return next;
+                                    });
+                                  } else {
+                                    setSelectedIrDrugs(prev => prev.filter(row => !irFilteredReportRows.some(r => getRowKey(r) === getRowKey(row))));
+                                  }
+                                }}
+                              />
+                            </th>
+                            <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>S.No.</th>
+                            <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Introduced On</th>
+                            <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Brand Name</th>
+                            <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Manufacturer</th>
+                            <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Marketer</th>
+                            <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Consultant</th>
+                            <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Present Stock</th>
+                            <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Purchase Qty</th>
+                            <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Sale Qty</th>
+                            <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Pack</th>
+                            <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>MRP</th>
+                            <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Rate</th>
+                            <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Margin</th>
+                            <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Scheme</th>
+                            <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Net Rate</th>
+                            <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Profit Margin</th>
+                            <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Total Margin</th>
                           </tr>
-                        ) : (
-                          irFilteredReportRows.map((row, idx) => (
-                            <tr
-                              key={idx}
-                              style={{
-                                background: idx % 2 === 0 ? '#ffffff' : '#f8fafc',
-                                borderBottom: '1px solid #f1f5f9',
-                              }}
-                            >
-                              <td style={{ padding: '8px 10px' }}>{row.sno}</td>
-                              <td style={{ padding: '8px 10px' }}>{formatIntroducedDate(row.introduced_on)}</td>
-                              <td style={{ padding: '8px 10px', fontWeight: 600 }}>{row.brand_name}</td>
-                              <td style={{ padding: '8px 10px' }}>{row.manufacturer}</td>
-                              <td style={{ padding: '8px 10px' }}>{row.marketer}</td>
-                              <td style={{ padding: '8px 10px' }}>{row.consultant}</td>
-                              <td style={{ padding: '8px 10px', textAlign: 'right' }}>{row.present_stock}</td>
-                              <td style={{ padding: '8px 10px', textAlign: 'right' }}>{row.purchase_quantity}</td>
-                              <td style={{ padding: '8px 10px', textAlign: 'right' }}>{row.sale_qty}</td>
-                              <td style={{ padding: '8px 10px' }}>{row.pack}</td>
-                              <td style={{ padding: '8px 10px', textAlign: 'right' }}>{row.mrp_incl_gst}</td>
-                              <td style={{ padding: '8px 10px', textAlign: 'right' }}>{row.rate_incl_gst}</td>
-                              <td style={{ padding: '8px 10px', textAlign: 'right' }}>{row.absolute_margin}</td>
-                              <td style={{ padding: '8px 10px' }}>{row.scheme_qty && row.offer_qty ? `${row.scheme_qty}+${row.offer_qty}` : row.scheme_qty || '—'}</td>
-                              <td style={{ padding: '8px 10px', textAlign: 'right' }}>{row.net_rate}</td>
-                              <td style={{ padding: '8px 10px', textAlign: 'right' }}>{row.profit_margin}%</td>
-                              <td style={{ padding: '8px 10px', textAlign: 'right' }}>{row.total_margin_markup}%</td>
+                        </thead>
+                        <tbody>
+                          {irFilteredReportRows.length === 0 ? (
+                            <tr>
+                              <td colSpan={18} style={{ padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '0.8rem', background: '#f8fafc' }}>
+                                📭 No brands match the selected filter criteria.
+                              </td>
                             </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                          ) : (
+                            irFilteredReportRows.map((row, idx) => (
+                              <tr
+                                key={idx}
+                                style={{
+                                  background: idx % 2 === 0 ? '#ffffff' : '#f8fafc',
+                                  borderBottom: '1px solid #f1f5f9',
+                                }}
+                              >
+                                <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected(row)}
+                                    onChange={() => handleToggleSelect(row)}
+                                  />
+                                </td>
+                                <td style={{ padding: '8px 10px' }}>{row.sno}</td>
+                                <td style={{ padding: '8px 10px' }}>{formatIntroducedDate(row.introduced_on)}</td>
+                                <td style={{ padding: '8px 10px', fontWeight: 600 }}>{row.brand_name}</td>
+                                <td style={{ padding: '8px 10px' }}>{row.manufacturer}</td>
+                                <td style={{ padding: '8px 10px' }}>{row.marketer}</td>
+                                <td style={{ padding: '8px 10px' }}>{row.consultant}</td>
+                                <td style={{ padding: '8px 10px', textAlign: 'right' }}>{row.present_stock}</td>
+                                <td style={{ padding: '8px 10px', textAlign: 'right' }}>{row.purchase_quantity}</td>
+                                <td style={{ padding: '8px 10px', textAlign: 'right' }}>{row.sale_qty}</td>
+                                <td style={{ padding: '8px 10px' }}>{row.pack}</td>
+                                <td style={{ padding: '8px 10px', textAlign: 'right' }}>{row.mrp_incl_gst}</td>
+                                <td style={{ padding: '8px 10px', textAlign: 'right' }}>{row.rate_incl_gst}</td>
+                                <td style={{ padding: '8px 10px', textAlign: 'right' }}>{row.absolute_margin}</td>
+                                <td style={{ padding: '8px 10px' }}>{row.scheme_qty && row.offer_qty ? `${row.scheme_qty}+${row.offer_qty}` : row.scheme_qty || '—'}</td>
+                                <td style={{ padding: '8px 10px', textAlign: 'right' }}>{row.net_rate}</td>
+                                <td style={{ padding: '8px 10px', textAlign: 'right' }}>{row.profit_margin}%</td>
+                                <td style={{ padding: '8px 10px', textAlign: 'right' }}>{row.total_margin_markup}%</td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
                 )}
 
                 {!irLoadingReport && irReportRows.length === 0 && irSelectedGeneric && (
@@ -1851,7 +2063,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                           <span className="badge" style={{ background: '#fef2f2', color: '#991b1b' }}>Non-Formulary</span>
                         ) : '—'}
                       </td>
-                      <td>{r.REQUEST_SOURCE_TYPE === 'NON_PROMOTIONAL' ? <span className="badge badge-non-promotional">Clinical Initiated</span> : <span className="badge badge-promotional">Via Medical Representative</span>}</td>
+                      <td>{r.REQUEST_SOURCE_TYPE === 'NON_PROMOTIONAL' ? <span className="badge badge-non-promotional">Clinician initiated</span> : <span className="badge badge-promotional">Via Medical Representative</span>}</td>
                       <td>
                         <div>{r.DOCTOR_NAME}</div>
                         <small className="text-muted" style={{ display: 'block', fontSize: '0.75rem' }}>
@@ -3714,6 +3926,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
           pharmRemarks={pharmRemarks}
           requestInfo={{ ...analysisReq, PREPARED_BY: currentUser.USERNAME || currentUser.NAME }}
           isCorrectionMode={isCorrectionMode}
+          effectiveDrugEntries={effectiveDrugEntries}
           onAlternativesChange={setAlternatives}
           onExistingChange={setExistingGenericData}
           onRemarksChange={setPharmRemarks}
@@ -3740,6 +3953,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
           pharmRemarks={viewReq.PHARMACIST_REMARKS || ''}
           phRemarks={viewReq.PH_REVIEW_REMARKS || viewReq.PH_REVIEW2_REMARKS || viewReq.PH_REMARKS2 || ''}
           requestInfo={viewReq}
+          effectiveDrugEntries={effectiveDrugEntries}
           dtcSelectedBrand={viewReq.DTC_SELECTED_BRAND || ''}
           dtcSelectedCategory={viewReq.DTC_SELECTED_CATEGORY || viewReq.FORMULARY_REQUEST_TYPE || ''}
           dtcSelectionReasons={(() => {
