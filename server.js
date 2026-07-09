@@ -4965,7 +4965,14 @@ app.get('/api/alternatives/:requestId', async (req, res) => {
   const conn = await getConn();
   try {
     const result = await conn.execute(
-      `SELECT da.*, u.name AS submitted_by_name,
+      `SELECT da.alt_id, da.request_id, da.brand_name, da.manufacturer, da.marketer,
+              da.mrp_per_pack, da.rate_per_pack, da.gst_percent, da.mrp, da.rate,
+              da.qty, da.offer, da.markup_margin, da.scheme_qty, da.scheme_offer,
+              da.net_rate, da.total_margin, da.profit_margin, da.absolute_margin,
+              da.stock, da.existing_drug_details, da.remark, da.refer,
+              da.submitted_by, da.created_at, da.is_final_selected,
+              da.consultant, da.sale_qty, da.pack, da.introduced_on,
+              u.name AS submitted_by_name,
               dn.negotiation_id, dn.negotiated_mrp, dn.negotiated_rate, dn.negotiated_gst,
               dn.negotiated_scheme_qty, dn.negotiated_scheme_offer, dn.negotiated_net_rate,
               dn.negotiated_profit_margin, dn.negotiated_absolute_margin, dn.negotiated_total_margin,
@@ -5133,8 +5140,13 @@ app.get('/api/alternatives/:requestId/selected', async (req, res) => {
                       da.scheme_qty AS final_scheme_qty,
                       da.scheme_offer AS final_scheme_offer,
                       da.pack AS final_pack,
-                      da.remark
+                      da.remark,
+                      dn.negotiated_mrp, dn.negotiated_rate, dn.negotiated_gst,
+                      dn.negotiated_scheme_qty, dn.negotiated_scheme_offer, dn.negotiated_net_rate,
+                      dn.negotiated_profit_margin, dn.negotiated_absolute_margin, dn.negotiated_total_margin,
+                      dn.negotiation_remarks
                FROM drug_alternatives da
+               LEFT JOIN drug_alternative_negotiations dn ON dn.alternative_id = da.alt_id
                WHERE da.alt_id = :altId AND da.request_id = :requestId`,
               { altId: rec.alternative_id, requestId }
             );
@@ -5146,19 +5158,26 @@ app.get('/api/alternatives/:requestId/selected', async (req, res) => {
                 brand_name: rec.brand_name,
                 manufacturer: alt.FINAL_MANUFACTURER || rec.manufacturer,
                 marketer: alt.FINAL_MARKETER || rec.marketer,
-                mrp: alt.FINAL_MRP,
-                rate: alt.FINAL_RATE,
-                net_rate: alt.FINAL_NET_RATE,
-                profit_margin: alt.FINAL_PROFIT_MARGIN,
-                absolute_margin: alt.FINAL_ABSOLUTE_MARGIN,
-                scheme_qty: alt.FINAL_SCHEME_QTY,
-                scheme_offer: alt.FINAL_SCHEME_OFFER,
+                mrp: alt.NEGOTIATED_MRP ?? alt.FINAL_MRP,
+                rate: alt.NEGOTIATED_RATE ?? alt.FINAL_RATE,
+                net_rate: alt.NEGOTIATED_NET_RATE ?? alt.FINAL_NET_RATE,
+                profit_margin: alt.NEGOTIATED_PROFIT_MARGIN ?? alt.FINAL_PROFIT_MARGIN,
+                absolute_margin: alt.NEGOTIATED_ABSOLUTE_MARGIN ?? alt.FINAL_ABSOLUTE_MARGIN,
+                scheme_qty: alt.NEGOTIATED_SCHEME_QTY ?? alt.FINAL_SCHEME_QTY,
+                scheme_offer: alt.NEGOTIATED_SCHEME_OFFER ?? alt.FINAL_SCHEME_OFFER,
                 pack: alt.FINAL_PACK,
-                remark: alt.REMARK,
+                remark: alt.NEGOTIATION_REMARKS ?? alt.REMARK,
                 category: rec.category,
                 reasons: rec.reasons,
                 notes: rec.notes,
-                remarks: rec.remarks || ''
+                remarks: rec.remarks || '',
+                // Add these negotiated fields so they are carried over in the object
+                negotiated_mrp: alt.NEGOTIATED_MRP,
+                negotiated_rate: alt.NEGOTIATED_RATE,
+                negotiated_gst: alt.NEGOTIATED_GST,
+                negotiated_scheme_qty: alt.NEGOTIATED_SCHEME_QTY,
+                negotiated_scheme_offer: alt.NEGOTIATED_SCHEME_OFFER,
+                negotiation_remarks: alt.NEGOTIATION_REMARKS
               });
             }
           }
@@ -5182,8 +5201,13 @@ app.get('/api/alternatives/:requestId/selected', async (req, res) => {
                   da.absolute_margin AS final_absolute_margin,
                   da.scheme_qty AS final_scheme_qty,
                   da.scheme_offer AS final_scheme_offer,
-                  da.pack AS final_pack
+                  da.pack AS final_pack,
+                  dn.negotiated_mrp, dn.negotiated_rate, dn.negotiated_gst,
+                  dn.negotiated_scheme_qty, dn.negotiated_scheme_offer, dn.negotiated_net_rate,
+                  dn.negotiated_profit_margin, dn.negotiated_absolute_margin, dn.negotiated_total_margin,
+                  dn.negotiation_remarks
            FROM drug_alternatives da
+           LEFT JOIN drug_alternative_negotiations dn ON dn.alternative_id = da.alt_id
            WHERE da.alt_id = :altId AND da.request_id = :requestId`,
           { altId: final_selected_alternative_id, requestId }
         );
@@ -5195,17 +5219,24 @@ app.get('/api/alternatives/:requestId/selected', async (req, res) => {
             brand_name: alt.FINAL_BRAND_NAME,
             manufacturer: alt.FINAL_MANUFACTURER,
             marketer: alt.FINAL_MARKETER,
-            mrp: alt.FINAL_MRP,
-            rate: alt.FINAL_RATE,
-            net_rate: alt.FINAL_NET_RATE,
-            profit_margin: alt.FINAL_PROFIT_MARGIN,
-            absolute_margin: alt.FINAL_ABSOLUTE_MARGIN,
-            scheme_qty: alt.FINAL_SCHEME_QTY,
-            scheme_offer: alt.FINAL_SCHEME_OFFER,
+            mrp: alt.NEGOTIATED_MRP ?? alt.FINAL_MRP,
+            rate: alt.NEGOTIATED_RATE ?? alt.FINAL_RATE,
+            net_rate: alt.NEGOTIATED_NET_RATE ?? alt.FINAL_NET_RATE,
+            profit_margin: alt.NEGOTIATED_PROFIT_MARGIN ?? alt.FINAL_PROFIT_MARGIN,
+            absolute_margin: alt.NEGOTIATED_ABSOLUTE_MARGIN ?? alt.FINAL_ABSOLUTE_MARGIN,
+            scheme_qty: alt.NEGOTIATED_SCHEME_QTY ?? alt.FINAL_SCHEME_QTY,
+            scheme_offer: alt.NEGOTIATED_SCHEME_OFFER ?? alt.FINAL_SCHEME_OFFER,
             pack: alt.FINAL_PACK,
             category: dr.DTC_SELECTED_CATEGORY,
             reasons: dr.DTC_SELECTION_REASONS ? JSON.parse(dr.DTC_SELECTION_REASONS) : [],
-            notes: dr.DTC_RECOMMENDATION_NOTES
+            notes: dr.DTC_RECOMMENDATION_NOTES,
+            // Add negotiated fields
+            negotiated_mrp: alt.NEGOTIATED_MRP,
+            negotiated_rate: alt.NEGOTIATED_RATE,
+            negotiated_gst: alt.NEGOTIATED_GST,
+            negotiated_scheme_qty: alt.NEGOTIATED_SCHEME_QTY,
+            negotiated_scheme_offer: alt.NEGOTIATED_SCHEME_OFFER,
+            negotiation_remarks: alt.NEGOTIATION_REMARKS
           });
         }
       } else if (dr.DTC_SELECTED_BRAND) {

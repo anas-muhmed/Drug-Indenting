@@ -83,57 +83,70 @@ function calcDerived(mrpPack, ratePack, gstPct, packAmt, qty, offer) {
 // isScheme: true → rendered under merged "Scheme" header
 // existingKey   → key in existingGenericData object (null = blank for existing row)
 const COLS_NEW = [
-  { id: 'introduced_on', label: 'Introduced On', existingKey: 'existing_introduced_on', w: 140 },
-  { id: 'brand_name', label: 'Brand Name', existingKey: 'existing_brand_name', w: 240 },
-  { id: 'manufacturer', label: 'Mfr.', existingKey: 'existing_manufacturer', w: 220 },
-  { id: 'marketer', label: 'Mktr.', existingKey: 'existing_marketer', w: 220 },
-  { id: 'consultant', label: 'Consultant', existingKey: null, w: 180 },
-  { id: 'mrp_per_pack', label: 'MRP/Pack', existingKey: 'existing_mrp_per_pack', w: 130, num: true },
-  { id: 'rate_per_pack', label: 'Rate/Pack', existingKey: 'existing_rate_per_pack', w: 130, num: true },
-  { id: 'gst_percent', label: 'GST%', existingKey: 'existing_gst_percent', w: 70, num: true },
-  { id: 'pack', label: 'Pack', existingKey: 'existing_pack', w: 120 },
-  { id: 'mrp', label: 'MRP (Inc. GST)/Nos', existingKey: null, isCalc: true, w: 130 },
-  { id: 'rate', label: 'Rate (Inc. GST)/Nos', existingKey: null, isCalc: true, w: 130 },
-  { id: 'markupmargin', label: 'Mark Up Margin', existingKey: null, isCalc: true, w: 150 },
-  { id: 'qty', label: 'Qty', isScheme: true, existingKey: 'existing_qty', w: 70, num: true },
-  { id: 'offer', label: 'Offer', isScheme: true, existingKey: 'existing_offer', w: 70, num: true },
-  { id: 'net_rate', label: 'Net Rate', existingKey: null, isCalc: true, w: 140 },
-  { id: 'profit_margin', label: 'Profit Margin', existingKey: null, isCalc: true, w: 150 },
-  { id: 'abs_margin', label: 'Absolute Margin', existingKey: null, isCalc: true, w: 170 },
-  { id: 'margin', label: 'Total Margin (Mark Up)', existingKey: null, isCalc: true, w: 180 },
-  { id: 'remark', label: 'Remarks', existingKey: 'existing_drug_details', w: 320 },
+  { id: 'introduced_on', label: 'Introduced On', existingKey: 'existing_introduced_on', w: 100 },
+  { id: 'brand_name',    label: 'Brand Name',    existingKey: 'existing_brand_name',    w: 190 },
+  { id: 'manufacturer', label: 'Mfr.',           existingKey: 'existing_manufacturer',  w: 160 },
+  { id: 'marketer',     label: 'Mktr.',          existingKey: 'existing_marketer',      w: 160 },
+  { id: 'consultant',   label: 'Consultant',     existingKey: null,                     w: 130 },
+  { id: 'mrp_per_pack', label: 'MRP/Pack',       existingKey: 'existing_mrp_per_pack',  w: 78, num: true },
+  { id: 'rate_per_pack',label: 'Rate/Pack',      existingKey: 'existing_rate_per_pack', w: 78, num: true },
+  { id: 'gst_percent',  label: 'GST%',           existingKey: 'existing_gst_percent',   w: 52, num: true },
+  { id: 'pack',         label: 'Pack',           existingKey: 'existing_pack',          w: 72 },
+  { id: 'mrp',          label: 'MRP/Nos',        existingKey: null, isCalc: true,       w: 78 },
+  { id: 'rate',         label: 'Rate/Nos',       existingKey: null, isCalc: true,       w: 78 },
+  { id: 'markupmargin', label: 'Markup%',        existingKey: null, isCalc: true,       w: 72 },
+  { id: 'qty',          label: 'Qty',  isScheme: true, existingKey: 'existing_qty',   w: 52, num: true },
+  { id: 'offer',        label: 'Offer',isScheme: true, existingKey: 'existing_offer', w: 52, num: true },
+  { id: 'net_rate',     label: 'Net Rate',       existingKey: null, isCalc: true,       w: 78 },
+  { id: 'profit_margin',label: 'Profit%',        existingKey: null, isCalc: true,       w: 66 },
+  { id: 'abs_margin',   label: 'Abs.Margin',     existingKey: null, isCalc: true,       w: 84 },
+  { id: 'margin',       label: 'Total Mgn%',     existingKey: null, isCalc: true,       w: 82 },
+  { id: 'remark',       label: 'Remarks',        existingKey: 'existing_drug_details',  w: 200 },
 ];
 
 const COLS_EXISTING = [
-  { id: 'introduced_on', label: 'Introduced On', key: 'introduced_on', w: 140 },
-  { id: 'brand_name', label: 'Brand Name', key: 'brand_name', w: 240 },
-  { id: 'manufacturer', label: 'Mfr.', key: 'manufacturer', w: 220 },
-  { id: 'marketer', label: 'Mktr.', key: 'marketer', w: 220 },
-  { id: 'consultant', label: 'Consultant', key: 'consultant', w: 180 },
-  { id: 'present_stock', label: 'Present Stock', key: 'present_stock', w: 100, num: true },
-  { id: 'purchase_qty', label: 'Purchase Quantity', key: 'purchase_qty', w: 120, num: true },
-  { id: 'sale_qty', label: 'Sale Qty', key: 'sale_qty', w: 100, num: true },
-  { id: 'pack', label: 'Pack', key: 'pack', w: 120 },
-  { id: 'mrp_inc_gst_nos', label: 'MRP (Including GST) / Nos', key: 'mrp_inc_gst_nos', w: 130, num: true },
-  { id: 'rate_inc_gst_nos', label: 'Rate (Including GST) / Nos', key: 'rate_inc_gst_nos', w: 130, num: true },
-  { id: 'markup_margin', label: 'Mark Up Margin', key: 'markup_margin', w: 150, num: true },
-  { id: 'scheme_qty', label: 'Qty', isScheme: true, key: 'scheme_qty', w: 70, num: true },
-  { id: 'scheme_offer', label: 'Offer', isScheme: true, key: 'scheme_offer', w: 70 },
-  { id: 'net_rate', label: 'Net Rate', key: 'net_rate', w: 140, num: true },
-  { id: 'profit_margin', label: 'Profit Margin', key: 'profit_margin', w: 150, num: true },
-  { id: 'absolute_margin', label: 'Absolute Margin', key: 'absolute_margin', w: 170, num: true },
-  { id: 'total_margin', label: 'Total Margin (Mark Up)', key: 'total_margin', w: 180, num: true },
-  { id: 'remark', label: 'Remarks', key: 'remark', w: 320 },
+  { id: 'introduced_on',  label: 'Introduced On', key: 'introduced_on',   w: 100 },
+  { id: 'brand_name',     label: 'Brand Name',    key: 'brand_name',      w: 190 },
+  { id: 'manufacturer',  label: 'Mfr.',          key: 'manufacturer',    w: 160 },
+  { id: 'marketer',      label: 'Mktr.',         key: 'marketer',        w: 160 },
+  { id: 'consultant',    label: 'Consultant',    key: 'consultant',      w: 130 },
+  { id: 'present_stock', label: 'Stock',         key: 'present_stock',   w: 62,  num: true },
+  { id: 'purchase_qty',  label: 'Purch.Qty',     key: 'purchase_qty',    w: 72,  num: true },
+  { id: 'sale_qty',      label: 'Sale Qty',      key: 'sale_qty',        w: 62,  num: true },
+  { id: 'pack',          label: 'Pack',          key: 'pack',            w: 72 },
+  { id: 'mrp_inc_gst_nos',  label: 'MRP/Nos',   key: 'mrp_inc_gst_nos', w: 78,  num: true },
+  { id: 'rate_inc_gst_nos', label: 'Rate/Nos',  key: 'rate_inc_gst_nos',w: 78,  num: true },
+  { id: 'markup_margin', label: 'Markup%',       key: 'markup_margin',   w: 72,  num: true },
+  { id: 'scheme_qty',    label: 'Qty',  isScheme: true, key: 'scheme_qty',   w: 52, num: true },
+  { id: 'scheme_offer',  label: 'Offer',isScheme: true, key: 'scheme_offer', w: 52 },
+  { id: 'net_rate',      label: 'Net Rate',      key: 'net_rate',        w: 78,  num: true },
+  { id: 'profit_margin', label: 'Profit%',       key: 'profit_margin',   w: 66,  num: true },
+  { id: 'absolute_margin',label: 'Abs.Margin',  key: 'absolute_margin', w: 84,  num: true },
+  { id: 'total_margin',  label: 'Total Mgn%',   key: 'total_margin',    w: 82,  num: true },
+  { id: 'remark',        label: 'Remarks',       key: 'remark',          w: 200 },
 ];
 
 // ── Shared style tokens ──────────────────────────────────────────────
 const CELL = {
-  border: '1px solid #bbb', padding: '6px 8px', fontSize: '0.73rem',
+  border: '1px solid #c6c9ce',
+  padding: '5px 6px',
+  fontSize: '13px',
+  fontWeight: 600,
+  color: '#111827',
   verticalAlign: 'top',
+  lineHeight: '1.4',
+  letterSpacing: '0.1px',
 };
 const HDR = {
-  ...CELL, background: '#1e3a5f', color: '#fff', fontWeight: 700,
-  textAlign: 'center', fontSize: '0.7rem',
+  ...CELL,
+  background: '#1e3a5f',
+  color: '#ffffff',
+  fontWeight: 700,
+  fontSize: '13px',
+  textAlign: 'center',
+  whiteSpace: 'normal',
+  wordBreak: 'break-word',
+  lineHeight: '1.3',
 };
 const SECTION_HDR = {
   background: '#d97706', color: '#fff', fontWeight: 700,
@@ -144,17 +157,33 @@ const NEW_ROW = { background: '#f0f9ff' };
 const DR_ROW = { background: '#f0fdf4' };   // first alt row (Dr. Recommended)
 const INPUT_STYLE = {
   width: '100%', border: 'none', background: 'transparent',
-  padding: '1px 2px', fontSize: '0.73rem', outline: 'none', minWidth: 0,
+  padding: '1px 2px',
+  fontSize: '13px',
+  fontWeight: 600,
+  color: '#111827',
+  outline: 'none',
+  minWidth: 0,
+  letterSpacing: '0.1px',
 };
 const TEXTAREA_STYLE = {
   width: '100%', border: 'none', background: 'transparent',
-  padding: 0, margin: 0, fontSize: '0.73rem', outline: 'none',
+  padding: 0, margin: 0,
+  fontSize: '13px',
+  fontWeight: 600,
+  color: '#111827',
+  outline: 'none',
   resize: 'none', overflowY: 'hidden', fontFamily: 'inherit',
-  lineHeight: '1.3', display: 'block',
+  lineHeight: '1.4', display: 'block',
+  letterSpacing: '0.1px',
 };
 const CALC_STYLE = {
-  ...CELL, background: '#eef2ff', color: '#1e40af',
-  textAlign: 'right', fontStyle: 'italic', fontSize: '0.72rem',
+  ...CELL,
+  background: '#eef2ff',
+  color: '#1e3a8a',
+  fontWeight: 700,
+  textAlign: 'right',
+  fontStyle: 'italic',
+  fontSize: '13px',
 };
 
 // ── Sub-components ───────────────────────────────────────────────────
@@ -824,7 +853,14 @@ export default function ComparisonSheet({
     }
 
     setSelectedReportRows([]);
-    alert(`Successfully imported ${mappedRows.length} brand(s) into the Existing Details section.`);
+
+    // Auto-fit columns then zoom to fill width — no manual action needed
+    setTimeout(() => {
+      autoFitAll();
+      setTimeout(() => {
+        zoomToFullWidth();
+      }, 100);
+    }, 100);
   };
 
   const touchStartDist = React.useRef(0);
@@ -864,11 +900,10 @@ export default function ComparisonSheet({
     const content = sheetRef.current;
     if (!container || !content) return;
 
-    const scaleX = (container.clientWidth - 40) / content.scrollWidth;
-    const scaleY = (container.clientHeight - 40) / content.scrollHeight;
-
-    let nextScale = Math.min(scaleX, scaleY);
-    if (nextScale < 0.4) nextScale = 0.4;
+    // Fit to viewport width — desktop-first, eliminates horizontal scrollbar
+    const scaleX = (container.clientWidth - 24) / content.scrollWidth;
+    let nextScale = scaleX;
+    if (nextScale < 0.3) nextScale = 0.3;
     if (nextScale > 1.2) nextScale = 1.2;
 
     setZoom(nextScale);
@@ -879,13 +914,59 @@ export default function ComparisonSheet({
     const content = sheetRef.current;
     if (!container || !content) return;
 
-    const scaleX = (container.clientWidth - 40) / content.scrollWidth;
+    const scaleX = (container.clientWidth - 24) / content.scrollWidth;
     let nextScale = scaleX;
-    if (nextScale < 0.4) nextScale = 0.4;
+    if (nextScale < 0.3) nextScale = 0.3;
     if (nextScale > 1.2) nextScale = 1.2;
 
     setZoom(nextScale);
   }, []);
+
+  const handleTableResizeStart = React.useCallback((e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    
+    // Store current widths of all columns in local object
+    const startWidths = { sno: columnWidths.sno || 40 };
+    COLS_NEW.forEach(col => {
+      startWidths[col.id] = columnWidths[col.id] || col.w;
+    });
+    COLS_EXISTING.forEach(col => {
+      startWidths[col.id] = columnWidths[col.id] || col.w;
+    });
+
+    const startTableWidth = (columnWidths.sno || 40) + COLS_NEW.reduce((acc, col) => acc + (columnWidths[col.id] || col.w), 0);
+
+    const handleMouseMove = (moveEvent) => {
+      const deltaX = (moveEvent.clientX - startX) / zoom;
+      const newTableWidth = startTableWidth + deltaX;
+      // Minimum logical width of 700px
+      const finalTableWidth = Math.max(700, newTableWidth);
+      const ratio = finalTableWidth / startTableWidth;
+
+      setColumnWidths(prev => {
+        const updated = { ...prev };
+        updated.sno = Math.max(15, Math.round(startWidths.sno * ratio));
+        COLS_NEW.forEach((col, idx) => {
+          const existCol = COLS_EXISTING[idx];
+          const newW = Math.max(20, Math.round((startWidths[col.id] || col.w) * ratio));
+          updated[col.id] = newW;
+          if (existCol) updated[existCol.id] = newW;
+        });
+        return updated;
+      });
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = 'nwse-resize';
+  }, [columnWidths, zoom]);
 
   React.useEffect(() => {
     const timer = setTimeout(() => {
@@ -2275,7 +2356,8 @@ export default function ComparisonSheet({
             transformOrigin: 'top left',
             transition: 'transform 0.2s ease',
             width: 'fit-content',
-            minWidth: '1400px',
+            minWidth: '900px',
+            position: 'relative',
             background: '#fff',
             borderRadius: 8,
             boxShadow: '0 2px 12px rgba(0,0,0,0.12)',
@@ -2320,11 +2402,12 @@ export default function ComparisonSheet({
 
           {/* ── Main Table ── */}
           <div style={{ overflowX: 'auto' }}>
-            <table style={{
-              tableLayout: 'fixed',
-              borderCollapse: 'collapse',
-              width: `${(columnWidths.sno || 40) + COLS_NEW.reduce((acc, col) => acc + (columnWidths[col.id] || col.w), 0)}px`,
-            }}>
+            <div style={{ position: 'relative', width: 'fit-content' }}>
+              <table style={{
+                tableLayout: 'fixed',
+                borderCollapse: 'collapse',
+                width: `${(columnWidths.sno || 40) + COLS_NEW.reduce((acc, col) => acc + (columnWidths[col.id] || col.w), 0)}px`,
+              }}>
               <colgroup>
                 <col style={{ width: columnWidths.sno || 40 }} />
                 {COLS_NEW.map(col => (
@@ -2520,7 +2603,32 @@ export default function ComparisonSheet({
                   );
                 })}
               </tbody>
-            </table>
+             </table>
+              {/* Proportional Table Resize Handle */}
+              <div
+                onMouseDown={handleTableResizeStart}
+                title="Drag to resize table proportionally"
+                style={{
+                  position: 'absolute',
+                  right: 0,
+                  bottom: 0,
+                  width: 18,
+                  height: 18,
+                  cursor: 'nwse-resize',
+                  zIndex: 100,
+                  display: 'flex',
+                  alignItems: 'flex-end',
+                  justifyContent: 'flex-end',
+                  color: '#94a3b8',
+                  fontSize: '12px',
+                  userSelect: 'none',
+                  padding: '0 2px 2px 0',
+                  pointerEvents: 'auto',
+                }}
+              >
+                ◢
+              </div>
+            </div>
           </div>
 
           {/* ── Pharmacist Remarks ── */}
@@ -2800,6 +2908,7 @@ export default function ComparisonSheet({
               </div>
             </div>
           )}
+
 
         </div>
       </div>

@@ -648,7 +648,9 @@ export default function DTCCommitteeTab({ currentUser, onNotificationsRead }) {
         <thead>
           <tr>
             <th className="sticky-col">#ID</th><th>Brand Name</th><th>Generic</th><th>Category</th>
-            <th>Doctor</th><th>Source</th><th>PH Remarks</th><th>Submitted</th><th>Effective Created</th><th>Actions</th>
+            <th>Doctor</th><th>Source</th><th>PH Remarks</th><th>Submitted</th>
+            {/* <th>Effective Created</th> */}
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -698,11 +700,11 @@ export default function DTCCommitteeTab({ currentUser, onNotificationsRead }) {
                   {r.PH_REMARKS || '—'}
                 </td>
                 <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{new Date(r.CREATED_AT).toLocaleDateString('en-IN')}</td>
-                <td style={{ fontSize: '0.8rem', color: 'var(--primary-light)' }}>
+                {/* <td style={{ fontSize: '0.8rem', color: 'var(--primary-light)' }}>
                   {r.EFFECTIVE_CREATED_AT
                     ? new Date(r.EFFECTIVE_CREATED_AT).toLocaleString('en-IN')
                     : new Date(r.CREATED_AT).toLocaleString('en-IN')}
-                </td>
+                </td> */}
                 <td>
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button className="btn btn-ghost btn-sm" onClick={() => openModal(r, 'view')}>
