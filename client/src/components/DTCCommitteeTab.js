@@ -584,25 +584,7 @@ export default function DTCCommitteeTab({ currentUser, onNotificationsRead }) {
     }
   };
 
-  const handleDtcFinalize = async ({ recommendations, notes, reviewed_by_name, review_signature, dtc_remarks }) => {
-    if (!recommendations || recommendations.length === 0) {
-      alert('Please select at least one final recommendation.');
-      return;
-    }
-    for (const rec of recommendations) {
-      if (!rec.brand_name || !rec.brand_name.trim()) {
-        alert('Please select a brand name for all recommendation blocks.');
-        return;
-      }
-      if (!rec.category) {
-        alert(`Please select whether Formulary or Non-Formulary for recommended brand "${rec.brand_name}".`);
-        return;
-      }
-      if (!rec.reasons || rec.reasons.length === 0) {
-        alert(`Please select at least one reason for selection for recommended brand "${rec.brand_name}".`);
-        return;
-      }
-    }
+  const handleDtcFinalize = async ({ recommendations, notes, reviewed_by_name, review_signature, dtc_remarks, alternatives: altRows, existing_details: existingRows }) => {
     if (!reviewed_by_name || !reviewed_by_name.trim()) {
       alert('Please enter DTC Chairperson Reviewed By Name.');
       return;
@@ -615,17 +597,21 @@ export default function DTCCommitteeTab({ currentUser, onNotificationsRead }) {
     setSubmittingSelection(true);
     try {
       const payload = {
-        recommendations,
+        recommendations: recommendations || [],
         remarks: notes || '',
         performed_by: currentUser.USER_ID,
         dtc_reviewed_by_name: reviewed_by_name,
         dtc_review_signature: review_signature,
-        dtc_remarks: dtc_remarks
+        dtc_remarks: dtc_remarks,
+        alternatives: altRows || [],
+        existing_details: existingRows || [],
       };
 
       await axios.post(`${API}/dtc/final-select/${selected.REQUEST_ID}`, payload);
-      const selectedBrandsList = recommendations.map(rec => rec.brand_name).join(', ');
-      setAlertMsg({ type: 'success', msg: `✅ Final drug selection confirmed: ${selectedBrandsList}. Request #${selected.REQUEST_ID} forwarded to CEO.` });
+      const selectedBrandsList = recommendations && recommendations.length > 0
+        ? recommendations.map(rec => rec.brand_name).join(', ')
+        : 'Selected via remarks';
+      setAlertMsg({ type: 'success', msg: `✅ DTC review confirmed: ${selectedBrandsList}. Request #${selected.REQUEST_ID} forwarded to CEO.` });
       setShowCompSheet(false);
       closeModal();
       await loadRequests();
@@ -1822,6 +1808,8 @@ export default function DTCCommitteeTab({ currentUser, onNotificationsRead }) {
           dtcReviewedAt={selected.DTC_REVIEWED_AT}
           dtcFinalRecommendations={dtcFinalRecommendations}
           onDtcFinalRecommendationsChange={setDtcFinalRecommendations}
+          onAlternativesChange={setDtcAltView}
+          onExistingDetailsChange={setDtcExistingDetails}
           onDtcSelectedBrandChange={setDtcSelectedBrand}
           onDtcSelectedCategoryChange={setDtcSelectedCategory}
           onDtcSelectionReasonsChange={setDtcSelectionReasons}

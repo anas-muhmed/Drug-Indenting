@@ -1367,7 +1367,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                       </td>
                       <td>
                         <div style={{ display: 'flex', gap: 6 }}>
-                          <button className="btn btn-success btn-sm" onClick={() => openIrPanel(r, 'approve')}>Add/ove</button>
+                          <button className="btn btn-success btn-sm" onClick={() => openIrPanel(r, 'approve')}>Add/Approve</button>
                           {/* <button className="btn btn-danger btn-sm" onClick={() => openIrPanel(r, 'reject')}>✕ Reject</button> */}
                         </div>
                       </td>
@@ -1400,34 +1400,34 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                         📅 Effective Created Date
                       </span>
                       <tbody>
-                  {initialReview.map(r => (
-                    <tr key={r.REQUEST_ID} style={irSelected?.REQUEST_ID === r.REQUEST_ID ? { background: 'rgba(37,99,235,0.05)', borderLeft: '3px solid var(--primary)' } : {}}>
-                      <td style={{ fontWeight: 700, color: 'var(--primary-light)' }}>#{r.REQUEST_ID}</td>
-                      <td style={{ fontWeight: 600 }}>
-                        {r.BRAND_NAME}
-                      </td>
-                      <td style={{ color: 'var(--text-muted)' }}>
-                        {r.GENERIC_NAME}
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-sm"
-                          style={{ marginTop: 4, borderColor: 'var(--primary)', color: 'var(--primary)' }}
-                          onClick={() => getIrGenericDetails(r.GENERIC_NAME)}
-                          disabled={irGenericLoading}
-                        >
-                          {irGenericLoading ? <><div className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> Fetching…</> : '🔍 Search Existing Drugs'}
-                        </button>
-                      </td>
-                      
-                     
-                     
-                     
-                    
-                    </tr>
-                  ))}
-                </tbody>
-                      
-                     
+                        {initialReview.map(r => (
+                          <tr key={r.REQUEST_ID} style={irSelected?.REQUEST_ID === r.REQUEST_ID ? { background: 'rgba(37,99,235,0.05)', borderLeft: '3px solid var(--primary)' } : {}}>
+                            <td style={{ fontWeight: 700, color: 'var(--primary-light)' }}>#{r.REQUEST_ID}</td>
+                            <td style={{ fontWeight: 600 }}>
+                              {r.BRAND_NAME}
+                            </td>
+                            <td style={{ color: 'var(--text-muted)' }}>
+                              {r.GENERIC_NAME}
+                              <button
+                                type="button"
+                                className="btn btn-ghost btn-sm"
+                                style={{ marginTop: 4, borderColor: 'var(--primary)', color: 'var(--primary)' }}
+                                onClick={() => getIrGenericDetails(r.GENERIC_NAME)}
+                                disabled={irGenericLoading}
+                              >
+                                {irGenericLoading ? <><div className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> Fetching…</> : '🔍 Search Existing Drugs'}
+                              </button>
+                            </td>
+
+
+
+
+
+                          </tr>
+                        ))}
+                      </tbody>
+
+
                       <button
                         type="button"
                         onClick={() => setEffectiveDrugEntries(prev => [...prev, { ...EMPTY_EFFECTIVE_ENTRY, effective_created_at: irEffectiveDate }])}

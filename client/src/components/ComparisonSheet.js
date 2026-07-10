@@ -74,6 +74,120 @@ function calcDerived(mrpPack, ratePack, gstPct, packAmt, qty, offer) {
   };
 }
 
+function isFieldModified(oldVal, newVal, isNumeric = false) {
+  if (oldVal === undefined || oldVal === null) oldVal = '';
+  if (newVal === undefined || newVal === null) newVal = '';
+
+  const cleanOld = String(oldVal).trim();
+  const cleanNew = String(newVal).trim();
+
+  // If new value is not set or empty, it hasn't been modified/negotiated from default
+  if (cleanNew === '') return false;
+
+  if (isNumeric) {
+    const o = parseFloat(cleanOld);
+    const n = parseFloat(cleanNew);
+    if (isNaN(o) && isNaN(n)) return false;
+    if (isNaN(o) || isNaN(n)) return true;
+    return Math.abs(o - n) > 0.0001;
+  }
+  return cleanOld !== cleanNew;
+}
+
+function isAltCellModified(alt, colId) {
+  if (!alt) return false;
+
+  if (colId === 'mrp_per_pack') {
+    return isFieldModified(alt.mrp_per_pack ?? alt.mrp, alt.negotiated_mrp, true);
+  }
+  if (colId === 'rate_per_pack') {
+    return isFieldModified(alt.rate_per_pack ?? alt.rate, alt.negotiated_rate, true);
+  }
+  if (colId === 'gst_percent') {
+    return isFieldModified(alt.gst_percent ?? alt.gst, alt.negotiated_gst, true);
+  }
+  if (colId === 'qty') {
+    return isFieldModified(alt.qty, alt.negotiated_scheme_qty, true);
+  }
+  if (colId === 'offer') {
+    return isFieldModified(alt.offer, alt.negotiated_scheme_offer, false);
+  }
+  if (colId === 'remark') {
+    return isFieldModified(alt.remark, alt.negotiation_remarks, false);
+  }
+
+  // Derived columns
+  if (['mrp', 'rate', 'markupmargin', 'net_rate', 'profit_margin', 'abs_margin', 'margin'].includes(colId)) {
+    const origDerived = calcDerived(
+      alt.mrp_per_pack ?? alt.mrp,
+      alt.rate_per_pack ?? alt.rate,
+      alt.gst_percent ?? alt.gst,
+      alt.pack,
+      alt.qty,
+      alt.offer
+    );
+    const derived = calcDerived(
+      alt.negotiated_mrp,
+      alt.negotiated_rate,
+      alt.negotiated_gst,
+      alt.pack,
+      alt.negotiated_scheme_qty,
+      alt.negotiated_scheme_offer
+    );
+
+    const derivedKey = colId === 'markupmargin' ? 'markupmargin' : (colId === 'abs_margin' ? 'abs_margin' : colId);
+    return isFieldModified(origDerived[derivedKey], derived[derivedKey], true);
+  }
+
+  return false;
+}
+
+function isAltRowModified(alt) {
+  if (!alt) return false;
+  return (
+    isAltCellModified(alt, 'mrp_per_pack') ||
+    isAltCellModified(alt, 'rate_per_pack') ||
+    isAltCellModified(alt, 'gst_percent') ||
+    isAltCellModified(alt, 'qty') ||
+    isAltCellModified(alt, 'offer') ||
+    isAltCellModified(alt, 'remark')
+  );
+}
+
+function renderStatusBadge(status) {
+  if (!status) return '—';
+  const clean = String(status).toLowerCase().trim();
+  const isInactive = clean.includes('inactive');
+
+  const badgeStyle = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    padding: '3px 8px',
+    borderRadius: '12px',
+    fontSize: '0.72rem',
+    fontWeight: 600,
+    whiteSpace: 'nowrap'
+  };
+
+  if (!isInactive) {
+    badgeStyle.background = '#DCFCE7';
+    badgeStyle.color = '#15803D';
+    return (
+      <span style={badgeStyle}>
+        🟢 {status}
+      </span>
+    );
+  } else {
+    badgeStyle.background = '#FEE2E2';
+    badgeStyle.color = '#B91C1C';
+    return (
+      <span style={badgeStyle}>
+        🔴 {status}
+      </span>
+    );
+  }
+}
+
 // ── Column definitions — NEW Excel format ──────────────────────────
 // isCalc: true  → auto-computed from formula; rendered as CalcCell (read-only, shaded)
 // isScheme: true → rendered under merged "Scheme" header
@@ -84,52 +198,53 @@ function calcDerived(mrpPack, ratePack, gstPct, packAmt, qty, offer) {
 // existingKey   → key in existingGenericData object (null = blank for existing row)
 const COLS_NEW = [
   { id: 'introduced_on', label: 'Introduced On', existingKey: 'existing_introduced_on', w: 100 },
-  { id: 'brand_name',    label: 'Brand Name',    existingKey: 'existing_brand_name',    w: 190 },
-  { id: 'manufacturer', label: 'Mfr.',           existingKey: 'existing_manufacturer',  w: 160 },
-  { id: 'marketer',     label: 'Mktr.',          existingKey: 'existing_marketer',      w: 160 },
-  { id: 'consultant',   label: 'Consultant',     existingKey: null,                     w: 130 },
-  { id: 'mrp_per_pack', label: 'MRP/Pack',       existingKey: 'existing_mrp_per_pack',  w: 78, num: true },
-  { id: 'rate_per_pack',label: 'Rate/Pack',      existingKey: 'existing_rate_per_pack', w: 78, num: true },
-  { id: 'gst_percent',  label: 'GST%',           existingKey: 'existing_gst_percent',   w: 52, num: true },
-  { id: 'pack',         label: 'Pack',           existingKey: 'existing_pack',          w: 72 },
-  { id: 'mrp',          label: 'MRP/Nos',        existingKey: null, isCalc: true,       w: 78 },
-  { id: 'rate',         label: 'Rate/Nos',       existingKey: null, isCalc: true,       w: 78 },
-  { id: 'markupmargin', label: 'Markup%',        existingKey: null, isCalc: true,       w: 72 },
-  { id: 'qty',          label: 'Qty',  isScheme: true, existingKey: 'existing_qty',   w: 52, num: true },
-  { id: 'offer',        label: 'Offer',isScheme: true, existingKey: 'existing_offer', w: 52, num: true },
-  { id: 'net_rate',     label: 'Net Rate',       existingKey: null, isCalc: true,       w: 78 },
-  { id: 'profit_margin',label: 'Profit%',        existingKey: null, isCalc: true,       w: 66 },
-  { id: 'abs_margin',   label: 'Abs.Margin',     existingKey: null, isCalc: true,       w: 84 },
-  { id: 'margin',       label: 'Total Mgn%',     existingKey: null, isCalc: true,       w: 82 },
-  { id: 'remark',       label: 'Remarks',        existingKey: 'existing_drug_details',  w: 200 },
+  { id: 'brand_name', label: 'Brand Name', existingKey: 'existing_brand_name', w: 190 },
+  { id: 'manufacturer', label: 'Mfr.', existingKey: 'existing_manufacturer', w: 160 },
+  { id: 'marketer', label: 'Mktr.', existingKey: 'existing_marketer', w: 160 },
+  { id: 'consultant', label: 'Consultant', existingKey: null, w: 130 },
+  { id: 'mrp_per_pack', label: 'MRP/Pack', existingKey: 'existing_mrp_per_pack', w: 78, num: true },
+  { id: 'rate_per_pack', label: 'Rate/Pack', existingKey: 'existing_rate_per_pack', w: 78, num: true },
+  { id: 'gst_percent', label: 'GST%', existingKey: 'existing_gst_percent', w: 52, num: true },
+  { id: 'pack', label: 'Pack', existingKey: 'existing_pack', w: 72 },
+  { id: 'mrp', label: 'MRP/Nos', existingKey: null, isCalc: true, w: 78 },
+  { id: 'rate', label: 'Rate/Nos', existingKey: null, isCalc: true, w: 78 },
+  { id: 'markupmargin', label: 'Markup%', existingKey: null, isCalc: true, w: 72 },
+  { id: 'qty', label: 'Qty', isScheme: true, existingKey: 'existing_qty', w: 52, num: true },
+  { id: 'offer', label: 'Offer', isScheme: true, existingKey: 'existing_offer', w: 52, num: true },
+  { id: 'net_rate', label: 'Net Rate', existingKey: null, isCalc: true, w: 78 },
+  { id: 'profit_margin', label: 'Profit%', existingKey: null, isCalc: true, w: 66 },
+  { id: 'abs_margin', label: 'Abs.Margin', existingKey: null, isCalc: true, w: 84 },
+  { id: 'margin', label: 'Total Mgn%', existingKey: null, isCalc: true, w: 82 },
+  { id: 'remark', label: 'Remarks', existingKey: 'existing_drug_details', w: 200 },
 ];
 
 const COLS_EXISTING = [
-  { id: 'introduced_on',  label: 'Introduced On', key: 'introduced_on',   w: 100 },
-  { id: 'brand_name',     label: 'Brand Name',    key: 'brand_name',      w: 190 },
-  { id: 'manufacturer',  label: 'Mfr.',          key: 'manufacturer',    w: 160 },
-  { id: 'marketer',      label: 'Mktr.',         key: 'marketer',        w: 160 },
-  { id: 'consultant',    label: 'Consultant',    key: 'consultant',      w: 130 },
-  { id: 'present_stock', label: 'Stock',         key: 'present_stock',   w: 62,  num: true },
-  { id: 'purchase_qty',  label: 'Purch.Qty',     key: 'purchase_qty',    w: 72,  num: true },
-  { id: 'sale_qty',      label: 'Sale Qty',      key: 'sale_qty',        w: 62,  num: true },
-  { id: 'pack',          label: 'Pack',          key: 'pack',            w: 72 },
-  { id: 'mrp_inc_gst_nos',  label: 'MRP/Nos',   key: 'mrp_inc_gst_nos', w: 78,  num: true },
-  { id: 'rate_inc_gst_nos', label: 'Rate/Nos',  key: 'rate_inc_gst_nos',w: 78,  num: true },
-  { id: 'markup_margin', label: 'Markup%',       key: 'markup_margin',   w: 72,  num: true },
-  { id: 'scheme_qty',    label: 'Qty',  isScheme: true, key: 'scheme_qty',   w: 52, num: true },
-  { id: 'scheme_offer',  label: 'Offer',isScheme: true, key: 'scheme_offer', w: 52 },
-  { id: 'net_rate',      label: 'Net Rate',      key: 'net_rate',        w: 78,  num: true },
-  { id: 'profit_margin', label: 'Profit%',       key: 'profit_margin',   w: 66,  num: true },
-  { id: 'absolute_margin',label: 'Abs.Margin',  key: 'absolute_margin', w: 84,  num: true },
-  { id: 'total_margin',  label: 'Total Mgn%',   key: 'total_margin',    w: 82,  num: true },
-  { id: 'remark',        label: 'Remarks',       key: 'remark',          w: 200 },
+  { id: 'introduced_on', label: 'Introduced On', key: 'introduced_on', w: 100 },
+  { id: 'brand_name', label: 'Brand Name', key: 'brand_name', w: 190 },
+  { id: 'status', label: 'Status', key: 'status', w: 100 },
+  { id: 'manufacturer', label: 'Mfr.', key: 'manufacturer', w: 160 },
+  { id: 'marketer', label: 'Mktr.', key: 'marketer', w: 160 },
+  { id: 'consultant', label: 'Consultant', key: 'consultant', w: 130 },
+  { id: 'present_stock', label: 'Stock', key: 'present_stock', w: 62, num: true },
+  { id: 'purchase_qty', label: 'Purch.Qty', key: 'purchase_qty', w: 72, num: true },
+  { id: 'sale_qty', label: 'Sale Qty', key: 'sale_qty', w: 62, num: true },
+  { id: 'pack', label: 'Pack', key: 'pack', w: 72 },
+  { id: 'mrp_inc_gst_nos', label: 'MRP/Nos', key: 'mrp_inc_gst_nos', w: 78, num: true },
+  { id: 'rate_inc_gst_nos', label: 'Rate/Nos', key: 'rate_inc_gst_nos', w: 78, num: true },
+  { id: 'markup_margin', label: 'Markup%', key: 'markup_margin', w: 72, num: true },
+  { id: 'scheme_qty', label: 'Qty', isScheme: true, key: 'scheme_qty', w: 52, num: true },
+  { id: 'scheme_offer', label: 'Offer', isScheme: true, key: 'scheme_offer', w: 52 },
+  { id: 'net_rate', label: 'Net Rate', key: 'net_rate', w: 78, num: true },
+  { id: 'profit_margin', label: 'Profit%', key: 'profit_margin', w: 66, num: true },
+  { id: 'absolute_margin', label: 'Abs.Margin', key: 'absolute_margin', w: 84, num: true },
+  { id: 'total_margin', label: 'Total Mgn%', key: 'total_margin', w: 82, num: true },
+  { id: 'remark', label: 'Remarks', key: 'remark', w: 200 },
 ];
 
 // ── Shared style tokens ──────────────────────────────────────────────
 const CELL = {
   border: '1px solid #c6c9ce',
-  padding: '5px 6px',
+  padding: '2px 6px',
   fontSize: '13px',
   fontWeight: 600,
   color: '#111827',
@@ -144,8 +259,8 @@ const HDR = {
   fontWeight: 700,
   fontSize: '13px',
   textAlign: 'center',
-  whiteSpace: 'normal',
-  wordBreak: 'break-word',
+  whiteSpace: 'nowrap',
+  wordBreak: 'normal',
   lineHeight: '1.3',
 };
 const SECTION_HDR = {
@@ -189,28 +304,33 @@ const CALC_STYLE = {
 // ── Sub-components ───────────────────────────────────────────────────
 
 /** Standard editable / read-only data cell */
-function SheetCell({ value, onChange, num, editable, style = {}, colId }) {
+function SheetCell({ value, onChange, num, editable, style = {}, colId, options, isModified, originalValue, isModifiedRow }) {
   const isNum = !!num;
-  const useTextarea = !isNum && ['brand_name', 'manufacturer', 'marketer', 'consultant', 'remark'].includes(colId);
+  const useTextarea = !isNum && !options && ['brand_name', 'manufacturer', 'marketer', 'consultant', 'remark'].includes(colId);
 
   // Center-aligned, right-aligned, or left-aligned depending on data type
-  const textAlign = isNum 
-    ? 'right' 
+  const textAlign = isNum
+    ? 'right'
     : (colId === 'introduced_on' || colId === 'pack' || colId === 'scheme_offer' ? 'center' : 'left');
-  
+
   // Wrap text fields, prevent clipping, allow numeric fields to stay single-line
   const whiteSpace = isNum ? 'nowrap' : 'pre-wrap';
   const wordBreak = isNum ? 'normal' : 'break-word';
+
   const overflowWrap = isNum ? 'normal' : 'anywhere';
 
-  const merged = { 
-    ...CELL, 
-    textAlign, 
-    whiteSpace, 
-    wordBreak, 
+  const merged = {
+    ...CELL,
+    textAlign,
+    whiteSpace,
+    wordBreak,
     overflowWrap,
-    ...style 
+    ...style
   };
+
+  if (isModified) {
+    merged.boxShadow = 'inset 0 0 0 1.5px #ea580c';
+  }
 
   const textareaRef = React.useRef(null);
   React.useEffect(() => {
@@ -220,10 +340,80 @@ function SheetCell({ value, onChange, num, editable, style = {}, colId }) {
     }
   }, [value, useTextarea]);
 
+  if (colId === 'status') {
+    return (
+      <td style={{ ...merged, textAlign: 'center', verticalAlign: 'middle' }} data-col-id={colId}>
+        {renderStatusBadge(value)}
+      </td>
+    );
+  }
+
   if (!editable) {
     return (
       <td style={merged} data-col-id={colId}>
-        {value !== '' && value !== null && value !== undefined ? value : '—'}
+        {colId === 'brand_name' && isModifiedRow && (
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '3px',
+            background: '#ffedd5',
+            border: '1px solid #fed7aa',
+            color: '#c2410c',
+            fontSize: '9px',
+            fontWeight: 700,
+            padding: '1px 5px',
+            borderRadius: 3,
+            marginBottom: 4,
+          }}>
+            <span>✏️</span> Negotiated
+          </div>
+        )}
+        {isModified ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: textAlign === 'right' ? 'flex-end' : (textAlign === 'center' ? 'center' : 'flex-start') }}>
+            <span style={{ fontWeight: 700, color: '#ea580c' }}>
+              {value !== '' && value !== null && value !== undefined ? value : '—'}
+            </span>
+            <span style={{ fontSize: '10px', textDecoration: 'line-through', color: '#94a3b8', marginTop: 1 }}>
+              {originalValue !== '' && originalValue !== null && originalValue !== undefined ? originalValue : '—'}
+            </span>
+          </div>
+        ) : (
+          value !== '' && value !== null && value !== undefined ? value : '—'
+        )}
+      </td>
+    );
+  }
+
+  // Render select dropdown when options array is provided
+  if (options && Array.isArray(options)) {
+    return (
+      <td style={merged} data-col-id={colId}>
+        <select
+          value={value ?? ''}
+          onChange={e => onChange && onChange(e.target.value)}
+          style={{
+            width: '100%',
+            border: '1px solid #cbd5e1',
+            borderRadius: 4,
+            padding: '3px 6px',
+            fontSize: '0.78rem',
+            background: '#f8fafc',
+            color: '#1e293b',
+            fontWeight: 600,
+            outline: 'none',
+            cursor: 'pointer',
+          }}
+        >
+          <option value="">—</option>
+          {options.map(opt => (
+            <option key={opt} value={opt}>{opt}</option>
+          ))}
+        </select>
+        {isModified && (
+          <div style={{ fontSize: '10px', textDecoration: 'line-through', color: '#94a3b8', marginTop: 2, textAlign }}>
+            {originalValue}
+          </div>
+        )}
       </td>
     );
   }
@@ -238,6 +428,11 @@ function SheetCell({ value, onChange, num, editable, style = {}, colId }) {
           style={TEXTAREA_STYLE}
           rows={1}
         />
+        {isModified && (
+          <div style={{ fontSize: '10px', textDecoration: 'line-through', color: '#94a3b8', marginTop: 2, textAlign }}>
+            {originalValue}
+          </div>
+        )}
       </td>
     );
   }
@@ -250,24 +445,42 @@ function SheetCell({ value, onChange, num, editable, style = {}, colId }) {
         onChange={e => onChange && onChange(e.target.value)}
         style={INPUT_STYLE}
       />
+      {isModified && (
+        <div style={{ fontSize: '10px', textDecoration: 'line-through', color: '#94a3b8', marginTop: 2, textAlign }}>
+          {originalValue}
+        </div>
+      )}
     </td>
   );
 }
 
-/** Auto-calculated read-only cell — always shaded blue-tint */
-function CalcCell({ value, rowStyle = {}, colId }) {
+function CalcCell({ value, rowStyle = {}, colId, isModified, originalValue }) {
   const merged = {
     ...CALC_STYLE,
     textAlign: 'right',
     whiteSpace: 'nowrap',
     ...rowStyle,
-    background: rowStyle.background
-      ? CALC_STYLE.background   // keep calc shade regardless of row stripe
+    background: rowStyle.background === '#fef9c3'
+      ? '#fef9c3'
       : CALC_STYLE.background,
   };
+  if (isModified) {
+    merged.boxShadow = 'inset 0 0 0 1.5px #ea580c';
+  }
   return (
     <td style={merged} data-col-id={colId}>
-      {value !== '' && value !== null && value !== undefined ? value : '—'}
+      {isModified ? (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+          <span style={{ fontWeight: 700, color: '#ea580c' }}>
+            {value !== '' && value !== null && value !== undefined ? value : '—'}
+          </span>
+          <span style={{ fontSize: '10px', textDecoration: 'line-through', color: '#94a3b8', marginTop: 1 }}>
+            {originalValue !== '' && originalValue !== null && originalValue !== undefined ? originalValue : '—'}
+          </span>
+        </div>
+      ) : (
+        value !== '' && value !== null && value !== undefined ? value : '—'
+      )}
     </td>
   );
 }
@@ -284,6 +497,7 @@ const REASON_OPTIONS = [
 const createExistingRow = () => ({
   introduced_on: '',
   brand_name: '',
+  status: '',
   manufacturer: '',
   marketer: '',
   consultant: '',
@@ -319,7 +533,7 @@ const mapColIdToKey = (id) => {
 };
 
 // ── Section Headers Row Generator ────────────────────────────────────
-function renderSectionHeaders(cols, columnWidths, handleMouseDown, handleDoubleClick) {
+function renderSectionHeaders(cols, columnWidths, handleMouseDown, handleDoubleClick, showSubHeader = true) {
   return (
     <>
       {/* Row 1: main column headers */}
@@ -367,40 +581,42 @@ function renderSectionHeaders(cols, columnWidths, handleMouseDown, handleDoubleC
           );
         })}
       </tr>
-      {/* Row 2: sub-labels */}
-      <tr>
-        <th style={{ ...HDR, fontSize: '0.62rem', width: columnWidths.sno || 40, minWidth: columnWidths.sno || 40, position: 'relative' }} data-col-id="sno">
-          <div
-            className="resize-handle"
-            onMouseDown={e => handleMouseDown(e, 'sno')}
-            onDoubleClick={() => handleDoubleClick('sno')}
-          />
-        </th>
-        {cols.map(col => {
-          let subLabel = '';
-          if (col.isScheme) subLabel = col.label;
-          else if (col.isCalc) subLabel = '⟵ auto';
-          const colW = columnWidths[col.id] || col.w;
-          return (
-            <th key={col.id} style={{
-              ...HDR,
-              fontSize: '0.6rem', width: colW, minWidth: colW,
-              background: col.isCalc ? '#1a3a6e' : '#253d6e',
-              letterSpacing: col.isCalc ? '0em' : undefined,
-              fontStyle: col.isCalc ? 'italic' : 'normal',
-              opacity: 0.9,
-              position: 'relative',
-            }} data-col-id={col.id}>
-              {subLabel}
-              <div
-                className="resize-handle"
-                onMouseDown={e => handleMouseDown(e, col.id)}
-                onDoubleClick={() => handleDoubleClick(col.id)}
-              />
-            </th>
-          );
-        })}
-      </tr>
+      {/* Row 2: sub-labels — only rendered when section has meaningful sub-header content */}
+      {showSubHeader && (
+        <tr>
+          <th style={{ ...HDR, fontSize: '0.62rem', width: columnWidths.sno || 40, minWidth: columnWidths.sno || 40, position: 'relative' }} data-col-id="sno">
+            <div
+              className="resize-handle"
+              onMouseDown={e => handleMouseDown(e, 'sno')}
+              onDoubleClick={() => handleDoubleClick('sno')}
+            />
+          </th>
+          {cols.map(col => {
+            let subLabel = '';
+            if (col.isScheme) subLabel = col.label;
+            else if (col.isCalc) subLabel = '⟵ auto';
+            const colW = columnWidths[col.id] || col.w;
+            return (
+              <th key={col.id} style={{
+                ...HDR,
+                fontSize: '0.6rem', width: colW, minWidth: colW,
+                background: col.isCalc ? '#1a3a6e' : '#253d6e',
+                letterSpacing: col.isCalc ? '0em' : undefined,
+                fontStyle: col.isCalc ? 'italic' : 'normal',
+                opacity: 0.9,
+                position: 'relative',
+              }} data-col-id={col.id}>
+                {subLabel}
+                <div
+                  className="resize-handle"
+                  onMouseDown={e => handleMouseDown(e, col.id)}
+                  onDoubleClick={() => handleDoubleClick(col.id)}
+                />
+              </th>
+            );
+          })}
+        </tr>
+      )}
     </>
   );
 }
@@ -627,8 +843,38 @@ export default function ComparisonSheet({
   const [showSuggestions, setShowSuggestions] = React.useState(false);
   const [dosageFilter, setDosageFilter] = React.useState('');
   const [dosageFormFilter, setDosageFormFilter] = React.useState('');
+  const [statusFilter, setStatusFilter] = React.useState('');
+  const [brandStatusMap, setBrandStatusMap] = React.useState({});
 
   const lookupRef = React.useRef(null);
+
+  React.useEffect(() => {
+    const fetchStatusMap = async () => {
+      const genId = requestInfo.GENERIC_ID || requestInfo.generic_id;
+      if (!genId) return;
+      try {
+        const formattedFrom = '01/04/2023 00:00:00';
+        const formattedTo = '31/03/2024 23:59:59';
+        const res = await axios.post('/api/reports/item-margin-report', {
+          fromDate: formattedFrom,
+          toDate: formattedTo,
+          genericId: genId
+        });
+        if (res.data && Array.isArray(res.data)) {
+          const map = {};
+          res.data.forEach(item => {
+            if (item.brand_name) {
+              map[item.brand_name.toLowerCase().trim()] = item.status;
+            }
+          });
+          setBrandStatusMap(prev => ({ ...prev, ...map }));
+        }
+      } catch (err) {
+        console.error('Error fetching status map:', err);
+      }
+    };
+    fetchStatusMap();
+  }, [requestInfo.GENERIC_ID, requestInfo.generic_id]);
 
   // Close autocomplete suggestions on click outside
   React.useEffect(() => {
@@ -780,9 +1026,19 @@ export default function ComparisonSheet({
       const dosageMatch = !dosageFilter || rowDosage === dosageFilter;
       const formMatch = !dosageFormFilter || rowForm === dosageFormFilter;
 
-      return dosageMatch && formMatch;
+      let statusMatch = true;
+      if (statusFilter) {
+        const rowStatus = String(row.status || '').toLowerCase();
+        if (statusFilter === 'active') {
+          statusMatch = rowStatus.includes('active') && !rowStatus.includes('inactive');
+        } else if (statusFilter === 'inactive') {
+          statusMatch = rowStatus.includes('inactive');
+        }
+      }
+
+      return dosageMatch && formMatch && statusMatch;
     });
-  }, [reportRows, dosageFilter, dosageFormFilter]);
+  }, [reportRows, dosageFilter, dosageFormFilter, statusFilter]);
 
   const handleSearchReport = async () => {
     if (!selectedGeneric) {
@@ -819,6 +1075,7 @@ export default function ComparisonSheet({
     const mappedRows = selectedReportRows.map(row => ({
       introduced_on: formatIntroducedDate(row.introduced_on),
       brand_name: row.brand_name || '',
+      status: row.status || '',
       manufacturer: row.manufacturer || '',
       marketer: row.marketer || '',
       consultant: row.consultant || '',
@@ -925,7 +1182,7 @@ export default function ComparisonSheet({
   const handleTableResizeStart = React.useCallback((e) => {
     e.preventDefault();
     const startX = e.clientX;
-    
+
     // Store current widths of all columns in local object
     const startWidths = { sno: columnWidths.sno || 40 };
     COLS_NEW.forEach(col => {
@@ -1026,6 +1283,7 @@ export default function ComparisonSheet({
         target = propExistingDetails.map(row => ({
           introduced_on: row.INTRODUCED_ON ?? row.introduced_on ?? '',
           brand_name: row.BRAND_NAME ?? row.brand_name ?? '',
+          status: row.STATUS ?? row.status ?? '',
           manufacturer: row.MANUFACTURER ?? row.manufacturer ?? '',
           marketer: row.MARKETER ?? row.marketer ?? '',
           consultant: row.CONSULTANT ?? row.consultant ?? '',
@@ -1048,6 +1306,7 @@ export default function ComparisonSheet({
         target = [{
           introduced_on: existingGenericData.existing_introduced_on || '',
           brand_name: existingGenericData.existing_brand_name || '',
+          status: existingGenericData.existing_status || existingGenericData.status || '',
           manufacturer: existingGenericData.existing_manufacturer || '',
           marketer: existingGenericData.existing_marketer || '',
           consultant: '',
@@ -1118,7 +1377,7 @@ export default function ComparisonSheet({
   const [localDtcReviewedByName, setLocalDtcReviewedByName] = React.useState(dtcReviewedByName || requestInfo.DTC_REVIEWED_BY_NAME || '');
   const [localDtcReviewSignature, setLocalDtcReviewSignature] = React.useState(dtcReviewSignature || requestInfo.DTC_REVIEW_SIGNATURE || '');
   const [localDtcRemarks, setLocalDtcRemarks] = React.useState(dtcRemarks || requestInfo.DTC_REMARKS || requestInfo.DTC_FINAL_REMARKS || '');
-  const [localFinalRecommendations, setLocalFinalRecommendations] = React.useState(dtcFinalRecommendations || []);
+
 
   const prevDtcKeyRef = React.useRef('');
 
@@ -1192,39 +1451,7 @@ export default function ComparisonSheet({
         return reasons;
       });
 
-      let recs = [];
-      if (dtcFinalRecommendations && dtcFinalRecommendations.length > 0) {
-        recs = dtcFinalRecommendations;
-      } else if (requestInfo.DTC_FINAL_RECOMMENDATIONS) {
-        try {
-          recs = JSON.parse(requestInfo.DTC_FINAL_RECOMMENDATIONS);
-        } catch (e) {
-          console.error(e);
-        }
-      } else if (requestInfo.dtc_final_recommendations) {
-        try {
-          recs = JSON.parse(requestInfo.dtc_final_recommendations);
-        } catch (e) {
-          console.error(e);
-        }
-      } else {
-        if (brand) {
-          const isOriginal = brand === requestInfo.BRAND_NAME;
-          const matchedAlt = alternatives.find(a => (a.brand_name || a.BRAND_NAME) === brand);
-          const altId = matchedAlt ? (matchedAlt.alt_id || matchedAlt.ALT_ID) : null;
-          recs = [{
-            brand_name: brand,
-            category: category || 'FORMULARY',
-            reasons: reasons,
-            is_original: isOriginal,
-            alternative_id: altId
-          }];
-        }
-      }
-      setLocalFinalRecommendations(prev => {
-        if (JSON.stringify(prev) === JSON.stringify(recs)) return prev;
-        return recs;
-      });
+
     }
   }, [dtcFinalRecommendations, finalSelectedBrand, dtcSelectedBrand, finalSelectedCategory, dtcSelectedCategory, finalSelectionReasons, dtcSelectionReasons, finalRecommendationNotes, dtcRecommendationNotes, dtcReviewedByName, dtcReviewSignature, dtcRemarks, requestInfo, alternatives]);
 
@@ -1283,421 +1510,64 @@ export default function ComparisonSheet({
 
   const getVal = (obj, key) => obj?.[key] ?? '';
 
-  const candidates = React.useMemo(() => {
-    const list = [];
-    if (requestInfo.BRAND_NAME) {
-      list.push({
-        brand_name: requestInfo.BRAND_NAME,
-        manufacturer: requestInfo.MANUFACTURER,
-        marketer: requestInfo.MARKETER,
+
+  // ── Auto-generate recommendations from Recommended rows ──
+  const buildAutoRecommendations = React.useCallback(() => {
+    const autoRecs = [];
+
+    // Check original drug rows (new quotation remark === 'Recommended')
+    const originalRemarkNew = getVal(alternatives[0], 'remark');
+    const originalRemarkNeg = alternatives[0]?.negotiation_remarks ?? '';
+    if (alternatives[0] && (originalRemarkNew === 'Recommended' || originalRemarkNeg === 'Recommended')) {
+      const a = alternatives[0];
+      autoRecs.push({
+        brand_name: a.brand_name || a.BRAND_NAME || requestInfo.BRAND_NAME,
+        category: 'FORMULARY',
+        reasons: ['DTC Approved'],
         is_original: true,
-        alternative_id: null
+        alternative_id: null,
+        mrp: a.negotiated_mrp ?? a.mrp_per_pack ?? a.mrp ?? '',
+        rate: a.negotiated_rate ?? a.rate_per_pack ?? a.rate ?? '',
+        gst_percent: a.negotiated_gst ?? a.gst_percent ?? '',
+        scheme_qty: a.negotiated_scheme_qty ?? a.qty ?? '',
+        scheme_offer: a.negotiated_scheme_offer ?? a.offer ?? '',
+        net_rate: a.negotiated_net_rate ?? a.net_rate ?? '',
+        profit_margin: a.negotiated_profit_margin ?? a.profit_margin ?? '',
+        absolute_margin: a.negotiated_absolute_margin ?? a.margin ?? '',
+        total_margin: a.negotiated_total_margin ?? a.markupmargin ?? '',
+        remarks: originalRemarkNeg || originalRemarkNew || ''
       });
     }
-    alternatives.forEach(alt => {
-      list.push({
-        brand_name: alt.brand_name || alt.BRAND_NAME,
-        manufacturer: alt.manufacturer || alt.MANUFACTURER,
-        marketer: alt.marketer || alt.MARKETER,
-        is_original: false,
-        alternative_id: alt.alt_id || alt.ALT_ID
-      });
-    });
-    return list;
-  }, [requestInfo, alternatives]);
 
-  const handleAddRecommendation = () => {
-    const next = [
-      ...localFinalRecommendations,
-      {
-        brand_name: '',
-        category: 'FORMULARY',
-        reasons: [],
-        notes: '',
-        remarks: '',
-        alternative_id: null,
-        is_original: false,
-        manufacturer: '',
-        marketer: ''
+    // Check alternative drug rows (index 1+)
+    alternatives.slice(1).forEach((a) => {
+      const remarkNew = getVal(a, 'remark');
+      const remarkNeg = a.negotiation_remarks ?? '';
+      if (remarkNew === 'Recommended' || remarkNeg === 'Recommended') {
+        autoRecs.push({
+          brand_name: a.brand_name || a.BRAND_NAME,
+          category: 'FORMULARY',
+          reasons: ['DTC Approved'],
+          is_original: false,
+          alternative_id: a.alt_id || a.ALT_ID || null,
+          mrp: a.negotiated_mrp ?? a.mrp_per_pack ?? a.mrp ?? '',
+          rate: a.negotiated_rate ?? a.rate_per_pack ?? a.rate ?? '',
+          gst_percent: a.negotiated_gst ?? a.gst_percent ?? '',
+          scheme_qty: a.negotiated_scheme_qty ?? a.qty ?? '',
+          scheme_offer: a.negotiated_scheme_offer ?? a.offer ?? '',
+          net_rate: a.negotiated_net_rate ?? a.net_rate ?? '',
+          profit_margin: a.negotiated_profit_margin ?? a.profit_margin ?? '',
+          absolute_margin: a.negotiated_absolute_margin ?? a.margin ?? '',
+          total_margin: a.negotiated_total_margin ?? a.markupmargin ?? '',
+          remarks: remarkNeg || remarkNew || ''
+        });
       }
-    ];
-    setLocalFinalRecommendations(next);
-    if (onDtcFinalRecommendationsChange) onDtcFinalRecommendationsChange(next);
-  };
-
-  const handleRemoveRecommendation = (index) => {
-    const next = localFinalRecommendations.filter((_, idx) => idx !== index);
-    setLocalFinalRecommendations(next);
-    if (onDtcFinalRecommendationsChange) onDtcFinalRecommendationsChange(next);
-  };
-
-  const handleUpdateRecommendation = (index, field, value) => {
-    const next = localFinalRecommendations.map((rec, idx) => {
-      if (idx === index) {
-        if (field === 'brand_name') {
-          const cand = candidates.find(c => c.brand_name === value);
-          if (cand) {
-            return {
-              ...rec,
-              brand_name: cand.brand_name,
-              manufacturer: cand.manufacturer,
-              marketer: cand.marketer,
-              is_original: cand.is_original,
-              alternative_id: cand.alternative_id
-            };
-          } else {
-            return {
-              ...rec,
-              brand_name: '',
-              manufacturer: '',
-              marketer: '',
-              is_original: false,
-              alternative_id: null
-            };
-          }
-        }
-        return { ...rec, [field]: value };
-      }
-      return rec;
     });
-    setLocalFinalRecommendations(next);
-    if (onDtcFinalRecommendationsChange) onDtcFinalRecommendationsChange(next);
-  };
 
-  const renderRecommendationBlock = () => {
-    return (
-      <div style={{ padding: '16px 20px', background: '#ffffff', width: '100%' }}>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 12,
-          borderBottom: '2px solid #fbbf24',
-          paddingBottom: 4,
-        }}>
-          <span style={{
-            fontSize: '0.82rem',
-            fontWeight: 800,
-            color: '#d97706',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em',
-          }}>
-            Final Recommendation Panel
-          </span>
-          {mode === 'dtc' && (
-            <button
-              type="button"
-              onClick={handleAddRecommendation}
-              style={{
-                background: '#d97706',
-                color: '#fff',
-                border: 'none',
-                padding: '4px 10px',
-                borderRadius: 4,
-                fontSize: '0.75rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                boxShadow: '0 2px 4px rgba(217,119,6,0.2)',
-                transition: 'background-color 0.2s'
-              }}
-              onMouseEnter={(e) => e.target.style.backgroundColor = '#b45309'}
-              onMouseLeave={(e) => e.target.style.backgroundColor = '#d97706'}
-            >
-              + Add
-            </button>
-          )}
-        </div>
+    return autoRecs;
+  }, [alternatives, requestInfo]);
 
-        {mode === 'dtc' ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 16 }}>
-            {localFinalRecommendations.length === 0 ? (
-              <div style={{
-                padding: '24px 16px',
-                background: '#f8fafc',
-                border: '2px dashed #cbd5e1',
-                borderRadius: 8,
-                textAlign: 'center',
-                color: '#64748b',
-                fontStyle: 'italic',
-                fontSize: '0.85rem'
-              }}>
-                No final recommendations added. Click the "+ Add" button above to add a recommendation.
-              </div>
-            ) : (
-              localFinalRecommendations.map((rec, idx) => (
-                <div key={idx} style={{
-                  border: '1px solid #cbd5e1',
-                  borderRadius: 8,
-                  padding: '16px',
-                  background: '#ffffff',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                  position: 'relative',
-                  borderLeft: '4px solid #2563eb'
-                }}>
-                  {/* Header of the Card */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                    <span style={{ fontWeight: 800, fontSize: '0.85rem', color: '#1e3a5f' }}>
-                      Recommendation #{idx + 1}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveRecommendation(idx)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#dc2626',
-                        fontSize: '0.78rem',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 4,
-                        padding: '2px 6px',
-                        borderRadius: 4,
-                        transition: 'background-color 0.2s'
-                      }}
-                      onMouseEnter={(e) => e.target.style.backgroundColor = '#fee2e2'}
-                      onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-                    >
-                      ✕ Remove
-                    </button>
-                  </div>
 
-                  {/* Brand Selector */}
-                  <div style={{ marginBottom: 12 }}>
-                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#475569', marginBottom: 4 }}>
-                      RECOMMENDED BRAND
-                    </label>
-                    <select
-                      value={rec.brand_name || ''}
-                      onChange={(e) => handleUpdateRecommendation(idx, 'brand_name', e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        fontSize: '0.8rem',
-                        borderRadius: 6,
-                        border: '1px solid #cbd5e1',
-                        outline: 'none',
-                        background: '#f8fafc',
-                        color: '#1e293b',
-                        fontWeight: 600
-                      }}
-                    >
-                      <option value="">-- Select Recommended Brand --</option>
-                      {candidates.map((cand, cIdx) => (
-                        <option key={cIdx} value={cand.brand_name}>
-                          {cand.brand_name} ({cand.manufacturer || 'Unknown Manufacturer'}) {cand.is_original ? ' [Original]' : ' [Alternative]'}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Category Selector */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 12 }}>
-                    <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#475569' }}>SELECT AS:</span>
-                    <div style={{ display: 'flex', gap: 16 }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600 }}>
-                        <input
-                          type="radio"
-                          name={`category-${idx}`}
-                          value="FORMULARY"
-                          checked={rec.category === 'FORMULARY'}
-                          onChange={() => handleUpdateRecommendation(idx, 'category', 'FORMULARY')}
-                          style={{ accentColor: '#2563eb' }}
-                        />
-                        Formulary
-                      </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600 }}>
-                        <input
-                          type="radio"
-                          name={`category-${idx}`}
-                          value="NON_FORMULARY"
-                          checked={rec.category === 'NON_FORMULARY'}
-                          onChange={() => handleUpdateRecommendation(idx, 'category', 'NON_FORMULARY')}
-                          style={{ accentColor: '#2563eb' }}
-                        />
-                        Non-Formulary
-                      </label>
-                    </div>
-                  </div>
-
-                  {/* Reasons Checklist */}
-                  <div style={{ marginBottom: 12 }}>
-                    <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#475569', marginBottom: 6 }}>REASON(S) FOR SELECTION:</div>
-                    <div style={{
-                      display: 'grid',
-                      gridTemplateColumns: '1fr 1fr',
-                      gap: '6px 12px',
-                      background: '#f8fafc',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      border: '1px solid #cbd5e1'
-                    }}>
-                      {REASON_OPTIONS.map(reason => {
-                        const isReasonChecked = rec.reasons?.includes(reason);
-                        return (
-                          <label key={reason} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.72rem', cursor: 'pointer', userSelect: 'none', marginBottom: 0, fontWeight: 500 }}>
-                            <input
-                              type="checkbox"
-                              checked={isReasonChecked}
-                              onChange={() => {
-                                const nextReasons = isReasonChecked
-                                  ? rec.reasons.filter(r => r !== reason)
-                                  : [...(rec.reasons || []), reason];
-                                handleUpdateRecommendation(idx, 'reasons', nextReasons);
-                              }}
-                              style={{ accentColor: '#2563eb' }}
-                            />
-                            {reason}
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Notes Textarea */}
-                  <div style={{ marginBottom: 12 }}>
-                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#475569', marginBottom: 4 }}>
-                      RECOMMENDATION NOTES
-                    </label>
-                    <textarea
-                      value={rec.notes || ''}
-                      onChange={(e) => handleUpdateRecommendation(idx, 'notes', e.target.value)}
-                      placeholder="Enter specific notes for this recommended brand..."
-                      rows={2}
-                      style={{
-                        width: '100%',
-                        border: '1px solid #cbd5e1',
-                        borderRadius: 6,
-                        padding: '6px 10px',
-                        fontSize: '0.8rem',
-                        resize: 'vertical',
-                        outline: 'none',
-                        background: '#f8fafc'
-                      }}
-                    />
-                  </div>
-
-                  {/* Remarks Input */}
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#475569', marginBottom: 4 }}>
-                      REMARKS
-                    </label>
-                    <input
-                      type="text"
-                      value={rec.remarks || ''}
-                      onChange={(e) => handleUpdateRecommendation(idx, 'remarks', e.target.value)}
-                      placeholder="Enter remarks..."
-                      style={{
-                        width: '100%',
-                        border: '1px solid #cbd5e1',
-                        borderRadius: 6,
-                        padding: '6px 10px',
-                        fontSize: '0.8rem',
-                        outline: 'none',
-                        background: '#f8fafc'
-                      }}
-                    />
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
-            {localFinalRecommendations.length === 0 ? (
-              <div style={{ padding: '12px 16px', background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: 8, textAlign: 'center', color: '#64748b', fontStyle: 'italic', fontSize: '0.8rem' }}>
-                No final recommendations made yet.
-              </div>
-            ) : (
-              localFinalRecommendations.map((rec, idx) => (
-                <div key={idx} style={{
-                  border: '1px solid #cbd5e1',
-                  borderRadius: 8,
-                  padding: '12px 16px',
-                  background: '#f8fafc',
-                  borderLeft: '4px solid #475569'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <span style={{ fontWeight: 700, fontSize: '0.85rem', color: '#1e3a5f' }}>
-                      💊 {rec.brand_name} <span style={{ fontWeight: 400, color: '#64748b' }}>({rec.manufacturer || '—'})</span>
-                    </span>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <span style={{
-                        fontSize: '0.68rem', fontWeight: 700, borderRadius: 12, padding: '2px 8px',
-                        background: rec.category === 'FORMULARY' ? '#ecfdf5' : '#fef2f2',
-                        color: rec.category === 'FORMULARY' ? '#065f46' : '#991b1b'
-                      }}>
-                        {rec.category === 'FORMULARY' ? 'Formulary' : 'Non-Formulary'}
-                      </span>
-                      {rec.is_original && (
-                        <span style={{ fontSize: '0.68rem', background: '#dcfce7', color: '#166534', borderRadius: 12, padding: '2px 8px', fontWeight: 600 }}>Original</span>
-                      )}
-                    </div>
-                  </div>
-                  {rec.reasons && rec.reasons.length > 0 && (
-                    <div style={{ fontSize: '0.72rem', color: '#475569', marginTop: 4 }}>
-                      <strong>Reasons:</strong> {rec.reasons.join(', ')}
-                    </div>
-                  )}
-                  {rec.notes && (
-                    <div style={{ fontSize: '0.72rem', color: '#475569', marginTop: 4 }}>
-                      <strong>Notes:</strong> {rec.notes}
-                    </div>
-                  )}
-                  {rec.remarks && (
-                    <div style={{ fontSize: '0.72rem', color: '#475569', marginTop: 4 }}>
-                      <strong>Remarks:</strong> {rec.remarks}
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-        )}
-
-        {/* Notes / Rationale */}
-        <div style={{ marginTop: 14 }}>
-          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e3a5f', marginBottom: 6 }}>
-            RECOMMENDATION NOTES / DTC RATIONALE:
-          </div>
-          {mode === 'dtc' ? (
-            <ApprovalRemarksPanel
-              role="DTC"
-              value={localRecommendationNotes}
-              onChange={handleNotesChange}
-              placeholder="Enter final recommendation notes..."
-              rows={2}
-              hidePredefined={true}
-              hideRecent={true}
-            />
-          ) : mode === 'pharmacy_head' ? (
-            <textarea
-              value={dtcRecommendationNotes}
-              onChange={e => onDtcRecommendationNotesChange && onDtcRecommendationNotesChange(e.target.value)}
-              style={{
-                width: '100%', border: '1px solid #ddd6fe', borderRadius: 6,
-                padding: '6px 10px', fontSize: '0.8rem', resize: 'vertical', minHeight: 60,
-                outline: 'none', background: '#faf5ff',
-              }}
-              placeholder="Suggest selection notes or justification for DTC's final review..."
-            />
-          ) : (
-            <div style={{
-              border: '1px solid #e2e8f0', borderRadius: 6, padding: '8px 12px',
-              fontSize: '0.8rem', color: '#334155', minHeight: 40, background: '#f8fafc',
-              whiteSpace: 'pre-wrap',
-            }}>
-              {requestInfo.DTC_RECOMMENDATION_NOTES || dtcRecommendationNotes || '—'}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
 
   return (
 
@@ -1884,13 +1754,18 @@ export default function ComparisonSheet({
           {/* DTC: Confirm & Forward to CEO */}
           {mode === 'dtc' && onDtcFinalize && (
             <button
-              onClick={() => onDtcFinalize({
-                recommendations: localFinalRecommendations,
-                notes: localRecommendationNotes,
-                reviewed_by_name: localDtcReviewedByName,
-                review_signature: localDtcReviewSignature,
-                dtc_remarks: localDtcRemarks
-              })}
+              onClick={() => {
+                const autoRecs = buildAutoRecommendations();
+                onDtcFinalize({
+                  recommendations: autoRecs,
+                  notes: localRecommendationNotes,
+                  reviewed_by_name: localDtcReviewedByName,
+                  review_signature: localDtcReviewSignature,
+                  dtc_remarks: localDtcRemarks,
+                  alternatives,
+                  existing_details: existingDetails,
+                });
+              }}
               disabled={finalizing}
               style={{
                 background: finalizing ? '#4b5563' : '#2563eb',
@@ -2203,14 +2078,35 @@ export default function ComparisonSheet({
                   </select>
                 </div>
 
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#475569' }}>Status:</label>
+                  <select
+                    value={statusFilter}
+                    onChange={e => setStatusFilter(e.target.value)}
+                    style={{
+                      padding: '6px 10px',
+                      fontSize: '0.78rem',
+                      borderRadius: '6px',
+                      border: '1px solid #cbd5e1',
+                      background: '#fff',
+                      outline: 'none',
+                    }}
+                  >
+                    <option value="">All</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </div>
+
                 {/* Summary */}
                 <div style={{ marginLeft: 'auto', fontSize: '0.78rem', fontWeight: 500, color: '#475569' }}>
                   Found <strong style={{ color: '#1e3a5f' }}>{reportRows.length}</strong> brands
-                  {(dosageFilter || dosageFormFilter) && (
+                  {(dosageFilter || dosageFormFilter || statusFilter) && (
                     <span>
                       {' '}• Showing <strong style={{ color: '#10b981' }}>{filteredReportRows.length}</strong> brands matching:
                       {dosageFormFilter && ` Form = ${dosageFormFilter}`}
                       {dosageFilter && `${dosageFormFilter ? ',' : ''} Dosage = ${dosageFilter}`}
+                      {statusFilter && `${dosageFormFilter || dosageFilter ? ',' : ''} Status = ${statusFilter}`}
                     </span>
                   )}
                 </div>
@@ -2258,6 +2154,7 @@ export default function ComparisonSheet({
                       <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>S.No.</th>
                       <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Introduced On</th>
                       <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Brand Name</th>
+                      <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Status</th>
                       <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Manufacturer</th>
                       <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Marketer</th>
                       <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Consultant</th>
@@ -2277,7 +2174,7 @@ export default function ComparisonSheet({
                   <tbody>
                     {filteredReportRows.length === 0 ? (
                       <tr>
-                        <td colSpan={18} style={{ padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '0.8rem', background: '#f8fafc' }}>
+                        <td colSpan={19} style={{ padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '0.8rem', background: '#f8fafc' }}>
                           📭 No brands match the selected filter criteria.
                         </td>
                       </tr>
@@ -2317,6 +2214,9 @@ export default function ComparisonSheet({
                             <td style={{ padding: '8px 10px' }}>{row.sno}</td>
                             <td style={{ padding: '8px 10px' }}>{formatIntroducedDate(row.introduced_on)}</td>
                             <td style={{ padding: '8px 10px', fontWeight: 600 }}>{row.brand_name}</td>
+                            <td style={{ padding: '8px 10px' }}>
+                              {renderStatusBadge(row.status)}
+                            </td>
                             <td style={{ padding: '8px 10px' }}>{row.manufacturer}</td>
                             <td style={{ padding: '8px 10px' }}>{row.marketer}</td>
                             <td style={{ padding: '8px 10px' }}>{row.consultant}</td>
@@ -2408,202 +2308,245 @@ export default function ComparisonSheet({
                 borderCollapse: 'collapse',
                 width: `${(columnWidths.sno || 40) + COLS_NEW.reduce((acc, col) => acc + (columnWidths[col.id] || col.w), 0)}px`,
               }}>
-              <colgroup>
-                <col style={{ width: columnWidths.sno || 40 }} />
-                {COLS_NEW.map(col => (
-                  <col key={col.id} style={{ width: columnWidths[col.id] || col.w }} />
-                ))}
-              </colgroup>
-              <tbody>
-                {/* ── EXISTING DETAILS ── */}
-                {isExisting && (
-                  <>
-                    <tr>
-                      <td colSpan={20} style={SECTION_HDR}>EXISTING DETAILS</td>
-                    </tr>
-                    {renderSectionHeaders(COLS_EXISTING, columnWidths, handleMouseDown, handleDoubleClick)}
-                    {existingDetails.map((row, idx) => (
-                      <tr key={`exist-${idx}`} style={EXIST_ROW}>
-                        <td style={{ ...CELL, textAlign: 'center', fontWeight: 600, ...EXIST_ROW, position: 'relative' }} data-col-id="sno">
-                          {idx + 1}
-                          {mode === 'pharmacist' && existingDetails.length > 1 && (
-                            <button
-                              onClick={() => removeExistingRow(idx)}
-                              title="Remove row"
-                              style={{
-                                position: 'absolute', left: 2, top: '50%', transform: 'translateY(-50%)',
-                                background: '#ef4444', color: '#fff', border: 'none', borderRadius: '50%',
-                                width: 14, height: 14, fontSize: '9px', display: 'flex', alignItems: 'center',
-                                justifyContent: 'center', cursor: 'pointer', padding: 0, lineHeight: 1
-                              }}
-                            >
-                              ×
-                            </button>
-                          )}
+                <colgroup>
+                  <col style={{ width: columnWidths.sno || 40 }} />
+                  {COLS_NEW.map(col => (
+                    <col key={col.id} style={{ width: columnWidths[col.id] || col.w }} />
+                  ))}
+                </colgroup>
+                <tbody>
+                  {/* ── EXISTING DETAILS ── */}
+                  {isExisting && (
+                    <>
+                      <tr>
+                        <td colSpan={20} style={SECTION_HDR}>EXISTING DETAILS</td>
+                      </tr>
+                      {renderSectionHeaders(COLS_EXISTING, columnWidths, handleMouseDown, handleDoubleClick, false)}
+                      {existingDetails.map((row, idx) => (
+                        <tr key={`exist-${idx}`} style={EXIST_ROW}>
+                          <td style={{ ...CELL, textAlign: 'center', fontWeight: 600, ...EXIST_ROW, position: 'relative' }} data-col-id="sno">
+                            {idx + 1}
+                            {mode === 'pharmacist' && existingDetails.length > 1 && (
+                              <button
+                                onClick={() => removeExistingRow(idx)}
+                                title="Remove row"
+                                style={{
+                                  position: 'absolute', left: 2, top: '50%', transform: 'translateY(-50%)',
+                                  background: '#ef4444', color: '#fff', border: 'none', borderRadius: '50%',
+                                  width: 14, height: 14, fontSize: '9px', display: 'flex', alignItems: 'center',
+                                  justifyContent: 'center', cursor: 'pointer', padding: 0, lineHeight: 1
+                                }}
+                              >
+                                ×
+                              </button>
+                            )}
+                          </td>
+                          {COLS_EXISTING.map(col => {
+                            const key = col.key;
+                            const isDtcRemarkCol = col.id === 'remark' && mode === 'dtc';
+                            const isPharmacistEditable = mode === 'pharmacist' && col.id !== 'remark';
+                            const cellValue = col.id === 'status'
+                              ? (row.status || brandStatusMap[row.brand_name?.toLowerCase().trim()] || '')
+                              : (row[key] ?? '');
+                            return (
+                              <SheetCell
+                                key={col.id}
+                                value={cellValue}
+                                onChange={v => updateExistingRow(idx, key, v)}
+                                num={col.num}
+                                editable={isDtcRemarkCol || isPharmacistEditable}
+                                options={isDtcRemarkCol ? ['Continue', 'Stop'] : undefined}
+                                style={EXIST_ROW}
+                                colId={col.id}
+                              />
+                            );
+                          })}
+                        </tr>
+                      ))}
+                      {mode === 'pharmacist' && (
+                        <tr>
+                          <td colSpan={20} style={{ padding: '6px 10px', borderTop: '1px dashed #bbb', background: '#fefce8' }}>
+                            <button onClick={addExistingRow} style={{
+                              background: 'none', border: '1px dashed #d97706', color: '#d97706',
+                              padding: '3px 14px', borderRadius: 5, cursor: 'pointer', fontSize: '0.78rem',
+                              fontWeight: 600
+                            }}>+ Add Existing Drug Row</button>
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  )}
+
+                  {/* ── NEW QUOTATION DETAILS ── */}
+                  <tr>
+                    <td colSpan={20} style={{ ...SECTION_HDR, background: '#1e3a5f' }}>
+                      NEW QUOTATION DETAILS
+                    </td>
+                  </tr>
+                  {renderSectionHeaders(COLS_NEW, columnWidths, handleMouseDown, handleDoubleClick)}
+                  {alternatives.map((alt, i) => {
+                    const rowStyle = i === 0 ? DR_ROW : NEW_ROW;
+                    const derived = calcDerived(
+                      alt.mrp_per_pack, alt.rate_per_pack, alt.gst_percent,
+                      alt.pack, alt.qty, alt.offer,
+                    );
+                    return (
+                      <tr key={i} style={rowStyle}>
+                        <td style={{ ...CELL, textAlign: 'center', fontWeight: 600, ...rowStyle }} data-col-id="sno">
+                          {i + 1}
+                          {i === 0 && <div style={{ fontSize: '0.6rem', color: '#15803d' }}>Dr. Rec.</div>}
                         </td>
-                        {COLS_EXISTING.map(col => {
-                          const key = col.key;
+                        {COLS_NEW.map(col => {
+                          if (col.isCalc) {
+                            return <CalcCell key={col.id} value={derived[col.id]} rowStyle={rowStyle} colId={col.id} />;
+                          }
+                          const isDtcRemarkCol = col.id === 'remark' && mode === 'dtc';
+                          const isPharmacistEditable = mode === 'pharmacist' && col.id !== 'remark';
                           return (
                             <SheetCell
                               key={col.id}
-                              value={row[key] ?? ''}
-                              onChange={v => updateExistingRow(idx, key, v)}
+                              value={getVal(alt, col.id)}
+                              onChange={v => updateAlt(i, col.id, v)}
                               num={col.num}
-                              editable={mode === 'pharmacist'}
-                              style={EXIST_ROW}
+                              editable={isDtcRemarkCol || isPharmacistEditable}
+                              options={isDtcRemarkCol ? ['Recommended', 'Not Recommended'] : undefined}
+                              style={rowStyle}
                               colId={col.id}
                             />
                           );
                         })}
                       </tr>
-                    ))}
-                    {mode === 'pharmacist' && (
-                      <tr>
-                        <td colSpan={20} style={{ padding: '6px 10px', borderTop: '1px dashed #bbb', background: '#fefce8' }}>
-                          <button onClick={addExistingRow} style={{
-                            background: 'none', border: '1px dashed #d97706', color: '#d97706',
-                            padding: '3px 14px', borderRadius: 5, cursor: 'pointer', fontSize: '0.78rem',
-                            fontWeight: 600
-                          }}>+ Add Existing Drug Row</button>
-                        </td>
-                      </tr>
-                    )}
-                  </>
-                )}
+                    );
+                  })}
 
-                {/* ── NEW QUOTATION DETAILS ── */}
-                <tr>
-                  <td colSpan={20} style={{ ...SECTION_HDR, background: '#1e3a5f' }}>
-                    NEW QUOTATION DETAILS
-                  </td>
-                </tr>
-                {renderSectionHeaders(COLS_NEW, columnWidths, handleMouseDown, handleDoubleClick)}
-                {alternatives.map((alt, i) => {
-                  const rowStyle = i === 0 ? DR_ROW : NEW_ROW;
-                  const derived = calcDerived(
-                    alt.mrp_per_pack, alt.rate_per_pack, alt.gst_percent,
-                    alt.pack, alt.qty, alt.offer,
-                  );
-                  return (
-                    <tr key={i} style={rowStyle}>
-                      <td style={{ ...CELL, textAlign: 'center', fontWeight: 600, ...rowStyle }} data-col-id="sno">
-                        {i + 1}
-                        {i === 0 && <div style={{ fontSize: '0.6rem', color: '#15803d' }}>Dr. Rec.</div>}
+                  {/* Add row button */}
+                  {mode === 'pharmacist' && onAddAlt && (
+                    <tr>
+                      <td colSpan={20} style={{ padding: '6px 10px', borderTop: '1px dashed #bbb' }}>
+                        <button onClick={onAddAlt} style={{
+                          background: 'none', border: '1px dashed #6366f1', color: '#6366f1',
+                          padding: '3px 14px', borderRadius: 5, cursor: 'pointer', fontSize: '0.78rem',
+                        }}>+ Add Alternative Row</button>
                       </td>
-                      {COLS_NEW.map(col => {
-                        if (col.isCalc) {
-                          return <CalcCell key={col.id} value={derived[col.id]} rowStyle={rowStyle} colId={col.id} />;
-                        }
-                        return (
-                          <SheetCell
-                            key={col.id}
-                            value={getVal(alt, col.id)}
-                            onChange={v => updateAlt(i, col.id, v)}
-                            num={col.num}
-                            editable={mode === 'pharmacist'}
-                            style={rowStyle}
-                            colId={col.id}
-                          />
-                        );
-                      })}
                     </tr>
-                  );
-                })}
+                  )}
 
-                {/* Add row button */}
-                {mode === 'pharmacist' && onAddAlt && (
+                  {/* ── AFTER NEGOTIATION ── */}
                   <tr>
-                    <td colSpan={20} style={{ padding: '6px 10px', borderTop: '1px dashed #bbb' }}>
-                      <button onClick={onAddAlt} style={{
-                        background: 'none', border: '1px dashed #6366f1', color: '#6366f1',
-                        padding: '3px 14px', borderRadius: 5, cursor: 'pointer', fontSize: '0.78rem',
-                      }}>+ Add Alternative Row</button>
+                    <td colSpan={20} style={{ ...SECTION_HDR, background: '#7c3aed' }}>
+                      AFTER NEGOTIATION
                     </td>
                   </tr>
-                )}
+                  {renderSectionHeaders(COLS_NEW, columnWidths, handleMouseDown, handleDoubleClick)}
+                  {alternatives.map((alt, i) => {
+                    const rowStyle = i === 0 ? DR_ROW : NEW_ROW;
 
-                {/* ── AFTER NEGOTIATION ── */}
-                <tr>
-                  <td colSpan={20} style={{ ...SECTION_HDR, background: '#7c3aed' }}>
-                    AFTER NEGOTIATION
-                  </td>
-                </tr>
-                {renderSectionHeaders(COLS_NEW, columnWidths, handleMouseDown, handleDoubleClick)}
-                {alternatives.map((alt, i) => {
-                  const rowStyle = i === 0 ? DR_ROW : NEW_ROW;
+                    // Compute derived values for negotiated fields
+                    const derived = calcDerived(
+                      alt.negotiated_mrp, alt.negotiated_rate, alt.negotiated_gst,
+                      alt.pack, alt.negotiated_scheme_qty, alt.negotiated_scheme_offer
+                    );
 
-                  // Compute derived values for negotiated fields
-                  const derived = calcDerived(
-                    alt.negotiated_mrp, alt.negotiated_rate, alt.negotiated_gst,
-                    alt.pack, alt.negotiated_scheme_qty, alt.negotiated_scheme_offer
-                  );
+                    // Compute derived values for original fields to compare changes
+                    const origDerived = calcDerived(
+                      alt.mrp_per_pack ?? alt.mrp, alt.rate_per_pack ?? alt.rate, alt.gst_percent ?? alt.gst,
+                      alt.pack, alt.qty, alt.offer
+                    );
 
-                  const phEditable = mode === 'pharmacy_head';
+                    const phEditable = mode === 'pharmacy_head';
+                    const rowModified = isAltRowModified(alt);
+                    const displayRowStyle = rowModified ? { ...rowStyle, background: '#fef9c3' } : rowStyle;
 
-                  return (
-                    <tr key={`neg-${i}`} style={rowStyle}>
-                      <td style={{ ...CELL, textAlign: 'center', fontWeight: 600, ...rowStyle }} data-col-id="sno">
-                        {i + 1}
-                        {i === 0 && <div style={{ fontSize: '0.6rem', color: '#15803d' }}>Dr. Rec.</div>}
-                      </td>
-                      {COLS_NEW.map(col => {
-                        if (col.isCalc) {
-                          return <CalcCell key={col.id} value={derived[col.id]} rowStyle={rowStyle} colId={col.id} />;
-                        }
+                    return (
+                      <tr key={`neg-${i}`} style={displayRowStyle}>
+                        <td style={{ ...CELL, textAlign: 'center', fontWeight: 600, ...displayRowStyle }} data-col-id="sno">
+                          {i + 1}
+                          {i === 0 && <div style={{ fontSize: '0.6rem', color: '#15803d' }}>Dr. Rec.</div>}
+                        </td>
+                        {COLS_NEW.map(col => {
+                          if (col.isCalc) {
+                            const isCellMod = isAltCellModified(alt, col.id);
+                            const origVal = origDerived[col.id];
+                            return (
+                              <CalcCell
+                                key={col.id}
+                                value={derived[col.id]}
+                                rowStyle={displayRowStyle}
+                                colId={col.id}
+                                isModified={isCellMod}
+                                originalValue={origVal}
+                              />
+                            );
+                          }
 
-                        let fieldVal = '';
-                        let cellEditable = false;
-                        let fieldName = '';
-                        let isNum = col.num;
+                          let fieldVal = '';
+                          let cellEditable = false;
+                          let fieldName = '';
+                          let isNum = col.num;
+                          let cellOptions;
+                          let origVal = '';
 
-                        if (col.id === 'mrp_per_pack') {
-                          fieldName = 'negotiated_mrp';
-                          fieldVal = alt.negotiated_mrp;
-                          cellEditable = phEditable;
-                        } else if (col.id === 'rate_per_pack') {
-                          fieldName = 'negotiated_rate';
-                          fieldVal = alt.negotiated_rate;
-                          cellEditable = phEditable;
-                        } else if (col.id === 'gst_percent') {
-                          fieldName = 'negotiated_gst';
-                          fieldVal = alt.negotiated_gst;
-                          cellEditable = phEditable;
-                        } else if (col.id === 'qty') {
-                          fieldName = 'negotiated_scheme_qty';
-                          fieldVal = alt.negotiated_scheme_qty;
-                          cellEditable = phEditable;
-                        } else if (col.id === 'offer') {
-                          fieldName = 'negotiated_scheme_offer';
-                          fieldVal = alt.negotiated_scheme_offer;
-                          cellEditable = phEditable;
-                        } else if (col.id === 'remark') {
-                          fieldName = 'negotiation_remarks';
-                          fieldVal = alt.negotiation_remarks;
-                          cellEditable = phEditable;
-                          isNum = false;
-                        } else {
-                          // Shared properties are read-only in the negotiated table
-                          fieldVal = alt[col.id];
-                          cellEditable = false;
-                        }
+                          if (col.id === 'mrp_per_pack') {
+                            fieldName = 'negotiated_mrp';
+                            fieldVal = alt.negotiated_mrp;
+                            cellEditable = phEditable;
+                            origVal = alt.mrp_per_pack ?? alt.mrp ?? '';
+                          } else if (col.id === 'rate_per_pack') {
+                            fieldName = 'negotiated_rate';
+                            fieldVal = alt.negotiated_rate;
+                            cellEditable = phEditable;
+                            origVal = alt.rate_per_pack ?? alt.rate ?? '';
+                          } else if (col.id === 'gst_percent') {
+                            fieldName = 'negotiated_gst';
+                            fieldVal = alt.negotiated_gst;
+                            cellEditable = phEditable;
+                            origVal = alt.gst_percent ?? alt.gst ?? '';
+                          } else if (col.id === 'qty') {
+                            fieldName = 'negotiated_scheme_qty';
+                            fieldVal = alt.negotiated_scheme_qty;
+                            cellEditable = phEditable;
+                            origVal = alt.qty ?? '';
+                          } else if (col.id === 'offer') {
+                            fieldName = 'negotiated_scheme_offer';
+                            fieldVal = alt.negotiated_scheme_offer;
+                            cellEditable = phEditable;
+                            origVal = alt.offer ?? '';
+                          } else if (col.id === 'remark') {
+                            fieldName = 'negotiation_remarks';
+                            fieldVal = alt.negotiation_remarks;
+                            cellEditable = mode === 'dtc';
+                            cellOptions = mode === 'dtc' ? ['Recommended', 'Not Recommended'] : undefined;
+                            isNum = false;
+                            origVal = alt.remark ?? '';
+                          } else {
+                            // Shared properties are read-only in the negotiated table
+                            fieldVal = alt[col.id];
+                            cellEditable = false;
+                          }
 
-                        return (
-                          <SheetCell
-                            key={col.id}
-                            value={fieldVal}
-                            onChange={v => updateAlt(i, fieldName, v)}
-                            num={isNum}
-                            editable={cellEditable}
-                            style={rowStyle}
-                            colId={col.id}
-                          />
-                        );
-                      })}
-                    </tr>
-                  );
-                })}
-              </tbody>
-             </table>
+                          const isCellMod = isAltCellModified(alt, col.id);
+
+                          return (
+                            <SheetCell
+                              key={col.id}
+                              value={fieldVal}
+                              onChange={v => updateAlt(i, fieldName, v)}
+                              num={isNum}
+                              editable={cellEditable}
+                              options={cellOptions}
+                              style={displayRowStyle}
+                              colId={col.id}
+                              isModified={isCellMod}
+                              originalValue={origVal}
+                              isModifiedRow={rowModified}
+                            />
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
               {/* Proportional Table Resize Handle */}
               <div
                 onMouseDown={handleTableResizeStart}
@@ -2690,102 +2633,93 @@ export default function ComparisonSheet({
             </div>
           </div>
 
-          {/* ── Lower Recommendation/Review Section (matches Excel layout) ── */}
-          <div className="comparison-lower-grid" style={{
+          {/* ── Lower Review Section ── */}
+          <div style={{
             borderTop: '2.5px solid #1e3a5f',
             borderBottom: '1px solid #cbd5e1',
+            padding: '16px 20px',
+            background: '#f8fafc',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
           }}>
-
-            {/* Left Column: REVIEWED BY SECTION */}
-            <div style={{
-              borderRight: '1.5px solid #cbd5e1',
-              padding: '16px 20px',
-              background: '#f8fafc',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-            }}>
-              <div>
+            <div>
+              <div style={{
+                fontSize: '0.78rem',
+                fontWeight: 800,
+                color: '#1e3a5f',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                marginBottom: 8,
+              }}>
+                Reviewed By:
+              </div>
+              {mode === 'dtc' ? (
+                <input
+                  type="text"
+                  value={localDtcReviewedByName}
+                  onChange={e => handleReviewedByNameChange(e.target.value)}
+                  placeholder="Enter Chairperson Name"
+                  style={{
+                    width: '100%', padding: '6px 10px', fontSize: '0.82rem',
+                    borderRadius: 6, border: '1px solid #cbd5e1', outline: 'none',
+                    marginBottom: 10,
+                  }}
+                />
+              ) : (
                 <div style={{
-                  fontSize: '0.78rem',
-                  fontWeight: 800,
-                  color: '#1e3a5f',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  marginBottom: 8,
+                  fontSize: '0.9rem',
+                  fontWeight: 700,
+                  color: '#334155',
+                  padding: '8px 12px',
+                  background: '#f1f5f9',
+                  borderRadius: 6,
+                  border: '1px solid #cbd5e1',
+                  textAlign: 'center',
+                  marginBottom: 10,
                 }}>
-                  Reviewed By:
+                  {localDtcReviewedByName || requestInfo.DTC_REVIEWED_BY_NAME || 'CHAIRPERSON DTC'}
                 </div>
-                {mode === 'dtc' ? (
+              )}
+            </div>
+            <div style={{ marginTop: 12, fontSize: '0.75rem', color: '#475569', lineHeight: 1.5 }}>
+              {mode === 'dtc' ? (
+                <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', padding: '10px 14px', borderRadius: 8 }}>
+                  <div style={{ fontWeight: 700, marginBottom: 6, color: '#1e3a5f' }}>
+                    ✍️ Electronic Approval Signature:
+                  </div>
                   <input
                     type="text"
-                    value={localDtcReviewedByName}
-                    onChange={e => handleReviewedByNameChange(e.target.value)}
-                    placeholder="Enter Chairperson Name"
+                    value={localDtcReviewSignature}
+                    onChange={e => handleReviewSignatureChange(e.target.value)}
+                    placeholder="Type electronic signature / name"
                     style={{
-                      width: '100%', padding: '6px 10px', fontSize: '0.82rem',
+                      width: '100%', padding: '6px 10px', fontSize: '0.8rem',
                       borderRadius: 6, border: '1px solid #cbd5e1', outline: 'none',
-                      marginBottom: 10,
                     }}
                   />
-                ) : (
-                  <div style={{
-                    fontSize: '0.9rem',
-                    fontWeight: 700,
-                    color: '#334155',
-                    padding: '8px 12px',
-                    background: '#f1f5f9',
-                    borderRadius: 6,
-                    border: '1px solid #cbd5e1',
-                    textAlign: 'center',
-                    marginBottom: 10,
-                  }}>
-                    {localDtcReviewedByName || requestInfo.DTC_REVIEWED_BY_NAME || 'CHAIRPERSON DTC'}
+                </div>
+              ) : (localDtcReviewSignature || requestInfo.DTC_REVIEW_SIGNATURE) ? (
+                <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '10px 14px', borderRadius: 8, color: '#065f46' }}>
+                  <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span>🛡️</span> Approved digitally by:
                   </div>
-                )}
-              </div>
-              <div style={{ marginTop: 12, fontSize: '0.75rem', color: '#475569', lineHeight: 1.5 }}>
-                {mode === 'dtc' ? (
-                  <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', padding: '10px 14px', borderRadius: 8 }}>
-                    <div style={{ fontWeight: 700, marginBottom: 6, color: '#1e3a5f' }}>
-                      ✍️ Electronic Approval Signature:
-                    </div>
-                    <input
-                      type="text"
-                      value={localDtcReviewSignature}
-                      onChange={e => handleReviewSignatureChange(e.target.value)}
-                      placeholder="Type electronic signature / name"
-                      style={{
-                        width: '100%', padding: '6px 10px', fontSize: '0.8rem',
-                        borderRadius: 6, border: '1px solid #cbd5e1', outline: 'none',
-                      }}
-                    />
+                  <div style={{ fontWeight: 800, fontSize: '0.8rem', marginTop: 4 }}>
+                    {localDtcReviewedByName || requestInfo.DTC_REVIEWED_BY_NAME || 'DTC Chairperson'}
                   </div>
-                ) : (localDtcReviewSignature || requestInfo.DTC_REVIEW_SIGNATURE) ? (
-                  <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '10px 14px', borderRadius: 8, color: '#065f46' }}>
-                    <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <span>🛡️</span> Approved digitally by:
-                    </div>
-                    <div style={{ fontWeight: 800, fontSize: '0.8rem', marginTop: 4 }}>
-                      {localDtcReviewedByName || requestInfo.DTC_REVIEWED_BY_NAME || 'DTC Chairperson'}
-                    </div>
-                    <div style={{ fontStyle: 'italic', fontSize: '0.75rem', marginTop: 2, fontFamily: 'monospace' }}>
-                      Sign: {localDtcReviewSignature || requestInfo.DTC_REVIEW_SIGNATURE}
-                    </div>
-                    <div style={{ fontSize: '0.7rem', color: '#047857', marginTop: 2 }}>
-                      Date: {new Date(requestInfo.DTC_REVIEWED_AT || dtcReviewedAt || Date.now()).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                    </div>
+                  <div style={{ fontStyle: 'italic', fontSize: '0.75rem', marginTop: 2, fontFamily: 'monospace' }}>
+                    Sign: {localDtcReviewSignature || requestInfo.DTC_REVIEW_SIGNATURE}
                   </div>
-                ) : (
-                  <div style={{ border: '1.5px dashed #cbd5e1', padding: '10px 14px', borderRadius: 8, textAlign: 'center', fontStyle: 'italic', color: '#64748b' }}>
-                    Awaiting final selection and electronic signature from DTC Chairperson.
+                  <div style={{ fontSize: '0.7rem', color: '#047857', marginTop: 2 }}>
+                    Date: {new Date(requestInfo.DTC_REVIEWED_AT || dtcReviewedAt || Date.now()).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                   </div>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div style={{ border: '1.5px dashed #cbd5e1', padding: '10px 14px', borderRadius: 8, textAlign: 'center', fontStyle: 'italic', color: '#64748b' }}>
+                  Awaiting final selection and electronic signature from DTC Chairperson.
+                </div>
+              )}
             </div>
-
-            {/* Right Column: Unified Final Recommendation Panel */}
-            {renderRecommendationBlock()}
           </div>
 
 
