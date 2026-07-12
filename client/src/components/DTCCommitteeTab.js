@@ -394,6 +394,8 @@ export default function DTCCommitteeTab({ currentUser, onNotificationsRead }) {
 
       // Normalize alternatives for ComparisonSheet
       setDtcAltView(altsRaw.map(a => ({
+        // Preserve the database alt_id so buildAutoRecommendations can reference it
+        alt_id: a.ALT_ID ?? a.alt_id ?? null,
         brand_name: a.BRAND_NAME || a.brand_name || '',
         manufacturer: a.MANUFACTURER || a.manufacturer || '',
         marketer: a.MARKETER || a.marketer || '',

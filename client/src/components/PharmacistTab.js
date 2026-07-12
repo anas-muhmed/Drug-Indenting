@@ -385,7 +385,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
     try {
       const payload = { ...form, doctor_id: currentUser.USER_ID };
       await axios.post(`${API}/requests/pharmacist`, payload);
-      setAlertMsg({ type: 'success', msg: '✅ Direct drug request submitted successfully! Forwarded to Pharmacy Head.' });
+      setAlertMsg({ type: 'success', msg: 'Direct drug request submitted successfully! Forwarded to Pharmacy Head.' });
       setForm(EMPTY_FORM);
       setView('pending');
       await loadRequests();
@@ -465,13 +465,13 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
     }
   };
   const SECTION_ICONS = {
-    '1': '📘', '2': '💰', '3': '🔁',
+    '1': '', '2': '', '3': '',
   };
   const SECTION_COLORS = {
-    '1': '#0ea5e9', '2': '#059669', '3': '#7c3aed',
+    '1': '', '2': '', '3': '',
   };
   const SECTION_BG = {
-    '1': 'rgba(14,165,233,0.06)', '2': 'rgba(5,150,105,0.06)', '3': 'rgba(124,58,237,0.06)',
+    '1': '', '2': '', '3': '',
   };
   function DrugProfileRenderer({ text }) {
     const lines = text.split('\n');
@@ -521,7 +521,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                 <div style={{ padding: '10px 16px', borderBottom: `1px solid ${color}22`, display: 'flex', alignItems: 'center', gap: 8 }}>
                   {icon && <span style={{ fontSize: '1rem' }}>{icon}</span>}
                   <span style={{ fontWeight: 700, fontSize: '0.85rem', color, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    {sec.title.replace(/^[📘💰🔁]\s*/, '')}
+                    {sec.title}
                   </span>
                 </div>
               )}
@@ -799,8 +799,8 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
       }
 
       const successMsg = isCorrectionMode
-        ? `✅ Corrected comparison sheet for Request #${analysisReq.REQUEST_ID} resubmitted to Pharmacy Head.`
-        : `✅ Alternatives submitted for request #${analysisReq.REQUEST_ID}. Forwarded to Pharmacy Head.`;
+        ? `Corrected comparison sheet for Request #${analysisReq.REQUEST_ID} resubmitted to Pharmacy Head.`
+        : `Alternatives submitted for request #${analysisReq.REQUEST_ID}. Forwarded to Pharmacy Head.`;
 
       setAlertMsg({ type: 'success', msg: successMsg });
       setIsCorrectionMode(false);
@@ -1134,7 +1134,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
         remarks: irRemarks || null,
         effective_drug_entries: effectiveDrugEntries,
       });
-      setAlertMsg({ type: 'success', msg: `✅ Request #${irSelected.REQUEST_ID} approved and forwarded to Pharmacy Head.` });
+      setAlertMsg({ type: 'success', msg: `Request #${irSelected.REQUEST_ID} approved and forwarded to Pharmacy Head.` });
       closeIrPanel();
       await loadRequests();
       setDashKey(k => k + 1);
@@ -1155,7 +1155,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
         performed_by: currentUser.USER_ID,
         remarks: irRemarks,
       });
-      setAlertMsg({ type: 'error', msg: `❌ Request #${irSelected.REQUEST_ID} rejected and doctor has been notified.` });
+      setAlertMsg({ type: 'error', msg: `Request #${irSelected.REQUEST_ID} rejected and doctor has been notified.` });
       closeIrPanel();
       await loadRequests();
       setDashKey(k => k + 1);
@@ -1170,7 +1170,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
     if (!window.confirm(`Are you sure you want to place the order for Request #${reqId}?`)) return;
     try {
       await axios.post(`${API}/requests/${reqId}/place_order`, { performed_by: currentUser.USER_ID });
-      setAlertMsg({ type: 'success', msg: `✅ Order placed successfully for Request #${reqId}.` });
+      setAlertMsg({ type: 'success', msg: `Order placed successfully for Request #${reqId}.` });
       await loadRequests();
       if (viewReq && viewReq.REQUEST_ID === reqId) {
         setViewReq(prev => ({ ...prev, STATUS: 'ORDER_PLACED', CURRENT_STAGE: 'OrderPlaced' }));
@@ -1185,7 +1185,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
     if (!window.confirm(`Are you sure you want to confirm stock receipt for Request #${reqId}?`)) return;
     try {
       await axios.post(`${API}/requests/${reqId}/mark-inventory-received`, { performed_by: currentUser.USER_ID });
-      setAlertMsg({ type: 'success', msg: `✅ Request #${reqId} successfully marked as inventory received.` });
+      setAlertMsg({ type: 'success', msg: `Request #${reqId} successfully marked as inventory received.` });
       await loadRequests();
       if (viewReq && viewReq.REQUEST_ID === reqId) {
         setViewReq(prev => ({ ...prev, STATUS: 'INVENTORY_RECEIVED', CURRENT_STAGE: 'Completed' }));
@@ -1278,15 +1278,15 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
       {/* ---- Inner Tab Nav ---- */}
       <div className="inner-tabs">
         {[
-          { key: 'initialReview', label: `🩺 Initial Review (${initialReview.length})` },
-          { key: 'corrections', label: `🔁 Corrections (${correctionRequests.length})` },
-          { key: 'pending', label: `💊 Analysis Queue (${normalPending.length})` },
-          { key: 'emergency', label: `🚨 Emergency (${emergencyView.length})` },
-          { key: 'orders', label: `📦 Pending Orders (${requests.filter(r => ['APPROVED_PENDING_ORDER', 'EMERGENCY_APPROVED', 'ORDER_PLACED'].includes(r.STATUS)).length})` },
-          { key: 'drafts', label: `📁 My Drafts (${drafts.length})` },
-          { key: 'form', label: '📝 Create Drug Request' },
-          { key: 'dashboard', label: '📊 Dashboard' },
-          { key: 'notifications', label: '🔔 Notifications' },
+          { key: 'initialReview', label: `Initial Review (${initialReview.length})` },
+          { key: 'corrections', label: `Corrections (${correctionRequests.length})` },
+          { key: 'pending', label: `Analysis Queue (${normalPending.length})` },
+          { key: 'emergency', label: `Emergency (${emergencyView.length})` },
+          { key: 'orders', label: `Pending Orders (${requests.filter(r => ['APPROVED_PENDING_ORDER', 'EMERGENCY_APPROVED', 'ORDER_PLACED'].includes(r.STATUS)).length})` },
+          { key: 'drafts', label: `My Drafts (${drafts.length})` },
+          { key: 'form', label: 'Create Drug Request' },
+          { key: 'dashboard', label: 'Dashboard' },
+          { key: 'notifications', label: 'Notifications' },
         ].map(({ key, label }) => (
           <button key={key} className={`inner-tab-btn ${view === key ? 'active' : ''}`}
             onClick={() => handleTabChange(key)}>{label}</button>
@@ -1306,21 +1306,21 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
         <div className="card">
           <div className="card-title" style={{ justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div className="icon">🩺</div>
+              <div className="icon"></div>
               Pharmacist Initial Review
               <span className="badge badge-info">HOD Approved — Awaiting Pharmacist Screening</span>
             </div>
-            <button className="btn btn-ghost btn-sm" onClick={loadRequests}>↺ Refresh</button>
+            <button className="btn btn-ghost btn-sm" onClick={loadRequests}>Refresh</button>
           </div>
           <div className="alert alert-info" style={{ marginBottom: 18, fontSize: '0.82rem' }}>
-            💡 These requests have been approved by HOD. Review formulary availability, check existing drugs, and optionally adjust the <strong>Effective Created Date</strong> before forwarding to Pharmacy Head.
+            These requests have been approved by HOD. Review formulary availability, check existing drugs, and optionally adjust the <strong>Effective Created Date</strong> before forwarding to Pharmacy Head.
           </div>
 
           {loading ? (
             <div style={{ textAlign: 'center', padding: 60 }}><div className="spinner" /></div>
           ) : initialReview.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-subtle)' }}>
-              <div style={{ fontSize: '3rem', marginBottom: 12 }}>✅</div>
+              <div style={{ fontSize: '3rem', marginBottom: 12 }}></div>
               No requests pending initial review.
             </div>
           ) : (
@@ -1349,7 +1349,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                           onClick={() => getIrGenericDetails(r.GENERIC_NAME)}
                           disabled={irGenericLoading}
                         >
-                          {irGenericLoading ? <><div className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> Fetching…</> : '🔍 Search Existing Drugs'}
+                          {irGenericLoading ? <><div className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> Fetching…</> : 'Search Existing Drugs'}
                         </button> */}
                       </td>
                       <td>{r.CATEGORY}</td>
@@ -1415,7 +1415,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                                 onClick={() => getIrGenericDetails(r.GENERIC_NAME)}
                                 disabled={irGenericLoading}
                               >
-                                {irGenericLoading ? <><div className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> Fetching…</> : '🔍 Search Existing Drugs'}
+                                {irGenericLoading ? <><div className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> Fetching…</> : 'Search Existing Drugs'}
                               </button>
                             </td>
 
@@ -1613,11 +1613,11 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
               <div style={{ display: 'flex', gap: 10 }}>
                 {irAction === 'approve' ? (
                   <button className="btn btn-success" onClick={submitIrApprove} disabled={irSubmitting}>
-                    {irSubmitting ? '⏳ Forwarding…' : '✓ Confirm Approve & Forward'}
+                    {irSubmitting ? 'Forwarding…' : '✓ Confirm Approve & Forward'}
                   </button>
                 ) : (
                   <button className="btn btn-danger" onClick={submitIrReject} disabled={irSubmitting}>
-                    {irSubmitting ? '⏳ Rejecting…' : '✕ Confirm Reject'}
+                    {irSubmitting ? 'Rejecting…' : 'Confirm Reject'}
                   </button>
                 )}
                 <button className="btn btn-ghost" onClick={closeIrPanel} disabled={irSubmitting}>Cancel</button>
@@ -1633,7 +1633,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
           <div className="modal" style={{ maxWidth: '92vw', width: '92vw', maxHeight: '88vh', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}
             onClick={e => e.stopPropagation()}>
             <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>🔍 Search Existing Drugs in Formulary</span>
+              <span>Search Existing Drugs in Formulary</span>
               <button className="btn btn-ghost btn-sm" onClick={() => { setIrShowGenericPopup(false); setIrDosageFilter(''); setIrDosageFormFilter(''); }}>✕ Close</button>
             </div>
 
@@ -1772,7 +1772,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                       fontWeight: 600,
                     }}
                   >
-                    {irLoadingReport ? '⏳ Fetching...' : '🔍 Search Existing Drugs'}
+                    {irLoadingReport ? 'Fetching...' : 'Search Existing Drugs'}
                   </button>
 
                   <button
@@ -1872,13 +1872,13 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                 {/* Error / Loading State */}
                 {irReportError && (
                   <div style={{ color: '#ef4444', background: '#fef2f2', padding: '10px 14px', borderRadius: '8px', fontSize: '0.8rem', marginBottom: '12px', border: '1px solid #fca5a5' }}>
-                    ⚠️ {irReportError}
+                    {irReportError}
                   </div>
                 )}
 
                 {irLoadingReport && (
                   <div style={{ textAlign: 'center', padding: '24px 0', color: '#4b5563', fontSize: '0.85rem' }}>
-                    ⏳ Loading formulary drugs from HIS report...
+                    Loading formulary drugs from HIS report...
                   </div>
                 )}
 
@@ -1949,7 +1949,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                           {irFilteredReportRows.length === 0 ? (
                             <tr>
                               <td colSpan={18} style={{ padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '0.8rem', background: '#f8fafc' }}>
-                                📭 No brands match the selected filter criteria.
+                                No brands match the selected filter criteria.
                               </td>
                             </tr>
                           ) : (
@@ -1996,7 +1996,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
 
                 {!irLoadingReport && irReportRows.length === 0 && irSelectedGeneric && (
                   <div style={{ textAlign: 'center', padding: '16px', background: '#f8fafc', color: '#64748b', fontSize: '0.8rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                    📭 No existing drugs found in the formulary report for "{irSelectedGeneric.drug_gen_name}" within the chosen date range.
+                    No existing drugs found in the formulary report for "{irSelectedGeneric.drug_gen_name}" within the chosen date range.
                   </div>
                 )}
               </div>
@@ -2010,20 +2010,20 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
         <div className="card">
           <div className="card-title" style={{ justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div className="icon">💊</div>
+              <div className="icon"></div>
               Post-DTC Pharmacist Analysis Queue
               <span className="badge badge-info">Submit ≥3 Alternatives</span>
             </div>
-            <button className="btn btn-ghost btn-sm" onClick={loadRequests}>↺ Refresh</button>
+            <button className="btn btn-ghost btn-sm" onClick={loadRequests}>Refresh</button>
           </div>
           <div className="alert alert-info" style={{ marginBottom: 18, fontSize: '0.82rem' }}>
-            💡 These requests were approved by DTC. You must submit at least 3 drug alternatives with quotation details before forwarding to Pharmacy Head.
+            These requests were approved by DTC. You must submit at least 3 drug alternatives with quotation details before forwarding to Pharmacy Head.
           </div>
           {loading ? (
             <div style={{ textAlign: 'center', padding: 60 }}><div className="spinner" /></div>
           ) : normalPending.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-subtle)' }}>
-              <div style={{ fontSize: '3rem', marginBottom: 12 }}>✅</div>
+              <div style={{ fontSize: '3rem', marginBottom: 12 }}></div>
               No requests pending your analysis.
             </div>
           ) : (
@@ -2075,9 +2075,9 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                       </td>
                       <td>
                         <div style={{ display: 'flex', gap: 6 }}>
-                          <button className="btn btn-ghost btn-sm" onClick={() => openView(r)}>👁 View</button>
+                          <button className="btn btn-ghost btn-sm" onClick={() => openView(r)}>View</button>
                           <button className="btn btn-primary btn-sm" onClick={() => openAnalysis(r)}>
-                            📋 Submit Quotation
+                            Submit Quotation
                           </button>
                         </div>
                       </td>
@@ -2095,21 +2095,21 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
         <div className="card">
           <div className="card-title" style={{ justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div className="icon">🔁</div>
+              <div className="icon"></div>
               Correction Requests
               <span className="badge" style={{ background: '#fef3c7', color: '#92400e' }}>
                 Reverted by Pharmacy Head
               </span>
             </div>
-            <button className="btn btn-ghost btn-sm" onClick={loadRequests}>↺ Refresh</button>
+            <button className="btn btn-ghost btn-sm" onClick={loadRequests}>Refresh</button>
           </div>
           <div className="alert alert-warning" style={{ marginBottom: 18, fontSize: '0.82rem' }}>
-            ⚠️ The Pharmacy Head has identified issues in the comparison sheet. Review the revert remarks, fix the sheet, and resubmit.
+            The Pharmacy Head has identified issues in the comparison sheet. Review the revert remarks, fix the sheet, and resubmit.
           </div>
 
           {correctionRequests.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-subtle)' }}>
-              <div style={{ fontSize: '3rem', marginBottom: 12 }}>✅</div>
+              <div style={{ fontSize: '3rem', marginBottom: 12 }}></div>
               No correction requests pending.
             </div>
           ) : (
@@ -2128,7 +2128,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10 }}>
                     <div>
                       <div style={{ fontWeight: 800, color: '#92400e', fontSize: '1rem', marginBottom: 4 }}>
-                        ↩ Reverted by Pharmacy Head
+                        Reverted by Pharmacy Head
                         {r.REVERT_COUNT > 1 && (
                           <span style={{ marginLeft: 8, fontSize: '0.78rem', fontWeight: 700, background: '#f97316', color: '#fff', borderRadius: 10, padding: '2px 8px' }}>
                             ×{r.REVERT_COUNT} times
@@ -2153,7 +2153,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                       border: '1px solid #fbbf24',
                     }}>
                       <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
-                        📋 Revert Reason from Pharmacy Head:
+                        Revert Reason from Pharmacy Head:
                       </div>
                       <div style={{ fontSize: '0.84rem', color: '#78350f', whiteSpace: 'pre-line', lineHeight: 1.65 }}>
                         {r.REVERT_REMARKS}
@@ -2191,10 +2191,10 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                       style={{ background: '#7c3aed', border: 'none', fontWeight: 700 }}
                       onClick={() => openCorrectionAnalysis(r)}
                     >
-                      📝 Open &amp; Fix Comparison Sheet
+                      Open &amp; Fix Comparison Sheet
                     </button>
                     <button className="btn btn-ghost btn-sm" onClick={() => openView(r)}>
-                      👁 View Details
+                      View Details
                     </button>
                   </div>
                 </div>
@@ -2221,7 +2221,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(14,165,233,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>💊</div>
+                    <div style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(14,165,233,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}></div>
                     <div>
                       <div style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text)' }}>Drug Profile Report</div>
                       <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 1 }}>
@@ -2238,7 +2238,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                 >✕</button>
               </div>
               <div className="alert alert-warning" style={{ marginBottom: 0, marginTop: 12, fontSize: '0.76rem', padding: '8px 12px' }}>
-                ⚠️ AI-generated content — verify all pricing and clinical data against official NPPA / CDSCO sources before use.
+                AI-generated content — verify all pricing and clinical data against official NPPA / CDSCO sources before use.
               </div>
             </div>
 
@@ -2248,7 +2248,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                 <DrugProfileRenderer text={result} />
               ) : (
                 <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-subtle)' }}>
-                  <div style={{ fontSize: '2rem', marginBottom: 8 }}>⏳</div>
+                  <div style={{ fontSize: '2rem', marginBottom: 8 }}></div>
                   <div>Loading drug profile…</div>
                 </div>
               )}
@@ -2273,18 +2273,18 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
         <div className="card">
           <div className="card-title" style={{ justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div className="icon">🚨</div>
+              <div className="icon"></div>
               Emergency Requests
               <span className="badge" style={{ background: '#fef3c7', color: '#92400e' }}>DTC Decides & Pharmacist Orders</span>
             </div>
-            <button className="btn btn-ghost btn-sm" onClick={loadRequests}>↺ Refresh</button>
+            <button className="btn btn-ghost btn-sm" onClick={loadRequests}>Refresh</button>
           </div>
           <div className="alert alert-warning" style={{ marginBottom: 18, fontSize: '0.82rem' }}>
-            ⚠️ Emergency requests require IMMEDIATE DTC decision. Once approved, you can place the order here.
+            Emergency requests require IMMEDIATE DTC decision. Once approved, you can place the order here.
           </div>
           {emergencyView.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-subtle)' }}>
-              <div style={{ fontSize: '3rem', marginBottom: 12 }}>✅</div>No active emergency requests.
+              <div style={{ fontSize: '3rem', marginBottom: 12 }}></div>No active emergency requests.
             </div>
           ) : (
             <div className="table-wrap">
@@ -2296,7 +2296,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                   {emergencyView.map(r => (
                     <tr key={r.REQUEST_ID}>
                       <td style={{ fontWeight: 700, color: '#dc2626' }}>
-                        🚨 #{r.REQUEST_ID}
+                        #{r.REQUEST_ID}
                       </td>
                       <td style={{ fontWeight: 600 }}>{r.BRAND_NAME}</td>
                       <td style={{ color: 'var(--text-muted)' }}>{r.GENERIC_NAME}</td>
@@ -2321,10 +2321,10 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                       </td>
                       <td>
                         <div style={{ display: 'flex', gap: 6 }}>
-                          <button className="btn btn-ghost btn-sm" onClick={() => openView(r)}>👁 View</button>
+                          <button className="btn btn-ghost btn-sm" onClick={() => openView(r)}>View</button>
                           {r.STATUS === 'EMERGENCY_APPROVED' && (
                             <button className="btn btn-primary btn-sm" onClick={() => placeOrder(r.REQUEST_ID)}>
-                              📦 Place Order
+                              Place Order
                             </button>
                           )}
                         </div>
@@ -2344,16 +2344,16 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
         <div className="card">
           <div className="card-title" style={{ justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div className="icon">📦</div>Pending Orders
+              <div className="icon"></div>Pending Orders
             </div>
-            <button className="btn btn-ghost btn-sm" onClick={loadRequests}>↺ Refresh</button>
+            <button className="btn btn-ghost btn-sm" onClick={loadRequests}>Refresh</button>
           </div>
           <div className="alert alert-info" style={{ marginBottom: 18, fontSize: '0.82rem' }}>
-            💡 Requests here have received Final/CEO approval and require order placement.
+            Requests here have received Final/CEO approval and require order placement.
           </div>
           {requests.filter(r => ['APPROVED_PENDING_ORDER', 'EMERGENCY_APPROVED', 'ORDER_PLACED', 'INVENTORY_RECEIVED'].includes(r.STATUS)).length === 0 ? (
             <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-subtle)' }}>
-              <div style={{ fontSize: '3rem', marginBottom: 12 }}>✅</div>No pending orders.
+              <div style={{ fontSize: '3rem', marginBottom: 12 }}></div>No pending orders.
             </div>
           ) : (
             <div className="table-wrap">
@@ -2377,7 +2377,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                         <td style={{ fontWeight: 700 }}>#{r.REQUEST_ID}</td>
                         <td>
                           <div style={{ fontWeight: 700, color: '#166534' }}>
-                            🏆 {r.FINAL_SELECTED_BRAND || r.DTC_SELECTED_BRAND || r.BRAND_NAME}
+                            {r.FINAL_SELECTED_BRAND || r.DTC_SELECTED_BRAND || r.BRAND_NAME}
                           </div>
                           <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{r.GENERIC_NAME}</div>
                         </td>
@@ -2388,20 +2388,20 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                         <td>
                           {invAdded ? (
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#dcfce7', color: '#166534', borderRadius: 20, padding: '3px 10px', fontSize: '0.75rem', fontWeight: 700 }}>
-                              ✅ Added to Inventory
+                              Added to Inventory
                             </span>
                           ) : (
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#f1f5f9', color: '#64748b', borderRadius: 20, padding: '3px 10px', fontSize: '0.75rem', fontWeight: 600 }}>
-                              ⬜ Not Added
+                              Not Added
                             </span>
                           )}
                         </td>
                         <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{new Date(r.CREATED_AT).toLocaleDateString()}</td>
                         <td>
                           <div style={{ display: 'flex', gap: 6 }}>
-                            <button className="btn btn-ghost btn-sm" onClick={() => openView(r)}>👁 View Details</button>
+                            <button className="btn btn-ghost btn-sm" onClick={() => openView(r)}>View Details</button>
                             {(r.STATUS === 'APPROVED_PENDING_ORDER' || r.STATUS === 'EMERGENCY_APPROVED') && (
-                              <button className="btn btn-primary btn-sm" onClick={() => placeOrder(r.REQUEST_ID)}>📦 Place Order</button>
+                              <button className="btn btn-primary btn-sm" onClick={() => placeOrder(r.REQUEST_ID)}>Place Order</button>
                             )}
                           </div>
                         </td>
@@ -2636,7 +2636,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
 
               {/* HEADER */}
               <div className="card-header-modern">
-                <div className="header-icon">💊</div>
+                <div className="header-icon"></div>
 
                 <div>
                   <div className="header-title">
@@ -2651,7 +2651,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
 
               {/* INFO ALERT */}
               <div className="modern-alert">
-                💡 Use this form to directly submit a drug addition request.
+                Use this form to directly submit a drug addition request.
                 This process bypasses the Doctor / HOD / Alternatives workflow
                 and goes directly to Pharmacy Head approval.
               </div>
@@ -2912,7 +2912,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                   >
                     {submittingForm
                       ? 'Submitting Request...'
-                      : '🚀 Submit Direct Drug Request'}
+                      : 'Submit Direct Drug Request'}
                   </button>
                 </div>
 
@@ -2926,11 +2926,11 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
       {view === 'form' && (
         <div className="card">
           <div className="card-title">
-            <div className="icon">📝</div>
+            <div className="icon"></div>
             Pharmacist Direct Drug Request
           </div>
           <div className="alert alert-info" style={{ marginBottom: 18, fontSize: '0.82rem' }}>
-            💡 Use this form to directly submit a drug addition request. This will bypass the Doctor/HOD/Alternatives flow and go straight to Pharmacy Head review.
+            Use this form to directly submit a drug addition request. This will bypass the Doctor/HOD/Alternatives flow and go straight to Pharmacy Head review.
           </div>
           <form onSubmit={handleFormSubmit}>
             <div className="form-grid">
@@ -2994,7 +2994,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
               </div>
               <div className="form-group full-width mt-3">
                 <button type="submit" className="btn btn-primary" disabled={submittingForm} style={{ width: '100%', padding: '12px', fontSize: '1rem', fontWeight: 600 }}>
-                  {submittingForm ? 'Submitting...' : '🚀 Submit Direct Request'}
+                  {submittingForm ? 'Submitting...' : 'Submit Direct Request'}
                 </button>
               </div>
             </div>
@@ -3017,20 +3017,20 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
         <div className="card">
           <div className="card-title" style={{ justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div className="icon">📁</div>
+              <div className="icon"></div>
               My Analysis Drafts
               <span className="badge badge-info">Saved Progress</span>
             </div>
-            <button className="btn btn-ghost btn-sm" onClick={loadDrafts}>↺ Refresh</button>
+            <button className="btn btn-ghost btn-sm" onClick={loadDrafts}>Refresh</button>
           </div>
           <div className="alert alert-info" style={{ marginBottom: 18, fontSize: '0.82rem' }}>
-            💡 Drafts are saved automatically every 60 seconds while editing. Click <strong>Save Draft</strong> at any time to save immediately. Click <strong>Continue</strong> to resume exactly where you left off.
+            Drafts are saved automatically every 60 seconds while editing. Click <strong>Save Draft</strong> at any time to save immediately. Click <strong>Continue</strong> to resume exactly where you left off.
           </div>
           {loadingDrafts ? (
             <div style={{ textAlign: 'center', padding: 60 }}><div className="spinner" /></div>
           ) : drafts.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-subtle)' }}>
-              <div style={{ fontSize: '3rem', marginBottom: 12 }}>📁</div>
+              <div style={{ fontSize: '3rem', marginBottom: 12 }}></div>
               <div style={{ fontWeight: 600, marginBottom: 8 }}>No saved drafts yet</div>
               <div style={{ fontSize: '0.85rem' }}>Start a quotation analysis and click <strong>Save Draft</strong> to save your progress.</div>
             </div>
@@ -3057,7 +3057,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                       <tr key={did}>
                         <td style={{ fontWeight: 600 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontSize: '0.9rem' }}>📝</span>
+                            <span style={{ fontSize: '0.9rem' }}></span>
                             {d.DRAFT_NAME || d.draft_name || `Draft #${did}`}
                           </div>
                         </td>
@@ -3090,14 +3090,14 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                               onClick={() => openDraftAnalysis(d)}
                               style={{ fontWeight: 600 }}
                             >
-                              ▶ Continue
+                              Continue
                             </button>
                             <button
                               className="btn btn-danger btn-sm"
                               onClick={() => deleteDraft(did)}
                               style={{ padding: '4px 10px' }}
                             >
-                              🗑 Delete
+                              Delete
                             </button>
                           </div>
                         </td>
@@ -3121,8 +3121,8 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
             <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-card)', flexShrink: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontWeight: 700, fontSize: '1.05rem' }}>
-                  📋 Request #{viewReq.REQUEST_ID} — {viewReq.BRAND_NAME}
-                  {viewReq.IS_EMERGENCY === 1 && <span className="badge" style={{ marginLeft: 8, background: '#fee2e2', color: '#991b1b' }}>🚨 Emergency</span>}
+                  Request #{viewReq.REQUEST_ID} — {viewReq.BRAND_NAME}
+                  {viewReq.IS_EMERGENCY === 1 && <span className="badge" style={{ marginLeft: 8, background: '#fee2e2', color: '#991b1b' }}>Emergency</span>}
                 </div>
                 <button className="btn btn-ghost btn-sm" onClick={() => setViewReq(null)}>✕</button>
               </div>
@@ -3167,14 +3167,14 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                         marginBottom: 16
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                          <span style={{ fontSize: '1.2rem' }}>🏆</span>
+                          <span style={{ fontSize: '1.2rem' }}></span>
                           <span style={{ fontWeight: 800, fontSize: '1.1rem', color: '#166534' }}>Final DTC Approved Drug</span>
                           <span style={{ fontSize: '0.72rem', background: '#dcfce7', color: '#166534', borderRadius: 20, padding: '2px 10px', fontWeight: 600 }}>
                             {drug.dtc_selected_category || 'Formulary'}
                           </span>
                         </div>
 
-                        <div style={{ fontWeight: 800, fontSize: '1.2rem', color: '#0f172a', marginBottom: 12 }}>💊 {drug.final_brand_name || '—'}</div>
+                        <div style={{ fontWeight: 800, fontSize: '1.2rem', color: '#0f172a', marginBottom: 12 }}>{drug.final_brand_name || '—'}</div>
 
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: '12px 24px', marginBottom: 16 }}>
                           {[
@@ -3253,7 +3253,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                               transition: 'box-shadow 0.2s',
                             }}
                           >
-                            📥 Download Comparison Sheet
+                            Download Comparison Sheet
                           </button>
                         </div>
                       </div>
@@ -3267,7 +3267,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                         marginBottom: 16
                       }}>
                         <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#0f172a', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-                          📦 Order & Stocking Actions
+                          Order & Stocking Actions
                         </div>
                         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
                           {/* Place Order Actions */}
@@ -3283,7 +3283,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                                 boxShadow: '0 2px 8px rgba(37,99,235,0.25)'
                               }}
                             >
-                              📦 Place Order
+                              Place Order
                             </button>
                           ) : (
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#dbeafe', color: '#1e40af', borderRadius: 20, padding: '4px 12px', fontSize: '0.78rem', fontWeight: 700 }}>
@@ -3311,13 +3311,13 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                                     transition: 'all 0.2s',
                                   }}
                                 >
-                                  ✅ Mark as Inventory Received
+                                  Mark as Inventory Received
                                 </button>
                               );
                             })()
                           ) : (
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#dcfce7', color: '#166534', borderRadius: 20, padding: '4px 12px', fontSize: '0.78rem', fontWeight: 700 }}>
-                              🏁 Completed & Stocked
+                              Completed & Stocked
                             </span>
                           )}
                         </div>
@@ -3332,18 +3332,18 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                         marginBottom: 4
                       }}>
                         <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#0f172a', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-                          🏥 Inventory Management
+                          Inventory Management
                           {invSuccess && (
-                            <span style={{ fontSize: '0.72rem', background: '#dcfce7', color: '#166534', borderRadius: 20, padding: '2px 10px', fontWeight: 700 }}>✅ Added to HIS Inventory</span>
+                            <span style={{ fontSize: '0.72rem', background: '#dcfce7', color: '#166534', borderRadius: 20, padding: '2px 10px', fontWeight: 700 }}>Added to HIS Inventory</span>
                           )}
                           {invAlreadyExists && !invSuccess && (
-                            <span style={{ fontSize: '0.72rem', background: '#fef3c7', color: '#92400e', borderRadius: 20, padding: '2px 10px', fontWeight: 700 }}>⚠ Already Exists in Inventory</span>
+                            <span style={{ fontSize: '0.72rem', background: '#fef3c7', color: '#92400e', borderRadius: 20, padding: '2px 10px', fontWeight: 700 }}>Already Exists in Inventory</span>
                           )}
                         </div>
 
                         {invSuccess ? (
                           <div style={{ fontSize: '0.85rem', color: '#166534', display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ fontSize: '1.3rem' }}>✔</span>
+                            <span style={{ fontSize: '1.3rem' }}></span>
                             <div>
                               <div style={{ fontWeight: 700 }}>Already Added to HIS Inventory</div>
                               {viewReq?.INVENTORY_ITEM_NAME && (
@@ -3376,12 +3376,12 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                                 boxShadow: invNewItem ? '0 2px 8px rgba(22,163,74,0.3)' : 'none'
                               }}
                             >
-                              ➕ Add Details to Inventory
+                              Add Details to Inventory
                             </button>
 
                             {invAlreadyExists && (
                               <div style={{ marginTop: 10, padding: '8px 12px', background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: 8, fontSize: '0.82rem', color: '#92400e', fontWeight: 600 }}>
-                                ⚠ {invErr}
+                                {invErr}
                               </div>
                             )}
                           </>
@@ -3402,7 +3402,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                             {/* Modal Header */}
                             <div style={{ background: 'linear-gradient(135deg,#1e3a5f,#0ea5e9)', padding: '18px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                               <div>
-                                <div style={{ color: '#fff', fontWeight: 800, fontSize: '1.05rem' }}>🏥 Add New Drug to HIS Inventory</div>
+                                <div style={{ color: '#fff', fontWeight: 800, fontSize: '1.05rem' }}>Add New Drug to HIS Inventory</div>
                                 <div style={{ color: '#bae6fd', fontSize: '0.78rem', marginTop: 3 }}>Prefilled from Final DTC Recommendation — Edit before saving</div>
                               </div>
                               <button onClick={() => setInvModalOpen(false)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: 8, width: 32, height: 32, cursor: 'pointer', fontSize: '1rem', fontWeight: 700 }}>✕</button>
@@ -3440,12 +3440,12 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
 
                               {invErr && !invAlreadyExists && (
                                 <div style={{ padding: '8px 12px', background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: 8, fontSize: '0.82rem', color: '#991b1b', fontWeight: 600 }}>
-                                  ❌ {invErr}
+                                  {invErr}
                                 </div>
                               )}
                               {invAlreadyExists && (
                                 <div style={{ padding: '8px 12px', background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: 8, fontSize: '0.82rem', color: '#92400e', fontWeight: 600 }}>
-                                  ⚠ {invErr}
+                                  {invErr}
                                 </div>
                               )}
                             </div>
@@ -3463,7 +3463,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                                   boxShadow: '0 2px 8px rgba(22,163,74,0.3)'
                                 }}
                               >
-                                {invSubmitting ? '⏳ Saving…' : '💾 Save to Inventory'}
+                                {invSubmitting ? 'Saving…' : 'Save to Inventory'}
                               </button>
                             </div>
                           </div>
@@ -3502,7 +3502,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                     </table>
                     {existingAlts.length > 0 && (
                       <div>
-                        <div style={{ fontWeight: 700, marginBottom: 12, color: 'var(--text)' }}>📊 Previously Submitted Alternatives</div>
+                        <div style={{ fontWeight: 700, marginBottom: 12, color: 'var(--text)' }}>Previously Submitted Alternatives</div>
                         <AlternativesTable alts={existingAlts} />
                       </div>
                     )}
@@ -3529,7 +3529,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: '1.05rem' }}>
-                    {isCorrectionMode ? '🔁 Correction Mode — ' : '📋 Submit Quotation Analysis — '}#{analysisReq.REQUEST_ID}
+                    {isCorrectionMode ? 'Correction Mode — ' : 'Submit Quotation Analysis — '}#{analysisReq.REQUEST_ID}
                   </div>
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 3 }}>
                     <span style={{ background: 'var(--info-light)', color: 'var(--info)', borderRadius: 4, padding: '1px 8px', fontWeight: 600 }}>
@@ -3548,7 +3548,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                   borderLeft: '4px solid #d97706', borderRadius: 8,
                 }}>
                   <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
-                    ↩ Pharmacy Head Revert Reason:
+                    Pharmacy Head Revert Reason:
                   </div>
                   <div style={{ fontSize: '0.83rem', color: '#78350f', whiteSpace: 'pre-line', lineHeight: 1.6 }}>
                     {analysisReq.REVERT_REMARKS}
@@ -3562,12 +3562,12 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
 
               {/* Comparison Type */}
               <div className="card" style={{ marginBottom: 20, padding: 16 }}>
-                <div style={{ fontWeight: 600, marginBottom: 10, fontSize: '0.9rem' }}>📂 Comparison Sheet Type</div>
+                <div style={{ fontWeight: 600, marginBottom: 10, fontSize: '0.9rem' }}>Comparison Sheet Type</div>
                 <div className="toggle-group">
                   <button className={`toggle-btn ${compType === 'new_generic' ? 'active' : ''}`}
-                    onClick={() => setCompType('new_generic')}>📄 New Generic</button>
+                    onClick={() => setCompType('new_generic')}>New Generic</button>
                   <button className={`toggle-btn ${compType === 'existing_generic' ? 'active' : ''}`}
-                    onClick={() => setCompType('existing_generic')}>📁 Existing Generic</button>
+                    onClick={() => setCompType('existing_generic')}>Existing Generic</button>
                 </div>
                 <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 8 }}>
                   {compType === 'new_generic'
@@ -3581,7 +3581,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                 <div className="card" style={{ marginBottom: 20, padding: 0, border: '2px solid #0ea5e9', borderRadius: 12, overflow: 'hidden' }}>
                   {/* Header */}
                   <div style={{ background: 'linear-gradient(90deg,#0ea5e9,#6366f1)', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: '1.1rem' }}>📋</span>
+                    <span style={{ fontSize: '1.1rem' }}></span>
                     <div>
                       <div style={{ fontWeight: 700, color: '#fff', fontSize: '0.95rem' }}>Existing Generic Drug — Reference Details</div>
                       <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.8)', marginTop: 2 }}>Enter existing formulary drug details once. These will be used as the comparison baseline for all alternatives below.</div>
@@ -3710,7 +3710,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
               <div style={{ marginBottom: 16 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                   <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>
-                    💊 Drug Alternatives
+                    Drug Alternatives
                     <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 400, marginLeft: 8 }}>
                       ({alternatives.length} added, minimum 3 required)
                     </span>
@@ -3858,7 +3858,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                 borderTop: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: 8,
                 fontSize: '0.8rem', color: '#15803d', flexShrink: 0,
               }}>
-                <span>✅</span>
+                <span></span>
                 <strong>Draft Saved</strong>
                 {lastSavedTime && <span style={{ color: '#64748b' }}>— {lastSavedTime}</span>}
                 <span style={{ color: '#94a3b8', marginLeft: 4 }}>{draftName || 'Auto-named'}</span>
@@ -3869,7 +3869,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
             <div style={{ padding: '14px 24px', borderTop: '1px solid var(--border)', background: 'var(--bg-card)', flexShrink: 0 }}>
               {/* Draft name row */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>📝 Draft Name:</span>
+                <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Draft Name:</span>
                 <input
                   className="form-input"
                   style={{ flex: 1, fontSize: '0.82rem', padding: '5px 10px', height: 32 }}
@@ -3889,7 +3889,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                     transition: 'all 0.15s',
                   }}
                 >
-                  {savingDraft ? '⏳ Saving…' : '💾 Save Draft'}
+                  {savingDraft ? 'Saving…' : 'Save Draft'}
                 </button>
               </div>
               {/* Action row */}
@@ -3905,7 +3905,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                     disabled={submitting}
                     style={{ background: 'linear-gradient(135deg,#1e3a5f,#0ea5e9)', border: 'none' }}
                   >
-                    📊 View Comparison Sheet
+                    View Comparison Sheet
                   </button>
                 </div>
               </div>
@@ -4099,7 +4099,7 @@ export function AlternativesTable({ alts }) {
                   }}>
                     {isDoc && (
                       <div style={{ fontSize: '0.65rem', fontWeight: 700, background: '#bbf7d0', color: '#14532d', borderRadius: 4, padding: '1px 6px', marginBottom: 4, display: 'inline-block', letterSpacing: '0.04em' }}>
-                        ★ DOCTOR RECOMMENDED
+                        DOCTOR RECOMMENDED
                       </div>
                     )}
                     <div>{g(a, 'BRAND_NAME', 'brand_name') || `Alt ${ci + 1}`}</div>
@@ -4178,7 +4178,7 @@ export function AlternativesTable({ alts }) {
               minWidth: 150,
             }}>
               <div style={{ fontWeight: 700, fontSize: '0.82rem', color: isDoc ? '#14532d' : '#334155', marginBottom: 4 }}>
-                {isDoc ? '★ ' : ''}{g(a, 'BRAND_NAME', 'brand_name') || `Alt ${ci + 1}`}
+                {isDoc ? '' : ''}{g(a, 'BRAND_NAME', 'brand_name') || `Alt ${ci + 1}`}
               </div>
               <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
                 MRP: <strong>₹{mr ?? '—'}</strong> · Net: <strong>₹{nr ?? '—'}</strong> · Margin: <strong>{pm ? `${pm}%` : '—'}</strong>

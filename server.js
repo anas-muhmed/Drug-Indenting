@@ -2935,6 +2935,22 @@ app.get('/api/audit/:requestId', async (req, res) => {
 });
 
 
+// ─── Shared helper ──────────────────────────────────────────────────────────
+// normalizeGenericCombo(str) → string[]
+// Splits a generic combination string on +, comma, &, /, or the word "and"
+// (with surrounding whitespace, to avoid splitting mid-word like "andrographis").
+// Each token is trimmed, lowercased, and empty tokens are discarded.
+// The returned array is sorted alphabetically so that
+// "Aspirin + Clopidogrel" and "Clopidogrel + Aspirin" produce the same tokens.
+function normalizeGenericCombo(str) {
+  return str
+    .split(/\+|,|&|\/|\s+and\s+/i)   // split on delimiters
+    .map(t => t.trim().toLowerCase()) // normalise case & whitespace
+    .filter(Boolean)                  // drop empty tokens
+    .sort();                          // order-independent matching
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 //generic search 
 // =============================================================
 // POST /api/drugs/search
@@ -2952,6 +2968,12 @@ app.post('/api/getGeneric', async (req, res) => {
     }
 
     console.log('Searching Generic:', search);
+
+    // Tokenise the search string for order-independent matching.
+    // Single-word queries produce one token → behaviour identical to the old single LIKE.
+    const tokens = normalizeGenericCombo(search);
+    // Build bind object: { tok0: 'aspirin', tok1: 'clopidogrel', ... }
+    const tokenBinds = Object.fromEntries(tokens.map((t, i) => [`tok${i}`, t]));
 
     const result = await conn.execute(
       `
@@ -3012,15 +3034,16 @@ app.post('/api/getGeneric', async (req, res) => {
       LEFT JOIN MANUFACTURER mf
           ON mf.ID = i.MANUFACTURER_ID
 
-      WHERE LOWER(dg.DRUG_GEN_NAME) LIKE '%' || LOWER(:search) || '%'
+      WHERE
+          -- One LIKE clause per token; ALL must appear in DRUG_GEN_NAME (AND-joined)
+          -- This makes "Aspirin + Clopidogrel" and "Clopidogrel + Aspirin" equivalent.
+          ${tokens.map((_, i) => `LOWER(dg.DRUG_GEN_NAME) LIKE '%' || :tok${i} || '%'`).join('\n          AND ')}
 
       ORDER BY
           dg.DRUG_GEN_NAME,
           i.CREATEDDATETIME DESC
       `,
-      {
-        search
-      }
+      tokenBinds
     );
 
     res.json({
@@ -5127,35 +5150,68 @@ app.get('/api/alternatives/:requestId/selected', async (req, res) => {
               notes: rec.notes,
               remarks: rec.remarks || ''
             });
-          } else if (rec.alternative_id) {
-            const altResult = await conn.execute(
-              `SELECT da.brand_name AS final_brand_name,
-                      da.manufacturer AS final_manufacturer,
-                      da.marketer AS final_marketer,
-                      da.mrp AS final_mrp,
-                      da.rate AS final_rate,
-                      da.net_rate AS final_net_rate,
-                      da.profit_margin AS final_profit_margin,
-                      da.absolute_margin AS final_absolute_margin,
-                      da.scheme_qty AS final_scheme_qty,
-                      da.scheme_offer AS final_scheme_offer,
-                      da.pack AS final_pack,
-                      da.remark,
-                      dn.negotiated_mrp, dn.negotiated_rate, dn.negotiated_gst,
-                      dn.negotiated_scheme_qty, dn.negotiated_scheme_offer, dn.negotiated_net_rate,
-                      dn.negotiated_profit_margin, dn.negotiated_absolute_margin, dn.negotiated_total_margin,
-                      dn.negotiation_remarks
-               FROM drug_alternatives da
-               LEFT JOIN drug_alternative_negotiations dn ON dn.alternative_id = da.alt_id
-               WHERE da.alt_id = :altId AND da.request_id = :requestId`,
-              { altId: rec.alternative_id, requestId }
-            );
-            if (altResult.rows.length) {
-              const alt = altResult.rows[0];
+          } else {
+            // Try lookup by alternative_id first, fall back to brand_name if id is missing (legacy)
+            let altLookupResult = null;
+            if (rec.alternative_id) {
+              altLookupResult = await conn.execute(
+                `SELECT da.alt_id AS final_alt_id,
+                        da.brand_name AS final_brand_name,
+                        da.manufacturer AS final_manufacturer,
+                        da.marketer AS final_marketer,
+                        da.mrp AS final_mrp,
+                        da.rate AS final_rate,
+                        da.net_rate AS final_net_rate,
+                        da.profit_margin AS final_profit_margin,
+                        da.absolute_margin AS final_absolute_margin,
+                        da.scheme_qty AS final_scheme_qty,
+                        da.scheme_offer AS final_scheme_offer,
+                        da.pack AS final_pack,
+                        da.remark,
+                        dn.negotiated_mrp, dn.negotiated_rate, dn.negotiated_gst,
+                        dn.negotiated_scheme_qty, dn.negotiated_scheme_offer, dn.negotiated_net_rate,
+                        dn.negotiated_profit_margin, dn.negotiated_absolute_margin, dn.negotiated_total_margin,
+                        dn.negotiation_remarks
+                 FROM drug_alternatives da
+                 LEFT JOIN drug_alternative_negotiations dn ON dn.alternative_id = da.alt_id
+                 WHERE da.alt_id = :altId AND da.request_id = :requestId`,
+                { altId: rec.alternative_id, requestId }
+              );
+            }
+            // Brand-name fallback for legacy records (alternative_id was null)
+            if ((!altLookupResult || !altLookupResult.rows.length) && rec.brand_name) {
+              altLookupResult = await conn.execute(
+                `SELECT da.alt_id AS final_alt_id,
+                        da.brand_name AS final_brand_name,
+                        da.manufacturer AS final_manufacturer,
+                        da.marketer AS final_marketer,
+                        da.mrp AS final_mrp,
+                        da.rate AS final_rate,
+                        da.net_rate AS final_net_rate,
+                        da.profit_margin AS final_profit_margin,
+                        da.absolute_margin AS final_absolute_margin,
+                        da.scheme_qty AS final_scheme_qty,
+                        da.scheme_offer AS final_scheme_offer,
+                        da.pack AS final_pack,
+                        da.remark,
+                        dn.negotiated_mrp, dn.negotiated_rate, dn.negotiated_gst,
+                        dn.negotiated_scheme_qty, dn.negotiated_scheme_offer, dn.negotiated_net_rate,
+                        dn.negotiated_profit_margin, dn.negotiated_absolute_margin, dn.negotiated_total_margin,
+                        dn.negotiation_remarks
+                 FROM drug_alternatives da
+                 LEFT JOIN drug_alternative_negotiations dn ON dn.alternative_id = da.alt_id
+                 WHERE LOWER(da.brand_name) = LOWER(:brandName) AND da.request_id = :requestId
+                 ORDER BY da.alt_id ASC
+                 FETCH FIRST 1 ROWS ONLY`,
+                { brandName: rec.brand_name, requestId }
+              );
+            }
+            if (altLookupResult && altLookupResult.rows.length) {
+              const alt = altLookupResult.rows[0];
               list.push({
                 type: 'alternative',
-                alternative_id: rec.alternative_id,
-                brand_name: rec.brand_name,
+                alternative_id: rec.alternative_id || alt.FINAL_ALT_ID,
+                brand_name: rec.brand_name || alt.FINAL_BRAND_NAME,
                 manufacturer: alt.FINAL_MANUFACTURER || rec.manufacturer,
                 marketer: alt.FINAL_MARKETER || rec.marketer,
                 mrp: alt.NEGOTIATED_MRP ?? alt.FINAL_MRP,
@@ -5171,7 +5227,7 @@ app.get('/api/alternatives/:requestId/selected', async (req, res) => {
                 reasons: rec.reasons,
                 notes: rec.notes,
                 remarks: rec.remarks || '',
-                // Add these negotiated fields so they are carried over in the object
+                // Negotiated fields for downstream use
                 negotiated_mrp: alt.NEGOTIATED_MRP,
                 negotiated_rate: alt.NEGOTIATED_RATE,
                 negotiated_gst: alt.NEGOTIATED_GST,
@@ -5186,6 +5242,7 @@ app.get('/api/alternatives/:requestId/selected', async (req, res) => {
         console.error('JSON parse error on dtc_final_recommendations:', jsonErr);
       }
     }
+
 
     // Fallback for legacy requests
     if (list.length === 0) {
@@ -5520,12 +5577,50 @@ app.post('/api/dtc/final-select/:requestId', async (req, res) => {
               { remark: String(altRemark), altId, requestId }
             );
           }
-          // Update negotiation_remarks on drug_alternative_negotiations
+          // Update negotiation_remarks on drug_alternative_negotiations (Insert if not exists)
           if (altNegRemark !== null && altNegRemark !== undefined) {
-            await conn.execute(
-              `UPDATE drug_alternative_negotiations SET negotiation_remarks = :negRemark WHERE alternative_id = :altId`,
-              { negRemark: String(altNegRemark), altId }
+            const checkNeg = await conn.execute(
+              `SELECT COUNT(*) AS cnt FROM drug_alternative_negotiations WHERE alternative_id = :altId`,
+              { altId }
             );
+            if (checkNeg.rows[0].CNT > 0) {
+              await conn.execute(
+                `UPDATE drug_alternative_negotiations SET negotiation_remarks = :negRemark WHERE alternative_id = :altId`,
+                { negRemark: String(altNegRemark), altId }
+              );
+            } else {
+              // Fetch the original alternative row to copy default values for required columns
+              const altRow = await conn.execute(
+                `SELECT * FROM drug_alternatives WHERE alt_id = :altId`,
+                { altId }
+              );
+              const originalAlt = altRow.rows[0] || {};
+              await conn.execute(
+                `INSERT INTO drug_alternative_negotiations (
+                   alternative_id, negotiated_mrp, negotiated_rate, negotiated_gst,
+                   negotiated_scheme_qty, negotiated_scheme_offer, negotiated_net_rate,
+                   negotiated_profit_margin, negotiated_absolute_margin, negotiated_total_margin,
+                   negotiated_by, negotiated_at, negotiation_remarks
+                 ) VALUES (
+                   :altId, :mrp, :rate, :gst, :qty, :offer, :net_rate, :profit, :abs_margin, :total_margin,
+                   :by, CURRENT_TIMESTAMP, :negRemark
+                 )`,
+                {
+                  altId,
+                  mrp: originalAlt.MRP_PER_PACK ?? originalAlt.mrp_per_pack ?? null,
+                  rate: originalAlt.RATE_PER_PACK ?? originalAlt.rate_per_pack ?? null,
+                  gst: originalAlt.GST_PERCENT ?? originalAlt.gst_percent ?? null,
+                  qty: originalAlt.SCHEME_QTY ?? originalAlt.scheme_qty ?? null,
+                  offer: originalAlt.SCHEME_OFFER ?? originalAlt.scheme_offer ?? null,
+                  net_rate: originalAlt.NET_RATE ?? originalAlt.net_rate ?? null,
+                  profit: originalAlt.PROFIT_MARGIN ?? originalAlt.profit_margin ?? null,
+                  abs_margin: originalAlt.ABSOLUTE_MARGIN ?? originalAlt.absolute_margin ?? null,
+                  total_margin: originalAlt.TOTAL_MARGIN ?? originalAlt.total_margin ?? null,
+                  by: performed_by,
+                  negRemark: String(altNegRemark)
+                }
+              );
+            }
           }
         }
       }
@@ -6366,20 +6461,66 @@ app.post('/api/reports/item-margin-report', async (req, res) => {
   const conn = await getConn();
 
   try {
-    const { fromDate, toDate, genericId } = req.body;
+    const { fromDate, toDate, genericId, genericName } = req.body;
 
-    if (!fromDate || !toDate || genericId === undefined || genericId === null) {
+    if (!fromDate || !toDate) {
       return res.status(400).json({
-        error: 'fromDate, toDate, and genericId are required.'
+        error: 'fromDate and toDate are required.'
       });
     }
 
-    const genIdNum = parseInt(genericId, 10);
-    if (isNaN(genIdNum)) {
+    // ── Resolve genericId(s) ────────────────────────────────────────────────
+    // Caller may supply either a numeric genericId (existing behaviour)
+    // or a combo string genericName (e.g. "Aspirin + Clopidogrel").
+    // Both paths produce resolvedIds — an array of numeric DRUG_GEN_IDs.
+    let resolvedIds;
+
+    if (genericId !== undefined && genericId !== null) {
+      // ── Path A: numeric genericId (backward-compatible) ──────────────────
+      const genIdNum = parseInt(genericId, 10);
+      if (isNaN(genIdNum)) {
+        return res.status(400).json({ error: 'genericId must be a valid number.' });
+      }
+      resolvedIds = [genIdNum];
+
+    } else if (genericName) {
+      // ── Path B: combo name string → resolve to DRUG_GEN_ID(s) ───────────
+      // Tokenise so "Aspirin + Clopidogrel" and "Clopidogrel + Aspirin"
+      // resolve identically (each token must appear in DRUG_GEN_NAME).
+      const tokens = normalizeGenericCombo(String(genericName));
+      if (tokens.length === 0) {
+        return res.status(400).json({ error: 'genericName is empty after normalisation.' });
+      }
+
+      // Build AND-of-LIKE bind params: { gnTok0: 'aspirin', gnTok1: 'clopidogrel', ... }
+      const gnBinds = Object.fromEntries(tokens.map((t, i) => [`gnTok${i}`, t]));
+      const gnWhere = tokens
+        .map((_, i) => `LOWER(dg.DRUG_GEN_NAME) LIKE '%' || :gnTok${i} || '%'`)
+        .join(' AND ');
+
+      const gnResult = await conn.execute(
+        `SELECT dg.DRUG_GEN_ID FROM DRUGGENERICS dg WHERE ${gnWhere}`,
+        gnBinds
+      );
+
+      if (!gnResult.rows || gnResult.rows.length === 0) {
+        return res.status(404).json({ error: `No generic found matching '${genericName}'.` });
+      }
+
+      // Collect all matching IDs (there may be more than one row)
+      resolvedIds = gnResult.rows.map(r => r.DRUG_GEN_ID);
+
+    } else {
       return res.status(400).json({
-        error: 'genericId must be a valid number.'
+        error: 'Either genericId or genericName is required.'
       });
     }
+    // ────────────────────────────────────────────────────────────────────────
+
+    // Build IN-clause bind params: { gid0: 1, gid1: 2, ... }
+    // Named params avoid string-concatenation of user-supplied values into SQL.
+    const idBinds = Object.fromEntries(resolvedIds.map((id, i) => [`gid${i}`, id]));
+    const inClause = resolvedIds.map((_, i) => `:gid${i}`).join(', ');
 
     const query = `
       WITH latest_purchase_rate AS (
@@ -6491,7 +6632,7 @@ END AS status,
             ON lpr.item = i.id
         WHERE i.itemtypenum = 1
           AND i.isactive = 1
-          AND dg.drug_gen_id = :genericId
+          AND dg.drug_gen_id IN (${inClause})
       )
       SELECT
           sno,
@@ -6568,7 +6709,7 @@ END AS status,
     const result = await conn.execute(query, {
       fromDate,
       toDate,
-      genericId: genIdNum
+      ...idBinds   // gid0, gid1, … — one named bind per resolved ID
     });
 
     const data = result.rows.map(r => ({

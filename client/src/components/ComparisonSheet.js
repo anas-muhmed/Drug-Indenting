@@ -199,6 +199,7 @@ function renderStatusBadge(status) {
 const COLS_NEW = [
   { id: 'introduced_on', label: 'Introduced On', existingKey: 'existing_introduced_on', w: 100 },
   { id: 'brand_name', label: 'Brand Name', existingKey: 'existing_brand_name', w: 190 },
+  { id: 'status', label: 'Status', existingKey: null, w: 100, isPlaceholder: true },
   { id: 'manufacturer', label: 'Mfr.', existingKey: 'existing_manufacturer', w: 160 },
   { id: 'marketer', label: 'Mktr.', existingKey: 'existing_marketer', w: 160 },
   { id: 'consultant', label: 'Consultant', existingKey: null, w: 130 },
@@ -673,6 +674,7 @@ export default function ComparisonSheet({
 
   // pharmacist mode
   onSubmit,
+  onSaveDraft,
   submitting = false,
 
   // pharmacy_head mode
@@ -1041,8 +1043,8 @@ export default function ComparisonSheet({
   }, [reportRows, dosageFilter, dosageFormFilter, statusFilter]);
 
   const handleSearchReport = async () => {
-    if (!selectedGeneric) {
-      alert('Please select a generic drug from the autocomplete dropdown list.');
+    if (!searchQuery.trim()) {
+      alert('Please enter a generic drug.');
       return;
     }
     setLoadingReport(true);
@@ -1052,11 +1054,19 @@ export default function ComparisonSheet({
     try {
       const formattedFrom = fromDate.split('-').reverse().join('/') + ' 00:00:00';
       const formattedTo = toDate.split('-').reverse().join('/') + ' 23:59:59';
-      const res = await axios.post('/api/reports/item-margin-report', {
+      
+      const payload = {
         fromDate: formattedFrom,
-        toDate: formattedTo,
-        genericId: selectedGeneric.drug_gen_id
-      });
+        toDate: formattedTo
+      };
+
+      if (selectedGeneric?.drug_gen_id) {
+        payload.genericId = selectedGeneric.drug_gen_id;
+      } else {
+        payload.genericName = searchQuery.trim();
+      }
+
+      const res = await axios.post('/api/reports/item-margin-report', payload);
       setReportRows(res.data || []);
     } catch (err) {
       console.error('Error fetching item margin report:', err);
@@ -1273,12 +1283,46 @@ export default function ComparisonSheet({
   const lastPropRef = React.useRef(null);
   const prevExistingKeyRef = React.useRef('');
 
+  const [savingDraft, setSavingDraft] = React.useState(false);
+  const [draftAlert, setDraftAlert] = React.useState(null);
+
   React.useEffect(() => {
-    const key = JSON.stringify({ propExistingDetails, existingGenericData });
+    if (draftAlert) {
+      const timer = setTimeout(() => setDraftAlert(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [draftAlert]);
+
+  const handleSaveDraft = async () => {
+    if (!onSaveDraft) return;
+    setSavingDraft(true);
+    try {
+      const res = await onSaveDraft(existingDetails);
+      if (res && res.success) {
+        setDraftAlert({ type: 'success', msg: 'Draft saved successfully.' });
+      } else {
+        setDraftAlert({ type: 'error', msg: res?.error || 'Failed to save draft. Please try again.' });
+      }
+    } catch (err) {
+      setDraftAlert({ type: 'error', msg: 'Failed to save draft. Please try again.' });
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
+  React.useEffect(() => {
+    const key = JSON.stringify({ propExistingDetails, existingGenericData, effectiveDrugEntries });
     if (prevExistingKeyRef.current !== key) {
       prevExistingKeyRef.current = key;
       let target = [];
-      if (propExistingDetails && propExistingDetails.length > 0) {
+
+      const hasPropDetails = propExistingDetails && propExistingDetails.length > 0 && 
+        !(propExistingDetails.length === 1 && Object.values(propExistingDetails[0]).every(v => v === '' || v === null || v === undefined));
+
+      const hasEffectiveEntries = effectiveDrugEntries && effectiveDrugEntries.length > 0 &&
+        !(effectiveDrugEntries.length === 1 && Object.values(effectiveDrugEntries[0]).every(v => v === '' || v === null || v === undefined));
+
+      if (hasPropDetails) {
         lastPropRef.current = propExistingDetails;
         target = propExistingDetails.map(row => ({
           introduced_on: row.INTRODUCED_ON ?? row.introduced_on ?? '',
@@ -1300,7 +1344,30 @@ export default function ComparisonSheet({
           profit_margin: row.PROFIT_MARGIN ?? row.profit_margin ?? '',
           absolute_margin: row.ABSOLUTE_MARGIN ?? row.absolute_margin ?? '',
           total_margin: row.TOTAL_MARGIN ?? row.total_margin ?? '',
-          remark: row.REMARK ?? row.remark ?? '',
+          remark: row.REMARK ?? row.remark ?? row.remarks ?? row.remarksJson ?? '',
+        }));
+      } else if (hasEffectiveEntries) {
+        target = effectiveDrugEntries.map(row => ({
+          introduced_on: row.introduced_on ?? row.INTRODUCED_ON ?? '',
+          brand_name: row.brand_name || row.BRAND_NAME || row.drug_name || '',
+          status: row.status ?? row.STATUS ?? '',
+          manufacturer: row.manufacturer ?? row.MANUFACTURER ?? '',
+          marketer: row.marketer ?? row.MARKETER ?? '',
+          consultant: row.consultant ?? row.CONSULTANT ?? '',
+          present_stock: row.present_stock ?? row.PRESENT_STOCK ?? '',
+          purchase_qty: row.purchase_qty ?? row.PURCHASE_QTY ?? row.purchase_quantity ?? row.PURCHASE_QUANTITY ?? '',
+          sale_qty: row.sale_qty ?? row.SALE_QTY ?? '',
+          pack: row.pack ?? row.PACK ?? '',
+          mrp_inc_gst_nos: row.mrp_inc_gst_nos ?? row.MRP_INC_GST_NOS ?? row.mrp_incl_gst ?? '',
+          rate_inc_gst_nos: row.rate_inc_gst_nos ?? row.RATE_INC_GST_NOS ?? row.rate_incl_gst ?? '',
+          markup_margin: row.markup_margin ?? row.MARKUP_MARGIN ?? row.total_margin_markup ?? '',
+          scheme_qty: row.scheme_qty ?? row.SCHEME_QTY ?? '',
+          scheme_offer: row.scheme_offer ?? row.SCHEME_OFFER ?? row.offer_qty ?? row.OFFER_QTY ?? '',
+          net_rate: row.net_rate ?? row.NET_RATE ?? '',
+          profit_margin: row.profit_margin ?? row.PROFIT_MARGIN ?? '',
+          absolute_margin: row.absolute_margin ?? row.ABSOLUTE_MARGIN ?? '',
+          total_margin: row.total_margin ?? row.TOTAL_MARGIN ?? row.total_margin_markup ?? '',
+          remark: row.remark ?? row.REMARK ?? row.remarks ?? row.remarksJson ?? '',
         }));
       } else if (existingGenericData && Object.keys(existingGenericData).length > 0 && existingGenericData.existing_brand_name) {
         target = [{
@@ -1331,10 +1398,15 @@ export default function ComparisonSheet({
 
       setExistingDetails(prev => {
         if (JSON.stringify(prev) === JSON.stringify(target)) return prev;
+        if (onExistingDetailsChange) {
+          setTimeout(() => {
+            onExistingDetailsChange(target);
+          }, 0);
+        }
         return target;
       });
     }
-  }, [propExistingDetails, existingGenericData]);
+  }, [propExistingDetails, existingGenericData, effectiveDrugEntries]);
 
   const updateExistingRow = (idx, field, val) => {
     const updated = existingDetails.map((row, i) => {
@@ -1533,8 +1605,8 @@ export default function ComparisonSheet({
         scheme_offer: a.negotiated_scheme_offer ?? a.offer ?? '',
         net_rate: a.negotiated_net_rate ?? a.net_rate ?? '',
         profit_margin: a.negotiated_profit_margin ?? a.profit_margin ?? '',
-        absolute_margin: a.negotiated_absolute_margin ?? a.margin ?? '',
-        total_margin: a.negotiated_total_margin ?? a.markupmargin ?? '',
+        absolute_margin: a.negotiated_absolute_margin ?? a.abs_margin ?? '',
+        total_margin: a.negotiated_total_margin ?? a.margin ?? '',
         remarks: originalRemarkNeg || originalRemarkNew || ''
       });
     }
@@ -1557,8 +1629,8 @@ export default function ComparisonSheet({
           scheme_offer: a.negotiated_scheme_offer ?? a.offer ?? '',
           net_rate: a.negotiated_net_rate ?? a.net_rate ?? '',
           profit_margin: a.negotiated_profit_margin ?? a.profit_margin ?? '',
-          absolute_margin: a.negotiated_absolute_margin ?? a.margin ?? '',
-          total_margin: a.negotiated_total_margin ?? a.markupmargin ?? '',
+          absolute_margin: a.negotiated_absolute_margin ?? a.abs_margin ?? '',
+          total_margin: a.negotiated_total_margin ?? a.margin ?? '',
           remarks: remarkNeg || remarkNew || ''
         });
       }
@@ -1575,6 +1647,28 @@ export default function ComparisonSheet({
       position: 'fixed', inset: 0, zIndex: 9999,
       background: '#e5e7eb', display: 'flex', flexDirection: 'column',
     }}>
+      {draftAlert && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 10000,
+          padding: '12px 24px',
+          borderRadius: '8px',
+          background: draftAlert.type === 'success' ? '#d1fae5' : '#fee2e2',
+          color: draftAlert.type === 'success' ? '#065f46' : '#991b1b',
+          border: `1.5px solid ${draftAlert.type === 'success' ? '#34d399' : '#f87171'}`,
+          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)',
+          fontWeight: 600,
+          fontSize: '0.85rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+        }}>
+          {draftAlert.type === 'success' ? '✅' : '❌'} {draftAlert.msg}
+        </div>
+      )}
 
       {/* ── Top action bar ── */}
       <div style={{
@@ -1716,15 +1810,28 @@ export default function ComparisonSheet({
             </button>
           )}
 
-          {/* Pharmacist: single submit */}
-          {mode === 'pharmacist' && onSubmit && (
-            <button onClick={() => onSubmit && onSubmit(existingDetails)} disabled={submitting} style={{
-              background: submitting ? '#4b5563' : '#10b981',
-              border: 'none', color: '#fff', padding: '8px 22px', borderRadius: 8,
-              cursor: submitting ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '0.85rem',
-            }}>
-              {submitting ? '⏳ Submitting…' : (isCorrectionMode ? '✅ Re-Submit Corrections to Pharmacy Head' : '✅ Submit & Forward to Pharmacy Head')}
-            </button>
+          {/* Pharmacist: Save Draft & single submit */}
+          {mode === 'pharmacist' && (
+            <>
+              {onSaveDraft && (
+                <button onClick={handleSaveDraft} disabled={savingDraft || submitting} style={{
+                  background: savingDraft ? '#4b5563' : '#0ea5e9',
+                  border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8,
+                  cursor: (savingDraft || submitting) ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '0.85rem',
+                }}>
+                  {savingDraft ? '⏳ Saving Draft…' : '💾 Save Draft'}
+                </button>
+              )}
+              {onSubmit && (
+                <button onClick={() => onSubmit && onSubmit(existingDetails)} disabled={savingDraft || submitting} style={{
+                  background: (savingDraft || submitting) ? '#4b5563' : '#10b981',
+                  border: 'none', color: '#fff', padding: '8px 22px', borderRadius: 8,
+                  cursor: (savingDraft || submitting) ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '0.85rem',
+                }}>
+                  {submitting ? '⏳ Submitting…' : (isCorrectionMode ? '✅ Re-Submit Corrections to Pharmacy Head' : '✅ Submit & Forward to Pharmacy Head')}
+                </button>
+              )}
+            </>
           )}
 
           {/* PharmacyHead: Save + Forward to DTC */}
@@ -1755,6 +1862,33 @@ export default function ComparisonSheet({
           {mode === 'dtc' && onDtcFinalize && (
             <button
               onClick={() => {
+                // Validation checks
+                if (isExisting && existingDetails && existingDetails.length > 0) {
+                  const hasInvalidExisting = existingDetails.some(
+                    row => !['Continue', 'Stop'].includes(row.remark ?? row.REMARK)
+                  );
+                  if (hasInvalidExisting) {
+                    alert('Validation Failed: Every row in EXISTING DETAILS must have a remark selected ("Continue" or "Stop") before forwarding.');
+                    return;
+                  }
+                }
+
+                const hasInvalidNew = alternatives.some(
+                  alt => !['Recommended', 'Not Recommended'].includes(alt.remark ?? alt.REMARK)
+                );
+                if (hasInvalidNew) {
+                  alert('Validation Failed: Every row in NEW QUOTATION DETAILS must have a remark selected ("Recommended" or "Not Recommended") before forwarding.');
+                  return;
+                }
+
+                const hasInvalidNeg = alternatives.some(
+                  alt => !['Recommended', 'Not Recommended'].includes(alt.negotiation_remarks ?? alt.NEGOTIATION_REMARKS)
+                );
+                if (hasInvalidNeg) {
+                  alert('Validation Failed: Every row in AFTER NEGOTIATION must have a remark selected ("Recommended" or "Not Recommended") before forwarding.');
+                  return;
+                }
+
                 const autoRecs = buildAutoRecommendations();
                 onDtcFinalize({
                   recommendations: autoRecs,
@@ -2319,7 +2453,7 @@ export default function ComparisonSheet({
                   {isExisting && (
                     <>
                       <tr>
-                        <td colSpan={20} style={SECTION_HDR}>EXISTING DETAILS</td>
+                        <td colSpan={21} style={SECTION_HDR}>EXISTING DETAILS</td>
                       </tr>
                       {renderSectionHeaders(COLS_EXISTING, columnWidths, handleMouseDown, handleDoubleClick, false)}
                       {existingDetails.map((row, idx) => (
@@ -2365,7 +2499,7 @@ export default function ComparisonSheet({
                       ))}
                       {mode === 'pharmacist' && (
                         <tr>
-                          <td colSpan={20} style={{ padding: '6px 10px', borderTop: '1px dashed #bbb', background: '#fefce8' }}>
+                          <td colSpan={21} style={{ padding: '6px 10px', borderTop: '1px dashed #bbb', background: '#fefce8' }}>
                             <button onClick={addExistingRow} style={{
                               background: 'none', border: '1px dashed #d97706', color: '#d97706',
                               padding: '3px 14px', borderRadius: 5, cursor: 'pointer', fontSize: '0.78rem',
@@ -2379,7 +2513,7 @@ export default function ComparisonSheet({
 
                   {/* ── NEW QUOTATION DETAILS ── */}
                   <tr>
-                    <td colSpan={20} style={{ ...SECTION_HDR, background: '#1e3a5f' }}>
+                    <td colSpan={21} style={{ ...SECTION_HDR, background: '#1e3a5f' }}>
                       NEW QUOTATION DETAILS
                     </td>
                   </tr>
@@ -2397,6 +2531,9 @@ export default function ComparisonSheet({
                           {i === 0 && <div style={{ fontSize: '0.6rem', color: '#15803d' }}>Dr. Rec.</div>}
                         </td>
                         {COLS_NEW.map(col => {
+                          if (col.isPlaceholder) {
+                            return <td key={col.id} style={{ ...CELL, ...rowStyle, background: '#f8fafc', color: '#94a3b8', textAlign: 'center' }}>—</td>;
+                          }
                           if (col.isCalc) {
                             return <CalcCell key={col.id} value={derived[col.id]} rowStyle={rowStyle} colId={col.id} />;
                           }
@@ -2422,7 +2559,7 @@ export default function ComparisonSheet({
                   {/* Add row button */}
                   {mode === 'pharmacist' && onAddAlt && (
                     <tr>
-                      <td colSpan={20} style={{ padding: '6px 10px', borderTop: '1px dashed #bbb' }}>
+                      <td colSpan={21} style={{ padding: '6px 10px', borderTop: '1px dashed #bbb' }}>
                         <button onClick={onAddAlt} style={{
                           background: 'none', border: '1px dashed #6366f1', color: '#6366f1',
                           padding: '3px 14px', borderRadius: 5, cursor: 'pointer', fontSize: '0.78rem',
@@ -2433,7 +2570,7 @@ export default function ComparisonSheet({
 
                   {/* ── AFTER NEGOTIATION ── */}
                   <tr>
-                    <td colSpan={20} style={{ ...SECTION_HDR, background: '#7c3aed' }}>
+                    <td colSpan={21} style={{ ...SECTION_HDR, background: '#7c3aed' }}>
                       AFTER NEGOTIATION
                     </td>
                   </tr>
@@ -2464,6 +2601,9 @@ export default function ComparisonSheet({
                           {i === 0 && <div style={{ fontSize: '0.6rem', color: '#15803d' }}>Dr. Rec.</div>}
                         </td>
                         {COLS_NEW.map(col => {
+                          if (col.isPlaceholder) {
+                            return <td key={col.id} style={{ ...CELL, ...displayRowStyle, background: '#f8fafc', color: '#94a3b8', textAlign: 'center' }}>—</td>;
+                          }
                           if (col.isCalc) {
                             const isCellMod = isAltCellModified(alt, col.id);
                             const origVal = origDerived[col.id];
