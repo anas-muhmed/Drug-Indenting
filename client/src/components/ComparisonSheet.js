@@ -1054,7 +1054,7 @@ export default function ComparisonSheet({
     try {
       const formattedFrom = fromDate.split('-').reverse().join('/') + ' 00:00:00';
       const formattedTo = toDate.split('-').reverse().join('/') + ' 23:59:59';
-      
+
       const payload = {
         fromDate: formattedFrom,
         toDate: formattedTo
@@ -1316,7 +1316,7 @@ export default function ComparisonSheet({
       prevExistingKeyRef.current = key;
       let target = [];
 
-      const hasPropDetails = propExistingDetails && propExistingDetails.length > 0 && 
+      const hasPropDetails = propExistingDetails && propExistingDetails.length > 0 &&
         !(propExistingDetails.length === 1 && Object.values(propExistingDetails[0]).every(v => v === '' || v === null || v === undefined));
 
       const hasEffectiveEntries = effectiveDrugEntries && effectiveDrugEntries.length > 0 &&
@@ -1893,8 +1893,8 @@ export default function ComparisonSheet({
                 onDtcFinalize({
                   recommendations: autoRecs,
                   notes: localRecommendationNotes,
-                  reviewed_by_name: localDtcReviewedByName,
-                  review_signature: localDtcReviewSignature,
+                  reviewed_by_name: "Dr Susan Mani",
+                  review_signature: "Dr Susan Mani",
                   dtc_remarks: localDtcRemarks,
                   alternatives,
                   existing_details: existingDetails,
@@ -2794,71 +2794,35 @@ export default function ComparisonSheet({
               }}>
                 Reviewed By:
               </div>
-              {mode === 'dtc' ? (
-                <input
-                  type="text"
-                  value={localDtcReviewedByName}
-                  onChange={e => handleReviewedByNameChange(e.target.value)}
-                  placeholder="Enter Chairperson Name"
-                  style={{
-                    width: '100%', padding: '6px 10px', fontSize: '0.82rem',
-                    borderRadius: 6, border: '1px solid #cbd5e1', outline: 'none',
-                    marginBottom: 10,
-                  }}
-                />
-              ) : (
-                <div style={{
-                  fontSize: '0.9rem',
-                  fontWeight: 700,
-                  color: '#334155',
-                  padding: '8px 12px',
-                  background: '#f1f5f9',
-                  borderRadius: 6,
-                  border: '1px solid #cbd5e1',
-                  textAlign: 'center',
-                  marginBottom: 10,
-                }}>
-                  {localDtcReviewedByName || requestInfo.DTC_REVIEWED_BY_NAME || 'CHAIRPERSON DTC'}
-                </div>
-              )}
+              <div style={{
+                fontSize: '0.9rem',
+                fontWeight: 700,
+                color: '#334155',
+                padding: '8px 12px',
+                background: '#f1f5f9',
+                borderRadius: 6,
+                border: '1px solid #cbd5e1',
+                textAlign: 'center',
+                marginBottom: 10,
+              }}>
+                Dr Susan Mani
+              </div>
             </div>
             <div style={{ marginTop: 12, fontSize: '0.75rem', color: '#475569', lineHeight: 1.5 }}>
-              {mode === 'dtc' ? (
-                <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', padding: '10px 14px', borderRadius: 8 }}>
-                  <div style={{ fontWeight: 700, marginBottom: 6, color: '#1e3a5f' }}>
-                    ✍️ Electronic Approval Signature:
-                  </div>
-                  <input
-                    type="text"
-                    value={localDtcReviewSignature}
-                    onChange={e => handleReviewSignatureChange(e.target.value)}
-                    placeholder="Type electronic signature / name"
-                    style={{
-                      width: '100%', padding: '6px 10px', fontSize: '0.8rem',
-                      borderRadius: 6, border: '1px solid #cbd5e1', outline: 'none',
-                    }}
-                  />
+              <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '10px 14px', borderRadius: 8, color: '#065f46' }}>
+                <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span>🛡️</span> Approved digitally by:
                 </div>
-              ) : (localDtcReviewSignature || requestInfo.DTC_REVIEW_SIGNATURE) ? (
-                <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '10px 14px', borderRadius: 8, color: '#065f46' }}>
-                  <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <span>🛡️</span> Approved digitally by:
-                  </div>
-                  <div style={{ fontWeight: 800, fontSize: '0.8rem', marginTop: 4 }}>
-                    {localDtcReviewedByName || requestInfo.DTC_REVIEWED_BY_NAME || 'DTC Chairperson'}
-                  </div>
-                  <div style={{ fontStyle: 'italic', fontSize: '0.75rem', marginTop: 2, fontFamily: 'monospace' }}>
-                    Sign: {localDtcReviewSignature || requestInfo.DTC_REVIEW_SIGNATURE}
-                  </div>
-                  <div style={{ fontSize: '0.7rem', color: '#047857', marginTop: 2 }}>
-                    Date: {new Date(requestInfo.DTC_REVIEWED_AT || dtcReviewedAt || Date.now()).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                  </div>
+                <div style={{ fontWeight: 800, fontSize: '0.8rem', marginTop: 4 }}>
+                  Dr Susan Mani
                 </div>
-              ) : (
-                <div style={{ border: '1.5px dashed #cbd5e1', padding: '10px 14px', borderRadius: 8, textAlign: 'center', fontStyle: 'italic', color: '#64748b' }}>
-                  Awaiting final selection and electronic signature from DTC Chairperson.
+                <div style={{ fontStyle: 'italic', fontSize: '0.75rem', marginTop: 2, fontFamily: 'monospace' }}>
+                  Sign: Dr Susan Mani
                 </div>
-              )}
+                <div style={{ fontSize: '0.7rem', color: '#047857', marginTop: 2 }}>
+                  Date: {new Date(requestInfo.DTC_REVIEWED_AT || dtcReviewedAt || Date.now()).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </div>
+              </div>
             </div>
           </div>
 

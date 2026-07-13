@@ -4706,6 +4706,9 @@ app.post('/api/alternatives/:requestId', async (req, res) => {
 
     for (const alt of alternatives) {
       const d = computeAltDerived(alt);
+
+
+
       await conn.execute(
         `INSERT INTO drug_alternatives (
            request_id,
