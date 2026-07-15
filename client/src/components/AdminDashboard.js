@@ -279,9 +279,177 @@ function TempPasswordModal({ tempPassword, userName, onClose }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// EDIT ROLE MODAL
+// ═══════════════════════════════════════════════════════════════════════════════
+function EditRoleModal({ user, onClose, onSave }) {
+  const [roleVal, setRoleVal] = useState((user.role || '').toLowerCase().trim());
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const OPTIONS = [
+    { value: 'doctor', label: 'Doctor' },
+    { value: 'hod', label: 'HOD' },
+    { value: 'pharmacist', label: 'Pharmacist' },
+    { value: 'pharmacyhead', label: 'PharmacyHead' },
+    { value: 'ceo', label: 'CEO' }
+  ];
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError('');
+    if (!roleVal) {
+      setError('Role cannot be empty.');
+      return;
+    }
+    setLoading(true);
+    try {
+      let payloadRole = 'Doctor';
+      if (roleVal === 'doctor') payloadRole = 'Doctor';
+      else if (roleVal === 'hod') payloadRole = 'HOD';
+      else if (roleVal === 'pharmacist') payloadRole = 'Pharmacist';
+      else if (roleVal === 'pharmacyhead') payloadRole = 'PharmacyHead';
+      else if (roleVal === 'ceo') payloadRole = 'CEO';
+
+      await onSave(user.user_id, payloadRole);
+      onClose();
+    } catch (err) {
+      setError(err.message || 'Failed to save role.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+      <div style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: 36, width: '100%', maxWidth: 420, color: '#fff', boxShadow: '0 30px 80px rgba(0,0,0,0.5)' }}>
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <div style={{ width: 56, height: 56, borderRadius: 16, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', boxShadow: '0 8px 20px rgba(99,102,241,0.35)' }}>
+            <i className="ti ti-id-badge-2" style={{ fontSize: 28, color: '#fff' }} />
+          </div>
+          <h3 style={{ margin: '0 0 6px', fontSize: '1.2rem', fontWeight: 700 }}>Update User Role</h3>
+          <p style={{ margin: 0, color: 'rgba(255,255,255,0.5)', fontSize: '0.85rem' }}>Set role for <strong>{user.name}</strong></p>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom: 20 }}>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(255,255,255,0.5)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>User Role</label>
+            <select
+              value={roleVal}
+              onChange={e => setRoleVal(e.target.value)}
+              style={{ width: '100%', boxSizing: 'border-box', padding: '0 16px', height: 46, borderRadius: 10, border: '1.5px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.07)', color: '#fff', fontSize: '0.95rem', outline: 'none', fontFamily: 'inherit', cursor: 'pointer' }}
+              disabled={loading}
+            >
+              {OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value} style={{ background: '#1e293b', color: '#fff' }}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          {error && (
+            <div style={{ padding: '10px 14px', borderRadius: 8, marginBottom: 20, background: 'rgba(239,68,68,0.15)', color: '#f87171', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <i className="ti ti-alert-circle" />
+              {error}
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 12 }}>
+            <button type="button" onClick={onClose} disabled={loading} style={{ flex: 1, height: 44, borderRadius: 10, background: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem', transition: 'background 0.2s' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.14)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+            >
+              Cancel
+            </button>
+            <button type="submit" disabled={loading} style={{ flex: 1, height: 44, borderRadius: 10, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#fff', border: 'none', fontSize: '0.9rem', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              {loading ? <><i className="ti ti-loader-2" style={{ animation: 'spin 1s linear infinite' }} /> Saving…</> : 'Save Role'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EDIT USER ID MODAL
+// ═══════════════════════════════════════════════════════════════════════════════
+function EditUserIdModal({ user, onClose, onSave }) {
+  const [userIdVal, setUserIdVal] = useState(user.user_login_id || '');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError('');
+    const val = userIdVal.trim().toLowerCase();
+    if (!val) {
+      setError('User ID cannot be empty.');
+      return;
+    }
+    const regex = /^[a-zA-Z0-9._-]{4,30}$/;
+    if (!regex.test(val)) {
+      setError('User ID must be 4-30 alphanumeric characters, including underscores, dots, or hyphens, and no spaces.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await onSave(user.user_id, val);
+      onClose();
+    } catch (err) {
+      setError(err.message || 'Failed to save User ID.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+      <div style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: 36, width: '100%', maxWidth: 420, color: '#fff', boxShadow: '0 30px 80px rgba(0,0,0,0.5)' }}>
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <div style={{ width: 56, height: 56, borderRadius: 16, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', boxShadow: '0 8px 20px rgba(99,102,241,0.35)' }}>
+            <i className="ti ti-id" style={{ fontSize: 28, color: '#fff' }} />
+          </div>
+          <h3 style={{ margin: '0 0 6px', fontSize: '1.2rem', fontWeight: 700 }}>Update User ID</h3>
+          <p style={{ margin: 0, color: 'rgba(255,255,255,0.5)', fontSize: '0.85rem' }}>Set alphanumeric User ID for <strong>{user.name}</strong></p>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom: 20 }}>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(255,255,255,0.5)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Alphanumeric User ID</label>
+            <input
+              type="text"
+              value={userIdVal}
+              onChange={e => setUserIdVal(e.target.value)}
+              style={{ width: '100%', boxSizing: 'border-box', padding: '0 16px', height: 46, borderRadius: 10, border: '1.5px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.07)', color: '#fff', fontSize: '0.95rem', outline: 'none', fontFamily: 'inherit' }}
+              disabled={loading}
+              placeholder="e.g. doctor01"
+            />
+          </div>
+          {error && (
+            <div style={{ padding: '10px 14px', borderRadius: 8, marginBottom: 20, background: 'rgba(239,68,68,0.15)', color: '#f87171', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <i className="ti ti-alert-circle" />
+              {error}
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 12 }}>
+            <button type="button" onClick={onClose} disabled={loading} style={{ flex: 1, height: 44, borderRadius: 10, background: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem', transition: 'background 0.2s' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.14)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+            >
+              Cancel
+            </button>
+            <button type="submit" disabled={loading} style={{ flex: 1, height: 44, borderRadius: 10, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#fff', border: 'none', fontSize: '0.9rem', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              {loading ? <><i className="ti ti-loader-2" style={{ animation: 'spin 1s linear infinite' }} /> Saving…</> : 'Save User ID'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // USER CARD
 // ═══════════════════════════════════════════════════════════════════════════════
-function UserCard({ user, onReset, onToggle }) {
+function UserCard({ user, onReset, onToggle, onEditRole, onEditUserId }) {
   const cfg = getRoleConfig(user.role);
   const isActive = user.is_active === 1;
   return (
@@ -305,7 +473,36 @@ function UserCard({ user, onReset, onToggle }) {
             <span style={{ fontSize: '0.65rem', fontWeight: 700, background: 'rgba(239,68,68,0.2)', color: '#f87171', border: '1px solid rgba(239,68,68,0.4)', borderRadius: 6, padding: '2px 6px', whiteSpace: 'nowrap' }}>INACTIVE</span>
           )}
         </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+          <span style={{ fontFamily: 'monospace', fontSize: '0.8rem', background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: 4, color: '#e2e8f0' }}>
+            {user.user_login_id}
+          </span>
+          <button
+            onClick={() => onEditUserId(user)}
+            style={{ background: 'none', border: 'none', color: '#6366f1', cursor: 'pointer', padding: '2px 4px', display: 'inline-flex', alignItems: 'center', borderRadius: 4, transition: 'all 0.2s' }}
+            title="Edit User ID"
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.15)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'none'}
+          >
+            <i className="ti ti-edit" style={{ fontSize: 13 }} />
+          </button>
+        </div>
         <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.8rem', marginTop: 2 }}>{user.email}</div>
+        <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.75rem', marginTop: 3, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <i className={`ti ti-${cfg.icon}`} style={{ fontSize: 12 }} />
+          <span>Role: {cfg.label}</span>
+          <button
+            onClick={() => onEditRole(user)}
+            style={{
+              background: "#2563eb",
+              color: "white",
+              padding: "6px 12px",
+              borderRadius: 6
+            }}
+          >
+            Edit Role
+          </button>
+        </div>
         {user.department && <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.75rem', marginTop: 1 }}><i className="ti ti-building-hospital" style={{ fontSize: 12, marginRight: 4 }} />{user.department}</div>}
       </div>
 
@@ -366,8 +563,8 @@ function UserCard({ user, onReset, onToggle }) {
               ? 'rgba(239,68,68,0.15)'
               : 'rgba(74,222,128,0.15)',
             border: `1px solid ${isActive
-                ? 'rgba(239,68,68,0.3)'
-                : 'rgba(74,222,128,0.3)'
+              ? 'rgba(239,68,68,0.3)'
+              : 'rgba(74,222,128,0.3)'
               }`,
             color: isActive ? '#f87171' : '#4ade80',
             cursor: 'pointer',
@@ -392,7 +589,7 @@ function UserCard({ user, onReset, onToggle }) {
           />
           {isActive ? 'Reject User' : 'Activate User'}
         </button>
-           </div>
+      </div>
     </div>
   );
 }
@@ -404,10 +601,10 @@ export default function AdminDashboard() {
   const [admin, setAdmin] = useState(() => {
     const id = localStorage.getItem('admin_id');
     const name = localStorage.getItem('admin_name');
-    return id ? {admin_id: id, name } : null;
+    return id ? { admin_id: id, name } : null;
   });
 
-  const [usersGrouped, setUsersGrouped] = useState({ });
+  const [usersGrouped, setUsersGrouped] = useState({});
   const [totalUsers, setTotalUsers] = useState(0);
   const [auditLogs, setAuditLogs] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -415,7 +612,9 @@ export default function AdminDashboard() {
   const [toast, setToast] = useState(null);
   const [tempPwModal, setTempPwModal] = useState(null); // {tempPassword, userName}
   const [confirmAction, setConfirmAction] = useState(null); // {type, user, resolve}
-  
+  const [editRoleUser, setEditRoleUser] = useState(null); // {user_id, name, role}
+  const [editUserIdUser, setEditUserIdUser] = useState(null); // {user_id, name, user_login_id}
+
   const [pendingUsers, setPendingUsers] = useState([]);
   const [pendingLoading, setPendingLoading] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
@@ -429,25 +628,25 @@ export default function AdminDashboard() {
     if (!admin) return;
     setLoading(true);
     try {
-      const res = await fetch(`${API}/admin/users`, {headers: adminHeaders() });
+      const res = await fetch(`${API}/admin/users`, { headers: adminHeaders() });
       const data = await res.json();
       if (!data.success) throw new Error(data.message);
-      setUsersGrouped(data.data || { });
+      setUsersGrouped(data.data || {});
       setTotalUsers(data.total || 0);
     } catch (err) {
-        showToast(err.message || 'Failed to load users.', 'error');
+      showToast(err.message || 'Failed to load users.', 'error');
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   }, [admin]);
 
   const loadAuditLogs = useCallback(async () => {
     if (!admin) return;
-      try {
-      const res = await fetch(`${API}/admin/audit-logs`, {headers: adminHeaders() });
+    try {
+      const res = await fetch(`${API}/admin/audit-logs`, { headers: adminHeaders() });
       const data = await res.json();
       if (data.success) setAuditLogs(data.data || []);
-    } catch { /* silent */}
+    } catch { /* silent */ }
   }, [admin]);
 
   const loadPendingUsers = useCallback(async () => {
@@ -513,28 +712,28 @@ export default function AdminDashboard() {
 
   async function handleReset(user) {
     if (!window.confirm(`Reset password for ${user.name}?\nA temporary password will be generated. Share it securely with the user.`)) return;
-      try {
+    try {
       const res = await fetch(`${API}/admin/reset-password/${user.user_id}`, {
         method: 'PUT',
-      headers: adminHeaders(),
+        headers: adminHeaders(),
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.message);
-      setTempPwModal({tempPassword: data.temp_password, userName: user.name });
+      setTempPwModal({ tempPassword: data.temp_password, userName: user.name });
       await loadUsers();
       await loadAuditLogs();
     } catch (err) {
-        showToast(err.message || 'Failed to reset password.', 'error');
+      showToast(err.message || 'Failed to reset password.', 'error');
     }
   }
 
   async function handleToggle(user) {
     const action = user.is_active === 1 ? 'deactivate' : 'activate';
-      if (!window.confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} user ${user.name}?`)) return;
-      try {
+    if (!window.confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} user ${user.name}?`)) return;
+    try {
       const res = await fetch(`${API}/admin/toggle-user/${user.user_id}`, {
         method: 'PUT',
-      headers: adminHeaders(),
+        headers: adminHeaders(),
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.message);
@@ -542,8 +741,39 @@ export default function AdminDashboard() {
       await loadUsers();
       await loadAuditLogs();
     } catch (err) {
-        showToast(err.message || 'Failed to update user.', 'error');
+      showToast(err.message || 'Failed to update user.', 'error');
     }
+  }
+
+  async function handleSaveRole(userId, newRole) {
+    const res = await fetch(`${API}/admin/users/${userId}/role`, {
+      method: 'PUT',
+      headers: adminHeaders(),
+      body: JSON.stringify({ role: newRole }),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
+    showToast(data.message || 'Role updated successfully.');
+    await loadUsers();
+    await loadPendingUsers();
+    await loadAuditLogs();
+  }
+
+  async function handleSaveUserId(userId, newUserId) {
+    const res = await fetch(`${API}/users/${userId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...adminHeaders()
+      },
+      body: JSON.stringify({ user_login_id: newUserId }),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
+    showToast(data.message || 'User ID updated successfully.');
+    await loadUsers();
+    await loadPendingUsers();
+    await loadAuditLogs();
   }
 
   function handleLogout() {
@@ -551,29 +781,29 @@ export default function AdminDashboard() {
     localStorage.removeItem('admin_name');
     localStorage.removeItem('admin_email');
     setAdmin(null);
-    setUsersGrouped({ });
+    setUsersGrouped({});
     setAuditLogs([]);
     setPendingUsers([]);
     setPendingCount(0);
   }
 
-      if (!admin) return <AdminLogin onLogin={data => setAdmin(data)} />;
+  if (!admin) return <AdminLogin onLogin={data => setAdmin(data)} />;
 
   // Summary counts
   const activeCount = Object.values(usersGrouped).flat().filter(u => u.is_active === 1).length;
-      const inactiveCount = totalUsers - activeCount;
+  const inactiveCount = totalUsers - activeCount;
   const tempPwCount = Object.values(usersGrouped).flat().filter(u => u.force_password_reset === 1).length;
-      const roleCount = Object.keys(usersGrouped).length;
+  const roleCount = Object.keys(usersGrouped).length;
 
-      const ORDERED_ROLES = ['doctor', 'hod', 'pharmacist', 'pharmacyhead', 'dtc', 'dtccommittee', 'ceo'];
-      const sortedRoleKeys = [
+  const ORDERED_ROLES = ['doctor', 'hod', 'pharmacist', 'pharmacyhead', 'dtc', 'dtccommittee', 'ceo'];
+  const sortedRoleKeys = [
     ...ORDERED_ROLES.filter(r => usersGrouped[r]),
     ...Object.keys(usersGrouped).filter(r => !ORDERED_ROLES.includes(r)),
-      ];
+  ];
 
-      return (
-      <div style={{ minHeight: '100vh', background: '#0f172a', fontFamily: "'Inter', sans-serif", color: '#fff' }}>
-        <style>{`
+  return (
+    <div style={{ minHeight: '100vh', background: '#0f172a', fontFamily: "'Inter', sans-serif", color: '#fff' }}>
+      <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); } ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -581,289 +811,334 @@ export default function AdminDashboard() {
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
       `}</style>
 
-        {/* TOP NAV */}
-        <nav style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '0 32px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.02)', backdropFilter: 'blur(10px)', position: 'sticky', top: 0, zIndex: 100 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 15px rgba(99,102,241,0.35)' }}>
-              <i className="ti ti-shield-lock" style={{ fontSize: 22, color: '#fff' }} />
-            </div>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: '1rem', color: '#fff' }}>Admin Control Panel</div>
-              <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)' }}>Formulary Drug Indenting System</div>
-            </div>
+      {/* TOP NAV */}
+      <nav style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '0 32px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.02)', backdropFilter: 'blur(10px)', position: 'sticky', top: 0, zIndex: 100 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 15px rgba(99,102,241,0.35)' }}>
+            <i className="ti ti-shield-lock" style={{ fontSize: 22, color: '#fff' }} />
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#fff' }}>{admin.name}</div>
-              <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)' }}>System Administrator</div>
-            </div>
-            <button onClick={handleLogout} title="Logout" style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.3)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'rgba(239,68,68,0.15)'}
-            >
-              <i className="ti ti-logout" style={{ fontSize: 18 }} />
-            </button>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: '1rem', color: '#fff' }}>Admin Control Panel</div>
+            <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)' }}>Formulary Drug Indenting System</div>
           </div>
-        </nav>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#fff' }}>{admin.name}</div>
+            <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)' }}>System Administrator</div>
+          </div>
+          <button onClick={handleLogout} title="Logout" style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.3)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'rgba(239,68,68,0.15)'}
+          >
+            <i className="ti ti-logout" style={{ fontSize: 18 }} />
+          </button>
+        </div>
+      </nav>
 
-        <div style={{ maxWidth: '100%', width: '100%', margin: '0 auto', padding: '32px 24px' }}>
+      <div style={{ maxWidth: '100%', width: '100%', margin: '0 auto', padding: '32px 24px' }}>
 
-          {/* STAT CARDS */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 32 }}>
-            {[
-              { label: 'Total Users', value: totalUsers, icon: 'users', color: '#6366f1', bg: 'rgba(99,102,241,0.15)' },
-              { label: 'Active Users', value: activeCount, icon: 'user-check', color: '#10b981', bg: 'rgba(16,185,129,0.15)' },
-              { label: 'Pending Approvals', value: pendingCount, icon: 'user-clock', color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
-              { label: 'Inactive Users', value: inactiveCount, icon: 'user-off', color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
-              { label: 'Temp Passwords', value: tempPwCount, icon: 'key', color: '#ec4899', bg: 'rgba(236,72,153,0.15)' },
-              { label: 'Role Types', value: roleCount, icon: 'id-badge-2', color: '#8b5cf6', bg: 'rgba(139,92,246,0.15)' },
-            ].map(card => (
-              <div key={card.label} style={{ background: card.bg, border: `1px solid ${card.color}30`, borderRadius: 16, padding: '20px 22px', animation: 'fadeIn 0.4s ease' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
-                    <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>{card.label}</div>
-                    <div style={{ fontSize: '2rem', fontWeight: 700, color: card.color, lineHeight: 1 }}>{card.value}</div>
-                  </div>
-                  <div style={{ width: 42, height: 42, borderRadius: 12, background: `${card.color}22`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <i className={`ti ti-${card.icon}`} style={{ fontSize: 22, color: card.color }} />
-                  </div>
+        {/* STAT CARDS */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 32 }}>
+          {[
+            { label: 'Total Users', value: totalUsers, icon: 'users', color: '#6366f1', bg: 'rgba(99,102,241,0.15)' },
+            { label: 'Active Users', value: activeCount, icon: 'user-check', color: '#10b981', bg: 'rgba(16,185,129,0.15)' },
+            { label: 'Pending Approvals', value: pendingCount, icon: 'user-clock', color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
+            { label: 'Inactive Users', value: inactiveCount, icon: 'user-off', color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
+            { label: 'Temp Passwords', value: tempPwCount, icon: 'key', color: '#ec4899', bg: 'rgba(236,72,153,0.15)' },
+            { label: 'Role Types', value: roleCount, icon: 'id-badge-2', color: '#8b5cf6', bg: 'rgba(139,92,246,0.15)' },
+          ].map(card => (
+            <div key={card.label} style={{ background: card.bg, border: `1px solid ${card.color}30`, borderRadius: 16, padding: '20px 22px', animation: 'fadeIn 0.4s ease' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>{card.label}</div>
+                  <div style={{ fontSize: '2rem', fontWeight: 700, color: card.color, lineHeight: 1 }}>{card.value}</div>
+                </div>
+                <div style={{ width: 42, height: 42, borderRadius: 12, background: `${card.color}22`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <i className={`ti ti-${card.icon}`} style={{ fontSize: 22, color: card.color }} />
                 </div>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
+        </div>
 
-          {/* TAB BAR */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 24, background: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: 6, width: 'fit-content' }}>
-            {[
-              ['dashboard', 'chart-bar', 'Dashboard'],
-              ['users', 'users', 'User Management'],
-              ['approvals', 'user-clock', 'Pending Approvals'],
-              ['audit', 'list-check', 'Audit Log']
-            ].map(([tab, icon, label]) => (
-              <button key={tab} onClick={() => { setActiveTab(tab); if (tab === 'audit') loadAuditLogs(); if (tab === 'approvals') loadPendingUsers(); }}
-                style={{
-                  padding: '8px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: 7, transition: 'all 0.2s',
-                  background: activeTab === tab ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'transparent',
-                  color: activeTab === tab ? '#fff' : 'rgba(255,255,255,0.5)',
-                  boxShadow: activeTab === tab ? '0 4px 14px rgba(99,102,241,0.35)' : 'none',
-                }}
-              >
-                <i className={`ti ti-${icon}`} style={{ fontSize: 16 }} />
-                {label}
-                {tab === 'approvals' && pendingCount > 0 && (
-                  <span style={{
-                    background: '#ef4444',
-                    color: '#fff',
-                    borderRadius: '50%',
-                    width: 18,
-                    height: 18,
-                    fontSize: '0.68rem',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginLeft: 6,
-                    fontWeight: 'bold'
-                  }}>
-                    {pendingCount}
-                  </span>
-                )}
-              </button>
-            ))}
-            <button onClick={() => { loadUsers(); loadPendingUsers(); }} title="Refresh" style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', marginLeft: 4 }}
-              onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-              onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}
+        {/* TAB BAR */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 24, background: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: 6, width: 'fit-content' }}>
+          {[
+            ['dashboard', 'chart-bar', 'Dashboard'],
+            ['users', 'users', 'User Management'],
+            ['approvals', 'user-clock', 'Pending Approvals'],
+            ['audit', 'list-check', 'Audit Log']
+          ].map(([tab, icon, label]) => (
+            <button key={tab} onClick={() => { setActiveTab(tab); if (tab === 'audit') loadAuditLogs(); if (tab === 'approvals') loadPendingUsers(); }}
+              style={{
+                padding: '8px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: 7, transition: 'all 0.2s',
+                background: activeTab === tab ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'transparent',
+                color: activeTab === tab ? '#fff' : 'rgba(255,255,255,0.5)',
+                boxShadow: activeTab === tab ? '0 4px 14px rgba(99,102,241,0.35)' : 'none',
+              }}
             >
-              <i className={`ti ti-refresh${loading || pendingLoading ? ' ti-spin' : ''}`} style={{ fontSize: 16, animation: (loading || pendingLoading) ? 'spin 1s linear infinite' : 'none' }} />
-            </button>
-          </div>
-
-          {/* ANALYTICS DASHBOARD TAB */}
-          {activeTab === 'dashboard' && (
-            <div style={{ animation: 'slideUp 0.3s ease' }}>
-              <AnalyticsDashboard role="Admin" />
-            </div>
-          )}
-
-          {/* PENDING APPROVALS TAB */}
-          {activeTab === 'approvals' && (
-            <div style={{ animation: 'fadeIn 0.3s ease' }}>
-              {pendingLoading ? (
-                <div style={{ textAlign: 'center', padding: 60, color: 'rgba(255,255,255,0.35)' }}>
-                  <i className="ti ti-loader-2" style={{ fontSize: 36, animation: 'spin 1s linear infinite', display: 'block', marginBottom: 12 }} />
-                  Loading pending registrations…
-                </div>
-              ) : pendingUsers.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 60, color: 'rgba(255,255,255,0.25)', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16 }}>
-                  <i className="ti ti-circle-check" style={{ fontSize: 48, color: '#10b981', display: 'block', marginBottom: 12 }} />
-                  No pending registrations. All users are approved.
-                </div>
-              ) : (
-                <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, overflow: 'hidden' }}>
-                  <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <i className="ti ti-user-clock" style={{ color: '#f59e0b', fontSize: 18 }} />
-                      <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>Pending Registration Approvals</span>
-                    </div>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 600, background: 'rgba(245,158,11,0.2)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.4)', borderRadius: 20, padding: '2px 10px' }}>
-                      {pendingUsers.length} Pending
-                    </span>
-                  </div>
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-                      <thead>
-                        <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
-                          {['Name', 'Email Address', 'Role', 'Department', 'Actions'].map(h => (
-                            <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 600, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {pendingUsers.map((pUser, i) => {
-                          const cfg = getRoleConfig(pUser.role);
-                          return (
-                            <tr key={pUser.user_id} style={{ borderTop: '1px solid rgba(255,255,255,0.05)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)' }}>
-                              <td style={{ padding: '12px 16px', fontWeight: 600, color: '#fff' }}>{pUser.name}</td>
-                              <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.7)' }}>{pUser.email}</td>
-                              <td style={{ padding: '12px 16px' }}>
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: cfg.color, fontWeight: 600 }}>
-                                  <i className={`ti ti-${cfg.icon}`} /> {cfg.label}
-                                </span>
-                              </td>
-                              <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.5)' }}>{pUser.department || '—'}</td>
-                              <td style={{ padding: '12px 16px' }}>
-                                <div style={{ display: 'flex', gap: 10 }}>
-                                  <button onClick={() => handleApprove(pUser)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', color: '#34d399', cursor: 'pointer', fontWeight: 600, fontSize: '0.78rem', transition: 'all 0.2s' }}
-                                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(16,185,129,0.3)'}
-                                    onMouseLeave={e => e.currentTarget.style.background = 'rgba(16,185,129,0.15)'}
-                                  >
-                                    <i className="ti ti-circle-check" /> Approve
-                                  </button>
-                                  <button onClick={() => handleReject(pUser)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', cursor: 'pointer', fontWeight: 600, fontSize: '0.78rem', transition: 'all 0.2s' }}
-                                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.3)'}
-                                    onMouseLeave={e => e.currentTarget.style.background = 'rgba(239,68,68,0.15)'}
-                                  >
-                                    <i className="ti ti-circle-x" /> Reject
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+              <i className={`ti ti-${icon}`} style={{ fontSize: 16 }} />
+              {label}
+              {tab === 'approvals' && pendingCount > 0 && (
+                <span style={{
+                  background: '#ef4444',
+                  color: '#fff',
+                  borderRadius: '50%',
+                  width: 18,
+                  height: 18,
+                  fontSize: '0.68rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginLeft: 6,
+                  fontWeight: 'bold'
+                }}>
+                  {pendingCount}
+                </span>
               )}
-            </div>
-          )}
+            </button>
+          ))}
+          <button onClick={() => { loadUsers(); loadPendingUsers(); }} title="Refresh" style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', marginLeft: 4 }}
+            onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+            onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}
+          >
+            <i className={`ti ti-refresh${loading || pendingLoading ? ' ti-spin' : ''}`} style={{ fontSize: 16, animation: (loading || pendingLoading) ? 'spin 1s linear infinite' : 'none' }} />
+          </button>
+        </div>
 
-          {/* USERS TAB */}
-          {activeTab === 'users' && (
-            <div style={{ animation: 'fadeIn 0.3s ease' }}>
-              {loading ? (
-                <div style={{ textAlign: 'center', padding: 60, color: 'rgba(255,255,255,0.35)' }}>
-                  <i className="ti ti-loader-2" style={{ fontSize: 36, animation: 'spin 1s linear infinite', display: 'block', marginBottom: 12 }} />
-                  Loading users…
-                </div>
-              ) : sortedRoleKeys.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 60, color: 'rgba(255,255,255,0.25)' }}>
-                  <i className="ti ti-users-minus" style={{ fontSize: 48, display: 'block', marginBottom: 12 }} />
-                  No users found.
-                </div>
-              ) : sortedRoleKeys.map(role => {
-                const cfg = getRoleConfig(role);
-                const users = usersGrouped[role] || [];
-                return (
-                  <div key={role} style={{ marginBottom: 28 }}>
-                    {/* Role Header */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                      <div style={{ width: 32, height: 32, borderRadius: 10, background: `${cfg.color}22`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <i className={`ti ti-${cfg.icon}`} style={{ fontSize: 18, color: cfg.color }} />
-                      </div>
-                      <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 700, color: cfg.color, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{cfg.label}</h3>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 600, background: `${cfg.color}20`, color: cfg.color, border: `1px solid ${cfg.color}40`, borderRadius: 20, padding: '2px 10px' }}>{users.length}</span>
-                    </div>
-                    <div style={{ display: 'grid', gap: 10 }}>
-                      {users.map(user => (
-                        <UserCard key={user.user_id} user={user} onReset={handleReset} onToggle={handleToggle} />
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+        {/* ANALYTICS DASHBOARD TAB */}
+        {activeTab === 'dashboard' && (
+          <div style={{ animation: 'slideUp 0.3s ease' }}>
+            <AnalyticsDashboard role="Admin" />
+          </div>
+        )}
 
-          {/* AUDIT LOG TAB */}
-          {activeTab === 'audit' && (
-            <div style={{ animation: 'fadeIn 0.3s ease' }}>
+        {/* PENDING APPROVALS TAB */}
+        {activeTab === 'approvals' && (
+          <div style={{ animation: 'fadeIn 0.3s ease' }}>
+            {pendingLoading ? (
+              <div style={{ textAlign: 'center', padding: 60, color: 'rgba(255,255,255,0.35)' }}>
+                <i className="ti ti-loader-2" style={{ fontSize: 36, animation: 'spin 1s linear infinite', display: 'block', marginBottom: 12 }} />
+                Loading pending registrations…
+              </div>
+            ) : pendingUsers.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 60, color: 'rgba(255,255,255,0.25)', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16 }}>
+                <i className="ti ti-circle-check" style={{ fontSize: 48, color: '#10b981', display: 'block', marginBottom: 12 }} />
+                No pending registrations. All users are approved.
+              </div>
+            ) : (
               <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, overflow: 'hidden' }}>
                 <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <i className="ti ti-list-check" style={{ color: '#6366f1', fontSize: 18 }} />
-                    <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>Recent Admin Actions</span>
+                    <i className="ti ti-user-clock" style={{ color: '#f59e0b', fontSize: 18 }} />
+                    <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>Pending Registration Approvals</span>
                   </div>
-                  <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.35)' }}>Last 200 actions</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 600, background: 'rgba(245,158,11,0.2)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.4)', borderRadius: 20, padding: '2px 10px' }}>
+                    {pendingUsers.length} Pending
+                  </span>
                 </div>
-                {auditLogs.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: 48, color: 'rgba(255,255,255,0.25)' }}>
-                    <i className="ti ti-clipboard-list" style={{ fontSize: 40, display: 'block', marginBottom: 10 }} />
-                    No audit logs yet.
-                  </div>
-                ) : (
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-                      <thead>
-                        <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
-                          {['Action', 'Target User', 'Details', 'Performed At'].map(h => (
-                            <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 600, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {auditLogs.map((log, i) => {
-                          const actionColor = log.ACTION === 'PASSWORD_RESET' ? '#f59e0b' : log.ACTION === 'USER_DEACTIVATED' ? '#ef4444' : log.ACTION === 'USER_ACTIVATED' ? '#10b981' : '#6366f1';
-                          return (
-                            <tr key={log.AUDIT_ID} style={{ borderTop: '1px solid rgba(255,255,255,0.05)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)' }}>
-                              <td style={{ padding: '12px 16px' }}>
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: `${actionColor}18`, color: actionColor, border: `1px solid ${actionColor}35`, borderRadius: 6, padding: '3px 10px', fontWeight: 600, fontSize: '0.72rem', whiteSpace: 'nowrap' }}>
-                                  {log.ACTION}
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                    <thead>
+                      <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
+                        {['User ID', 'Name', 'Email Address', 'Role', 'Department', 'Actions'].map(h => (
+                          <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 600, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingUsers.map((pUser, i) => {
+                        const cfg = getRoleConfig(pUser.role);
+                        return (
+                          <tr key={pUser.user_id} style={{ borderTop: '1px solid rgba(255,255,255,0.05)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)' }}>
+                            <td style={{ padding: '12px 16px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ fontFamily: 'monospace', fontSize: '0.8rem', background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: 4, color: '#e2e8f0' }}>
+                                  {pUser.user_login_id}
                                 </span>
-                              </td>
-                              <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.7)' }}>
-                                {log.TARGET_USER_NAME || log.TARGET_USER || '—'}
-                                {log.TARGET_USER_EMAIL && <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.35)' }}>{log.TARGET_USER_EMAIL}</div>}
-                              </td>
-                              <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.45)', maxWidth: 280, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{log.DETAILS || '—'}</td>
-                              <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap' }}>{formatDate(log.PERFORMED_AT)}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                                <button
+                                  onClick={() => setEditUserIdUser(pUser)}
+                                  style={{ background: 'none', border: 'none', color: '#6366f1', cursor: 'pointer', padding: '2px 4px', display: 'inline-flex', alignItems: 'center', borderRadius: 4, transition: 'all 0.2s' }}
+                                  title="Edit User ID"
+                                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.15)'}
+                                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                                >
+                                  <i className="ti ti-edit" style={{ fontSize: 13 }} />
+                                </button>
+                              </div>
+                            </td>
+                            <td style={{ padding: '12px 16px', fontWeight: 600, color: '#fff' }}>{pUser.name}</td>
+                            <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.7)' }}>{pUser.email}</td>
+                            <td style={{ padding: '12px 16px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: cfg.color, fontWeight: 600 }}>
+                                  <i className={`ti ti-${cfg.icon}`} /> {cfg.label}
+                                </span>
+                                <button
+                                  onClick={() => setEditRoleUser(pUser)}
+                                  style={{ background: 'none', border: 'none', color: '#6366f1', cursor: 'pointer', padding: '2px 4px', display: 'inline-flex', alignItems: 'center', borderRadius: 4, transition: 'all 0.2s' }}
+                                  title="Edit Role"
+                                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.15)'}
+                                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                                >
+                                  <i className="ti ti-edit" style={{ fontSize: 13 }} />
+                                </button>
+                              </div>
+                            </td>
+                            <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.5)' }}>{pUser.department || '—'}</td>
+                            <td style={{ padding: '12px 16px' }}>
+                              <div style={{ display: 'flex', gap: 10 }}>
+                                <button onClick={() => handleApprove(pUser)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', color: '#34d399', cursor: 'pointer', fontWeight: 600, fontSize: '0.78rem', transition: 'all 0.2s' }}
+                                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(16,185,129,0.3)'}
+                                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(16,185,129,0.15)'}
+                                >
+                                  <i className="ti ti-circle-check" /> Approve
+                                </button>
+                                <button onClick={() => handleReject(pUser)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', cursor: 'pointer', fontWeight: 600, fontSize: '0.78rem', transition: 'all 0.2s' }}
+                                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.3)'}
+                                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(239,68,68,0.15)'}
+                                >
+                                  <i className="ti ti-circle-x" /> Reject
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-
-        {/* TEMP PASSWORD MODAL */}
-        {tempPwModal && (
-          <TempPasswordModal
-            tempPassword={tempPwModal.tempPassword}
-            userName={tempPwModal.userName}
-            onClose={() => setTempPwModal(null)}
-          />
+            )}
+          </div>
         )}
 
-        {/* TOAST */}
-        {toast && (
-          <div style={{ position: 'fixed', bottom: 28, right: 28, background: toast.type === 'success' ? '#10b981' : '#ef4444', color: '#fff', borderRadius: 12, padding: '14px 22px', fontSize: '0.88rem', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 10, zIndex: 9999, boxShadow: '0 8px 30px rgba(0,0,0,0.4)', animation: 'slideUp 0.3s ease' }}>
-            <i className={`ti ti-${toast.type === 'success' ? 'circle-check-filled' : 'alert-circle-filled'}`} style={{ fontSize: 20 }} />
-            {toast.msg}
+        {/* USERS TAB */}
+        {activeTab === 'users' && (
+          <div style={{ animation: 'fadeIn 0.3s ease' }}>
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: 60, color: 'rgba(255,255,255,0.35)' }}>
+                <i className="ti ti-loader-2" style={{ fontSize: 36, animation: 'spin 1s linear infinite', display: 'block', marginBottom: 12 }} />
+                Loading users…
+              </div>
+            ) : sortedRoleKeys.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 60, color: 'rgba(255,255,255,0.25)' }}>
+                <i className="ti ti-users-minus" style={{ fontSize: 48, display: 'block', marginBottom: 12 }} />
+                No users found.
+              </div>
+            ) : sortedRoleKeys.map(role => {
+              const cfg = getRoleConfig(role);
+              const users = usersGrouped[role] || [];
+              return (
+                <div key={role} style={{ marginBottom: 28 }}>
+                  {/* Role Header */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 10, background: `${cfg.color}22`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <i className={`ti ti-${cfg.icon}`} style={{ fontSize: 18, color: cfg.color }} />
+                    </div>
+                    <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 700, color: cfg.color, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{cfg.label}</h3>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, background: `${cfg.color}20`, color: cfg.color, border: `1px solid ${cfg.color}40`, borderRadius: 20, padding: '2px 10px' }}>{users.length}</span>
+                  </div>
+                  <div style={{ display: 'grid', gap: 10 }}>
+                    {users.map(user => (
+                      <UserCard key={user.user_id} user={user} onReset={handleReset} onToggle={handleToggle} onEditRole={setEditRoleUser} onEditUserId={setEditUserIdUser} />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* AUDIT LOG TAB */}
+        {activeTab === 'audit' && (
+          <div style={{ animation: 'fadeIn 0.3s ease' }}>
+            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, overflow: 'hidden' }}>
+              <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <i className="ti ti-list-check" style={{ color: '#6366f1', fontSize: 18 }} />
+                  <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>Recent Admin Actions</span>
+                </div>
+                <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.35)' }}>Last 200 actions</span>
+              </div>
+              {auditLogs.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 48, color: 'rgba(255,255,255,0.25)' }}>
+                  <i className="ti ti-clipboard-list" style={{ fontSize: 40, display: 'block', marginBottom: 10 }} />
+                  No audit logs yet.
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                    <thead>
+                      <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
+                        {['Action', 'Target User', 'Details', 'Performed At'].map(h => (
+                          <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 600, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {auditLogs.map((log, i) => {
+                        const actionColor = log.ACTION === 'PASSWORD_RESET' ? '#f59e0b' : log.ACTION === 'USER_DEACTIVATED' ? '#ef4444' : log.ACTION === 'USER_ACTIVATED' ? '#10b981' : '#6366f1';
+                        return (
+                          <tr key={log.AUDIT_ID} style={{ borderTop: '1px solid rgba(255,255,255,0.05)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)' }}>
+                            <td style={{ padding: '12px 16px' }}>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: `${actionColor}18`, color: actionColor, border: `1px solid ${actionColor}35`, borderRadius: 6, padding: '3px 10px', fontWeight: 600, fontSize: '0.72rem', whiteSpace: 'nowrap' }}>
+                                {log.ACTION}
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.7)' }}>
+                              {log.TARGET_USER_NAME || log.TARGET_USER || '—'}
+                              {log.TARGET_USER_EMAIL && <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.35)' }}>{log.TARGET_USER_EMAIL}</div>}
+                            </td>
+                            <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.45)', maxWidth: 280, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{log.DETAILS || '—'}</td>
+                            <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap' }}>{formatDate(log.PERFORMED_AT)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
-      );
+
+      {/* TEMP PASSWORD MODAL */}
+      {tempPwModal && (
+        <TempPasswordModal
+          tempPassword={tempPwModal.tempPassword}
+          userName={tempPwModal.userName}
+          onClose={() => setTempPwModal(null)}
+        />
+      )}
+
+      {/* EDIT ROLE MODAL */}
+      {editRoleUser && (
+        <EditRoleModal
+          user={editRoleUser}
+          onClose={() => setEditRoleUser(null)}
+          onSave={handleSaveRole}
+        />
+      )}
+
+      {/* EDIT USER ID MODAL */}
+      {editUserIdUser && (
+        <EditUserIdModal
+          user={editUserIdUser}
+          onClose={() => setEditUserIdUser(null)}
+          onSave={handleSaveUserId}
+        />
+      )}
+
+      {/* TOAST */}
+      {toast && (
+        <div style={{ position: 'fixed', bottom: 28, right: 28, background: toast.type === 'success' ? '#10b981' : '#ef4444', color: '#fff', borderRadius: 12, padding: '14px 22px', fontSize: '0.88rem', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 10, zIndex: 9999, boxShadow: '0 8px 30px rgba(0,0,0,0.4)', animation: 'slideUp 0.3s ease' }}>
+          <i className={`ti ti-${toast.type === 'success' ? 'circle-check-filled' : 'alert-circle-filled'}`} style={{ fontSize: 20 }} />
+          {toast.msg}
+        </div>
+      )}
+    </div>
+  );
 }

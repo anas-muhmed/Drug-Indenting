@@ -6458,8 +6458,6 @@ app.get('/api/generics/search', async (req, res) => {
 });
 
 
-
-
 app.post('/api/reports/item-margin-report', async (req, res) => {
   const conn = await getConn();
 
@@ -6526,188 +6524,197 @@ app.post('/api/reports/item-margin-report', async (req, res) => {
     const inClause = resolvedIds.map((_, i) => `:gid${i}`).join(', ');
 
     const query = `
-      WITH latest_purchase_rate AS (
-        SELECT
-            li.item,
-            MAX(li.itemrate) KEEP (DENSE_RANK LAST ORDER BY li.docdetailid) AS latest_rate
-        FROM goodsreceiptnotelineitem li
-        WHERE li.itemrate IS NOT NULL
-          AND li.itemrate > 0
-        GROUP BY li.item
-      ),
-      base_data AS (
-        SELECT
-            ROW_NUMBER() OVER (ORDER BY i.description) AS sno,
+  WITH latest_purchase_rate AS (
+    SELECT
+        li.item,
+        MAX(li.itemrate) KEEP (DENSE_RANK LAST ORDER BY li.docdetailid) AS latest_rate
+    FROM goodsreceiptnotelineitem li
+    WHERE li.itemrate IS NOT NULL
+      AND li.itemrate > 0
+    GROUP BY li.item
+  ),
+  base_data AS (
+    SELECT
+        ROW_NUMBER() OVER (ORDER BY i.description) AS sno,
 
-            i.createddatetime AS introduced_on,
-            i.description AS brand_name,
-            CASE
-    WHEN i.ISACTIVE = 1 THEN 'Active✅'
-    ELSE 'Inactive❌'
-END AS status,
-            m.manufacturer_name AS manufacturer,
-            market.marketter_name AS marketer,
+        i.createddatetime AS introduced_on,
+        i.description AS brand_name,
+        CASE
+WHEN i.ISACTIVE = 1 THEN 'Active✅'
+ELSE 'Inactive❌'
 
-            NVL((
-                SELECT LISTAGG(e.employee_name, ',')
-                FROM itemdoctormap idm
-                INNER JOIN employee e
-                    ON e.employee_id = idm.doctorid
-                WHERE idm.itemid = i.id
-                  AND idm.status = 1
-            ), ' ') AS consultant,
+END AS status,m.manufacturer_name AS manufacturer,market.marketter_name AS marketer,
 
-            NVL((
-                SELECT SUM(cs.currentstock)
-                FROM currentstock cs
-                WHERE cs.item = i.id
-                  AND cs.expirydate > SYSDATE
-            ), 0) AS present_stock,
+        NVL((
+            SELECT LISTAGG(e.employee_name, ',')
+            FROM itemdoctormap idm
+            INNER JOIN employee e
+                ON e.employee_id = idm.doctorid
+            WHERE idm.itemid = i.id
+              AND idm.status = 1
+        ), ' ') AS consultant,
 
-            NVL((
-                SELECT SUM(gl.quantity)
-                FROM goodsreceiptnote grn
-                INNER JOIN goodsreceiptnotelineitem gl
-                    ON gl.goodsreceiptnotelineitemid = grn.docid
-                WHERE gl.item = i.id
-                  AND grn.approvestatustypenum = 2
-                  AND grn.createddatetime BETWEEN
-                      TO_DATE(:fromDate,'DD/MM/YYYY HH24:MI:SS')
-                      AND TO_DATE(:toDate,'DD/MM/YYYY HH24:MI:SS')
-            ), 0) AS purchase_quantity,
+        NVL((
+            SELECT SUM(cs.currentstock)
+            FROM currentstock cs
+            WHERE cs.item = i.id
+              AND cs.expirydate > SYSDATE
+        ), 0) AS present_stock,
 
-            NVL((
-                SELECT SUM(ibd.issued_qty)
-                FROM issueheader ih
-                INNER JOIN issuedetail id
-                    ON id.issueheader_id = ih.transaction_id
-                INNER JOIN issuebatchdetail ibd
-                    ON ibd.issuedetail_id = id.detail_id
-                WHERE ih.createddt BETWEEN
-                      TO_DATE(:fromDate,'DD/MM/YYYY HH24:MI:SS')
-                      AND TO_DATE(:toDate,'DD/MM/YYYY HH24:MI:SS')
-                  AND ih.issue_status = 452
-                  AND id.item = i.id
-            ), 0) AS sale_qty,
+        NVL((
+            SELECT SUM(gl.quantity)
+            FROM goodsreceiptnote grn
+            INNER JOIN goodsreceiptnotelineitem gl
+                ON gl.goodsreceiptnotelineitemid = grn.docid
+            WHERE gl.item = i.id
+              AND grn.approvestatustypenum = 2
+              AND grn.createddatetime BETWEEN
+                  TO_DATE(:fromDate,'DD/MM/YYYY HH24:MI:SS')
+                  AND TO_DATE(:toDate,'DD/MM/YYYY HH24:MI:SS')
+        ), 0) AS purchase_quantity,
 
-            u.name AS pack,
-            TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')) AS pack_qty,
+        NVL((
+            SELECT SUM(ibd.issued_qty)
+            FROM issueheader ih
+            INNER JOIN issuedetail id
+                ON id.issueheader_id = ih.transaction_id
+            INNER JOIN issuebatchdetail ibd
+                ON ibd.issuedetail_id = id.detail_id
+            WHERE ih.createddt BETWEEN
+                  TO_DATE(:fromDate,'DD/MM/YYYY HH24:MI:SS')
+                  AND TO_DATE(:toDate,'DD/MM/YYYY HH24:MI:SS')
+              AND ih.issue_status = 452
+              AND id.item = i.id
+        ), 0) AS sale_qty,
 
-            ROUND(
-                NVL(i.mrp, 0) /
-                NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0),
-            4) AS mrp_incl_gst,
+        u.name AS pack,
+        TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')) AS pack_qty,
 
-            ROUND(
-                NVL(lpr.latest_rate, 0) /
-                NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0),
-            4) AS rate_incl_gst,
+        ROUND(
+            NVL(i.mrp, 0) /
+            NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0),
+        4) AS mrp_incl_gst,
 
-            NVL(ivm.quantity, 0) AS scheme_qty,
-            NVL(ivm.freeqty, 0) AS offer_qty,
+        ROUND(
+            NVL(lpr.latest_rate, 0) /
+            NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0),
+        4) AS rate_incl_gst,
 
-            ROUND(
-                NVL(i.mrp, 0) /
-                NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0),
-            4) AS base_mrp_per_unit,
+        NVL(ivm.quantity, 0) AS scheme_qty,
+        NVL(ivm.freeqty, 0) AS offer_qty,
 
-            ROUND(
-                NVL(lpr.latest_rate, 0) /
-                NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0),
-            4) AS base_rate_per_unit
+        ROUND(
+            NVL(i.mrp, 0) /
+            NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0),
+        4) AS base_mrp_per_unit,
 
-        FROM item i
-        INNER JOIN drugdetail dd
-            ON dd.item_refid = i.id
-        INNER JOIN genericdrugmapping dgm
-            ON dgm.itemgenericid = dd.itemgenericid
-        INNER JOIN druggenerics dg
-            ON dg.drug_gen_id = dgm.druggenerics
-        LEFT JOIN manufacturer m
-            ON m.id = i.manufacturer_id
-        LEFT JOIN markettermaster market
-            ON market.id = i.marketter_id
-        LEFT JOIN uom u
-            ON u.id = i.purchaseuom
-        LEFT JOIN itemvendormap ivm
-            ON ivm.itemid = i.id
-        LEFT JOIN latest_purchase_rate lpr
-            ON lpr.item = i.id
-        WHERE i.itemtypenum = 1
-          AND i.isactive = 1
-          AND dg.drug_gen_id IN (${inClause})
-      )
-      SELECT
-          sno,
-          introduced_on,
-          brand_name,
-          status,
-          manufacturer,
-          marketer,
-          consultant,
-          present_stock,
-          purchase_quantity,
-          sale_qty,
-          pack,
-          pack_qty,
-          mrp_incl_gst,
-          rate_incl_gst,
+        ROUND(
+            NVL(lpr.latest_rate, 0) /
+            NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0),
+        4) AS base_rate_per_unit,
 
-          ROUND(
-              ((base_mrp_per_unit - base_rate_per_unit) /
-               NULLIF(base_rate_per_unit, 0)) * 100,
-          2) AS markup_margin,
+        -- ── NET RATE FIX ─────────────────────────────────────────────
+        -- If a drug has a scheme (scheme_qty + offer_qty > 0), net rate
+        -- is the blended scheme rate as before. If there is NO scheme
+        -- (both are 0), there's nothing to blend — the net rate is just
+        -- the plain purchase rate per unit. Computed once here so every
+        -- downstream column (net_rate, profit_margin, absolute_margin,
+        -- total_margin_markup) uses the same consistent value.
+       CASE
+    WHEN NVL(ivm.quantity,0) > 0
+     AND NVL(ivm.freeqty,0) > 0
+    THEN
+        ROUND(
+            (
+                ROUND(
+                    NVL(lpr.latest_rate,0) /
+                    NULLIF(
+                        TO_NUMBER(REGEXP_SUBSTR(u.name,'^[0-9]+')),
+                        0
+                    ),
+                4)
+                * NVL(ivm.quantity,0)
+            ) /
+            (NVL(ivm.quantity,0)+NVL(ivm.freeqty,0)),
+        4)
 
-          scheme_qty,
-          offer_qty,
+    ELSE
+        ROUND(
+            NVL(lpr.latest_rate,0) /
+            NULLIF(
+                TO_NUMBER(REGEXP_SUBSTR(u.name,'^[0-9]+')),
+                0
+            ),
+        4)
+END AS net_rate_value
 
-          ROUND(
-              (base_rate_per_unit * scheme_qty) /
-              NULLIF((scheme_qty + offer_qty), 0),
-          4) AS net_rate,
+    FROM item i
+    INNER JOIN drugdetail dd
+        ON dd.item_refid = i.id
+    INNER JOIN genericdrugmapping dgm
+        ON dgm.itemgenericid = dd.itemgenericid
+    INNER JOIN druggenerics dg
+        ON dg.drug_gen_id = dgm.druggenerics
+    LEFT JOIN manufacturer m
+        ON m.id = i.manufacturer_id
+    LEFT JOIN markettermaster market
+        ON market.id = i.marketter_id
+    LEFT JOIN uom u
+        ON u.id = i.purchaseuom
+    LEFT JOIN itemvendormap ivm
+        ON ivm.itemid = i.id
+    LEFT JOIN latest_purchase_rate lpr
+        ON lpr.item = i.id
+    WHERE i.itemtypenum = 1
+      AND i.isactive = 1
+      AND dg.drug_gen_id IN (${inClause})
+  )
+  SELECT
+      sno,
+      introduced_on,
+      brand_name,
+      status,
+      manufacturer,
+      marketer,
+      consultant,
+      present_stock,
+      purchase_quantity,
+      sale_qty,
+      pack,
+      pack_qty,
+      mrp_incl_gst,
+      rate_incl_gst,
 
-          ROUND(
-              (
-                base_mrp_per_unit -
-                (
-                  (base_rate_per_unit * scheme_qty) /
-                  NULLIF((scheme_qty + offer_qty), 0)
-                )
-              ) /
-              NULLIF(base_mrp_per_unit, 0) * 100,
-          2) AS profit_margin,
+      ROUND(
+          ((base_mrp_per_unit - base_rate_per_unit) /
+           NULLIF(base_rate_per_unit, 0)) * 100,
+      2) AS markup_margin,
 
-          ROUND(
-              base_mrp_per_unit -
-              (
-                (base_rate_per_unit * scheme_qty) /
-                NULLIF((scheme_qty + offer_qty), 0)
-              ),
-          4) AS absolute_margin,
+      scheme_qty,
+      offer_qty,
 
-          ROUND(
-              (
-                (
-                  base_mrp_per_unit -
-                  (
-                    (base_rate_per_unit * scheme_qty) /
-                    NULLIF((scheme_qty + offer_qty), 0)
-                  )
-                ) /
-                NULLIF(
-                  (
-                    (base_rate_per_unit * scheme_qty) /
-                    NULLIF((scheme_qty + offer_qty), 0)
-                  ),
-                  0
-                )
-              ) * 100,
-          2) AS total_margin_markup,
+      net_rate_value AS net_rate,
 
-          NULL AS remarks
-      FROM base_data
-      ORDER BY brand_name
-    `;
+      ROUND(
+          (base_mrp_per_unit - net_rate_value) /
+          NULLIF(base_mrp_per_unit, 0) * 100,
+      2) AS profit_margin,
+
+      ROUND(
+          base_mrp_per_unit - net_rate_value,
+      4) AS absolute_margin,
+
+      ROUND(
+          (
+            (base_mrp_per_unit - net_rate_value) /
+            NULLIF(net_rate_value, 0)
+          ) * 100,
+      2) AS total_margin_markup,
+
+      NULL AS remarks
+  FROM base_data
+  ORDER BY brand_name
+`;
 
     const result = await conn.execute(query, {
       fromDate,
@@ -6741,37 +6748,86 @@ END AS status,
     }));
 
     res.json(data);
-  } catch (err) {
-    console.error('POST /api/reports/item-margin-report error:', err);
-    res.status(500).json({
-      error: 'Internal server error.',
-      detail: err.message
-    });
-  } finally {
-    await conn.close();
-  }
+
+  } catch (err) { console.error('POST /api/reports/item-margin-report error:', err); res.status(500).json({ error: 'Internal server error.', detail: err.message }); } finally { await conn.close(); }
 });
 
 
 
 
+
+
+
+
+
+
+
+
+//old  item-margin-report api
 // app.post('/api/reports/item-margin-report', async (req, res) => {
 //   const conn = await getConn();
+
 //   try {
-//     const { fromDate, toDate, genericId } = req.body;
+//     const { fromDate, toDate, genericId, genericName } = req.body;
 
-//     if (!fromDate || !toDate || genericId === undefined || genericId === null) {
+//     if (!fromDate || !toDate) {
 //       return res.status(400).json({
-//         error: 'fromDate, toDate, and genericId are required.'
+//         error: 'fromDate and toDate are required.'
 //       });
 //     }
 
-//     const genIdNum = parseInt(genericId, 10);
-//     if (isNaN(genIdNum)) {
+//     // ── Resolve genericId(s) ────────────────────────────────────────────────
+//     // Caller may supply either a numeric genericId (existing behaviour)
+//     // or a combo string genericName (e.g. "Aspirin + Clopidogrel").
+//     // Both paths produce resolvedIds — an array of numeric DRUG_GEN_IDs.
+//     let resolvedIds;
+
+//     if (genericId !== undefined && genericId !== null) {
+//       // ── Path A: numeric genericId (backward-compatible) ──────────────────
+//       const genIdNum = parseInt(genericId, 10);
+//       if (isNaN(genIdNum)) {
+//         return res.status(400).json({ error: 'genericId must be a valid number.' });
+//       }
+//       resolvedIds = [genIdNum];
+
+//     } else if (genericName) {
+//       // ── Path B: combo name string → resolve to DRUG_GEN_ID(s) ───────────
+//       // Tokenise so "Aspirin + Clopidogrel" and "Clopidogrel + Aspirin"
+//       // resolve identically (each token must appear in DRUG_GEN_NAME).
+//       const tokens = normalizeGenericCombo(String(genericName));
+//       if (tokens.length === 0) {
+//         return res.status(400).json({ error: 'genericName is empty after normalisation.' });
+//       }
+
+//       // Build AND-of-LIKE bind params: { gnTok0: 'aspirin', gnTok1: 'clopidogrel', ... }
+//       const gnBinds = Object.fromEntries(tokens.map((t, i) => [`gnTok${i}`, t]));
+//       const gnWhere = tokens
+//         .map((_, i) => `LOWER(dg.DRUG_GEN_NAME) LIKE '%' || :gnTok${i} || '%'`)
+//         .join(' AND ');
+
+//       const gnResult = await conn.execute(
+//         `SELECT dg.DRUG_GEN_ID FROM DRUGGENERICS dg WHERE ${gnWhere}`,
+//         gnBinds
+//       );
+
+//       if (!gnResult.rows || gnResult.rows.length === 0) {
+//         return res.status(404).json({ error: `No generic found matching '${genericName}'.` });
+//       }
+
+//       // Collect all matching IDs (there may be more than one row)
+//       resolvedIds = gnResult.rows.map(r => r.DRUG_GEN_ID);
+
+//     } else {
 //       return res.status(400).json({
-//         error: 'genericId must be a valid number.'
+//         error: 'Either genericId or genericName is required.'
 //       });
 //     }
+//     // ────────────────────────────────────────────────────────────────────────
+
+//     // Build IN-clause bind params: { gid0: 1, gid1: 2, ... }
+//     // Named params avoid string-concatenation of user-supplied values into SQL.
+//     const idBinds = Object.fromEntries(resolvedIds.map((id, i) => [`gid${i}`, id]));
+//     const inClause = resolvedIds.map((_, i) => `:gid${i}`).join(', ');
 
 //     const query = `
 //       WITH latest_purchase_rate AS (
@@ -6782,267 +6838,192 @@ END AS status,
 //         WHERE li.itemrate IS NOT NULL
 //           AND li.itemrate > 0
 //         GROUP BY li.item
+//       ),
+//       base_data AS (
+//         SELECT
+//             ROW_NUMBER() OVER (ORDER BY i.description) AS sno,
+
+//             i.createddatetime AS introduced_on,
+//             i.description AS brand_name,
+//             CASE
+//     WHEN i.ISACTIVE = 1 THEN 'Active✅'
+//     ELSE 'Inactive❌'
+// END AS status,
+//             m.manufacturer_name AS manufacturer,
+//             market.marketter_name AS marketer,
+
+//             NVL((
+//                 SELECT LISTAGG(e.employee_name, ',')
+//                 FROM itemdoctormap idm
+//                 INNER JOIN employee e
+//                     ON e.employee_id = idm.doctorid
+//                 WHERE idm.itemid = i.id
+//                   AND idm.status = 1
+//             ), ' ') AS consultant,
+
+//             NVL((
+//                 SELECT SUM(cs.currentstock)
+//                 FROM currentstock cs
+//                 WHERE cs.item = i.id
+//                   AND cs.expirydate > SYSDATE
+//             ), 0) AS present_stock,
+
+//             NVL((
+//                 SELECT SUM(gl.quantity)
+//                 FROM goodsreceiptnote grn
+//                 INNER JOIN goodsreceiptnotelineitem gl
+//                     ON gl.goodsreceiptnotelineitemid = grn.docid
+//                 WHERE gl.item = i.id
+//                   AND grn.approvestatustypenum = 2
+//                   AND grn.createddatetime BETWEEN
+//                       TO_DATE(:fromDate,'DD/MM/YYYY HH24:MI:SS')
+//                       AND TO_DATE(:toDate,'DD/MM/YYYY HH24:MI:SS')
+//             ), 0) AS purchase_quantity,
+
+//             NVL((
+//                 SELECT SUM(ibd.issued_qty)
+//                 FROM issueheader ih
+//                 INNER JOIN issuedetail id
+//                     ON id.issueheader_id = ih.transaction_id
+//                 INNER JOIN issuebatchdetail ibd
+//                     ON ibd.issuedetail_id = id.detail_id
+//                 WHERE ih.createddt BETWEEN
+//                       TO_DATE(:fromDate,'DD/MM/YYYY HH24:MI:SS')
+//                       AND TO_DATE(:toDate,'DD/MM/YYYY HH24:MI:SS')
+//                   AND ih.issue_status = 452
+//                   AND id.item = i.id
+//             ), 0) AS sale_qty,
+
+//             u.name AS pack,
+//             TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')) AS pack_qty,
+
+//             ROUND(
+//                 NVL(i.mrp, 0) /
+//                 NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0),
+//             4) AS mrp_incl_gst,
+
+//             ROUND(
+//                 NVL(lpr.latest_rate, 0) /
+//                 NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0),
+//             4) AS rate_incl_gst,
+
+//             NVL(ivm.quantity, 0) AS scheme_qty,
+//             NVL(ivm.freeqty, 0) AS offer_qty,
+
+//             ROUND(
+//                 NVL(i.mrp, 0) /
+//                 NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0),
+//             4) AS base_mrp_per_unit,
+
+//             ROUND(
+//                 NVL(lpr.latest_rate, 0) /
+//                 NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0),
+//             4) AS base_rate_per_unit
+
+//         FROM item i
+//         INNER JOIN drugdetail dd
+//             ON dd.item_refid = i.id
+//         INNER JOIN genericdrugmapping dgm
+//             ON dgm.itemgenericid = dd.itemgenericid
+//         INNER JOIN druggenerics dg
+//             ON dg.drug_gen_id = dgm.druggenerics
+//         LEFT JOIN manufacturer m
+//             ON m.id = i.manufacturer_id
+//         LEFT JOIN markettermaster market
+//             ON market.id = i.marketter_id
+//         LEFT JOIN uom u
+//             ON u.id = i.purchaseuom
+//         LEFT JOIN itemvendormap ivm
+//             ON ivm.itemid = i.id
+//         LEFT JOIN latest_purchase_rate lpr
+//             ON lpr.item = i.id
+//         WHERE i.itemtypenum = 1
+//           AND i.isactive = 1
+//           AND dg.drug_gen_id IN (${inClause})
 //       )
 //       SELECT
-//           ROW_NUMBER() OVER (ORDER BY i.description) AS SNO,
+//           sno,
+//           introduced_on,
+//           brand_name,
+//           status,
+//           manufacturer,
+//           marketer,
+//           consultant,
+//           present_stock,
+//           purchase_quantity,
+//           sale_qty,
+//           pack,
+//           pack_qty,
+//           mrp_incl_gst,
+//           rate_incl_gst,
 
-//           i.createddatetime AS introduced_on,
-
-//           i.description AS brand_name,
-
-//           m.manufacturer_name AS manufacturer,
-
-//           market.marketter_name AS marketer,
-
-//           NVL((
-//               SELECT LISTAGG(e.employee_name, ',')
-//               FROM itemdoctormap idm
-//               INNER JOIN employee e
-//                   ON e.employee_id = idm.doctorid
-//               WHERE idm.itemid = i.id
-//                 AND idm.status = 1
-//           ), ' ') AS consultant,
-
-//           NVL((
-//               SELECT SUM(cs.currentstock)
-//               FROM currentstock cs
-//               WHERE cs.item = i.id
-//                 AND cs.expirydate > SYSDATE
-//           ), 0) AS present_stock,
-
-//           NVL((
-//               SELECT SUM(gl.quantity)
-//               FROM goodsreceiptnote grn
-//               INNER JOIN goodsreceiptnotelineitem gl
-//                   ON gl.goodsreceiptnotelineitemid = grn.docid
-//               WHERE gl.item = i.id
-//                 AND grn.approvestatustypenum = 2
-//                 AND grn.createddatetime BETWEEN
-//                     TO_DATE(:fromDate,'DD/MM/YYYY HH24:MI:SS')
-//                     AND TO_DATE(:toDate,'DD/MM/YYYY HH24:MI:SS')
-//           ), 0) AS purchase_quantity,
-
-//           NVL((
-//               SELECT SUM(ibd.issued_qty)
-//               FROM issueheader ih
-//               INNER JOIN issuedetail id
-//                   ON id.issueheader_id = ih.transaction_id
-//               INNER JOIN issuebatchdetail ibd
-//                   ON ibd.issuedetail_id = id.detail_id
-//               WHERE ih.createddt BETWEEN
-//                     TO_DATE(:fromDate,'DD/MM/YYYY HH24:MI:SS')
-//                     AND TO_DATE(:toDate,'DD/MM/YYYY HH24:MI:SS')
-//                 AND ih.issue_status = 452
-//                 AND id.item = i.id
-//           ), 0) AS sale_qty,
-
-//           u.name AS pack,
-
-//           /* Extract numeric pack quantity from values like:
-//              1/Strip, 10/Strip, 1/Vial, 1/Botl */
-//           TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')) AS pack_qty,
-
-//           /* MRP per unit/tablet = current MRP divided by pack quantity */
 //           ROUND(
-//               NVL(i.mrp, 0) /
-//               NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0),
-//           4) AS mrp_incl_gst,
-
-//           /* Latest purchase rate per unit/tablet = latest itemrate divided by pack qty */
-//           ROUND(
-//               NVL(lpr.latest_rate, 0) /
-//               NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0),
-//           4) AS rate_incl_gst,
-
-//           /* Markup Margin % = (MRP - Rate) / Rate * 100 */
-//           ROUND(
-//               (
-//                   (
-//                       NVL(i.mrp, 0) /
-//                       NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0)
-//                   )
-//                   -
-//                   (
-//                       NVL(lpr.latest_rate, 0) /
-//                       NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0)
-//                   )
-//               )
-//               /
-//               NULLIF(
-//                   (
-//                       NVL(lpr.latest_rate, 0) /
-//                       NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0)
-//                   ),
-//                   0
-//               ) * 100,
+//               ((base_mrp_per_unit - base_rate_per_unit) /
+//                NULLIF(base_rate_per_unit, 0)) * 100,
 //           2) AS markup_margin,
 
-//           /* Scheme quantity comes from ITEMVENDORMAP.QUANTITY */
-//           NVL(ivm.quantity, 0) AS scheme_qty,
+//           scheme_qty,
+//           offer_qty,
 
-//           /* Offer quantity comes from ITEMVENDORMAP.FREEQTY */
-//           NVL(ivm.freeqty, 0) AS offer_qty,
-
-//           /* Net rate per unit/tablet = Rate × Qty / (Qty + Offer) */
 //           ROUND(
-//               (
-//                   (
-//                       NVL(lpr.latest_rate, 0) /
-//                       NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0)
-//                   )
-//                   * NVL(ivm.quantity, 0)
-//               )
-//               /
-//               NULLIF(
-//                   NVL(ivm.quantity, 0) + NVL(ivm.freeqty, 0),
-//                   0
-//               ),
+//               (base_rate_per_unit * scheme_qty) /
+//               NULLIF((scheme_qty + offer_qty), 0),
 //           4) AS net_rate,
 
-//           /* Profit Margin % = (MRP - Net Rate) / MRP * 100 */
 //           ROUND(
 //               (
-//                   (
-//                       NVL(i.mrp, 0) /
-//                       NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0)
-//                   )
-//                   -
-//                   (
-//                       (
-//                           (
-//                               NVL(lpr.latest_rate, 0) /
-//                               NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0)
-//                           )
-//                           * NVL(ivm.quantity, 0)
-//                       )
-//                       /
-//                       NULLIF(
-//                           NVL(ivm.quantity, 0) + NVL(ivm.freeqty, 0),
-//                           0
-//                       )
-//                   )
-//               )
-//               /
-//               NULLIF(
-//                   (
-//                       NVL(i.mrp, 0) /
-//                       NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0)
-//                   ),
-//                   0
-//               ) * 100,
+//                 base_mrp_per_unit -
+//                 (
+//                   (base_rate_per_unit * scheme_qty) /
+//                   NULLIF((scheme_qty + offer_qty), 0)
+//                 )
+//               ) /
+//               NULLIF(base_mrp_per_unit, 0) * 100,
 //           2) AS profit_margin,
 
-//           /* Absolute Margin = MRP - Net Rate */
 //           ROUND(
+//               base_mrp_per_unit -
 //               (
-//                   NVL(i.mrp, 0) /
-//                   NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0)
-//               )
-//               -
-//               (
-//                   (
-//                       (
-//                           NVL(lpr.latest_rate, 0) /
-//                           NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0)
-//                       )
-//                       * NVL(ivm.quantity, 0)
-//                   )
-//                   /
-//                   NULLIF(
-//                       NVL(ivm.quantity, 0) + NVL(ivm.freeqty, 0),
-//                       0
-//                   )
+//                 (base_rate_per_unit * scheme_qty) /
+//                 NULLIF((scheme_qty + offer_qty), 0)
 //               ),
 //           4) AS absolute_margin,
 
-//           /* Total Margin Markup % = (MRP - Net Rate) / Net Rate * 100 */
 //           ROUND(
 //               (
+//                 (
+//                   base_mrp_per_unit -
 //                   (
-//                       (
-//                           NVL(i.mrp, 0) /
-//                           NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0)
-//                       )
-//                       -
-//                       (
-//                           (
-//                               (
-//                                   NVL(lpr.latest_rate, 0) /
-//                                   NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0)
-//                               )
-//                               * NVL(ivm.quantity, 0)
-//                           )
-//                           /
-//                           NULLIF(
-//                               NVL(ivm.quantity, 0) + NVL(ivm.freeqty, 0),
-//                               0
-//                           )
-//                       )
+//                     (base_rate_per_unit * scheme_qty) /
+//                     NULLIF((scheme_qty + offer_qty), 0)
 //                   )
-//                   /
-//                   NULLIF(
-//                       (
-//                           (
-//                               (
-//                                   NVL(lpr.latest_rate, 0) /
-//                                   NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0)
-//                               )
-//                               * NVL(ivm.quantity, 0)
-//                           )
-//                           /
-//                           NULLIF(
-//                               NVL(ivm.quantity, 0) + NVL(ivm.freeqty, 0),
-//                               0
-//                           )
-//                       ),
-//                       0
-//                   )
+//                 ) /
+//                 NULLIF(
+//                   (
+//                     (base_rate_per_unit * scheme_qty) /
+//                     NULLIF((scheme_qty + offer_qty), 0)
+//                   ),
+//                   0
+//                 )
 //               ) * 100,
 //           2) AS total_margin_markup,
 
 //           NULL AS remarks
-
-//       FROM item i
-
-//       INNER JOIN drugdetail dd
-//           ON dd.item_refid = i.id
-
-//       INNER JOIN genericdrugmapping dgm
-//           ON dgm.itemgenericid = dd.itemgenericid
-
-//       INNER JOIN druggenerics dg
-//           ON dg.drug_gen_id = dgm.druggenerics
-
-//       LEFT JOIN manufacturer m
-//           ON m.id = i.manufacturer_id
-
-//       LEFT JOIN markettermaster market
-//           ON market.id = i.marketter_id
-
-//       LEFT JOIN uom u
-//           ON u.id = i.purchaseuom
-
-//       LEFT JOIN itemvendormap ivm
-//           ON ivm.itemid = i.id
-
-//       LEFT JOIN latest_purchase_rate lpr
-//           ON lpr.item = i.id
-
-//       WHERE i.itemtypenum = 1
-//         AND i.isactive = 1
-//         AND dg.drug_gen_id = :genericId
+//       FROM base_data
+//       ORDER BY brand_name
 //     `;
 
 //     const result = await conn.execute(query, {
 //       fromDate,
 //       toDate,
-//       genericId: genIdNum
+//       ...idBinds   // gid0, gid1, … — one named bind per resolved ID
 //     });
 
 //     const data = result.rows.map(r => ({
 //       sno: r.SNO,
 //       introduced_on: r.INTRODUCED_ON,
 //       brand_name: r.BRAND_NAME,
+//       status: r.STATUS,
 //       manufacturer: r.MANUFACTURER,
 //       marketer: r.MARKETER,
 //       consultant: r.CONSULTANT,
@@ -7075,547 +7056,9 @@ END AS status,
 //   }
 // });
 
-// =========OLD=================================================
-// POST /api/reports/item-margin-report — Fetch existing generic details (READ-ONLY)
-// =============================================================
-// app.post('/api/reports/item-margin-report', async (req, res) => {
-//   const conn = await getConn();
-//   try {
-//     const { fromDate, toDate, genericId } = req.body;
-//     if (!fromDate || !toDate || genericId === undefined || genericId === null) {
-//       return res.status(400).json({ error: 'fromDate, toDate, and genericId are required.' });
-//     }
 
-//     const genIdNum = parseInt(genericId, 10);
-//     if (isNaN(genIdNum)) {
-//       return res.status(400).json({ error: 'genericId must be a valid number.' });
-//     }
 
-//     const query = `
-// SELECT
-//     ROW_NUMBER() OVER (ORDER BY i.description) AS SNO,
 
-//     i.createddatetime AS introduced_on,
-
-//     i.description AS brand_name,
-
-//     m.manufacturer_name AS manufacturer,
-
-//     market.marketter_name AS marketer,
-
-//     NVL((
-//         SELECT LISTAGG(e.employee_name, ',')
-//         FROM itemdoctormap idm
-//         INNER JOIN employee e
-//             ON e.employee_id = idm.doctorid
-//         WHERE idm.itemid = i.id
-//         AND idm.status = 1
-//     ), ' ') AS consultant,
-
-//     NVL((
-//         SELECT SUM(cs.currentstock)
-//         FROM currentstock cs
-//         WHERE cs.item = i.id
-//         AND cs.expirydate > SYSDATE
-//     ), 0) AS present_stock,
-
-//     NVL((
-//         SELECT SUM(gl.quantity)
-//         FROM goodsreceiptnote grn
-//         INNER JOIN goodsreceiptnotelineitem gl
-//             ON gl.goodsreceiptnotelineitemid = grn.docid
-//         WHERE gl.item = i.id
-//         AND grn.approvestatustypenum = 2
-//         AND grn.createddatetime BETWEEN
-//             TO_DATE(:fromDate,'DD/MM/YYYY HH24:MI:SS')
-//             AND
-//             TO_DATE(:toDate,'DD/MM/YYYY HH24:MI:SS')
-//     ),0) AS purchase_quantity,
-
-//     NVL((
-//         SELECT SUM(ibd.issued_qty)
-//         FROM issueheader ih
-//         INNER JOIN issuedetail id
-//             ON id.issueheader_id = ih.transaction_id
-//         INNER JOIN issuebatchdetail ibd
-//             ON ibd.issuedetail_id = id.detail_id
-//         WHERE ih.createddt BETWEEN
-//             TO_DATE(:fromDate,'DD/MM/YYYY HH24:MI:SS')
-//             AND
-//             TO_DATE(:toDate,'DD/MM/YYYY HH24:MI:SS')
-//         AND ih.issue_status = 452
-//         AND id.item = i.id
-//     ),0) AS sale_qty,
-
-//     u.name AS pack,
-
-//     NVL((
-//         SELECT gl.mrp
-//         FROM goodsreceiptnote grn
-//         INNER JOIN goodsreceiptnotelineitem gl
-//             ON gl.goodsreceiptnotelineitemid = grn.docid
-//         WHERE gl.item = i.id
-//         AND grn.approvestatustypenum = 2
-//         ORDER BY grn.createddatetime DESC
-//         FETCH NEXT 1 ROWS ONLY
-//     ),0) AS mrp_incl_gst,
-
-//     NVL((
-//         SELECT gl.itemrate +
-//             (
-//                 gl.itemrate *
-//                 (
-//                     SELECT SUM(gtd.taxpercentage)
-//                     FROM goodsreceiptnotetaxdetail gtd
-//                     WHERE gtd.goodsreceiptnotetaxdetailid = gl.docdetailid
-//                 ) / 100
-//             )
-//         FROM goodsreceiptnote grn
-//         INNER JOIN goodsreceiptnotelineitem gl
-//             ON gl.goodsreceiptnotelineitemid = grn.docid
-//         WHERE gl.item = i.id
-//         AND grn.approvestatustypenum = 2
-//         ORDER BY grn.createddatetime DESC
-//         FETCH NEXT 1 ROWS ONLY
-//     ),0) AS rate_incl_gst,
-
-//     ROUND(
-//         (
-//             (
-//                 NVL((
-//                     SELECT gl.mrp
-//                     FROM goodsreceiptnote grn
-//                     INNER JOIN goodsreceiptnotelineitem gl
-//                         ON gl.goodsreceiptnotelineitemid = grn.docid
-//                     WHERE gl.item = i.id
-//                     AND grn.approvestatustypenum = 2
-//                     ORDER BY grn.createddatetime DESC
-//                     FETCH NEXT 1 ROWS ONLY
-//                 ),0)
-//             )
-//             -
-//             (
-//                 NVL((
-//                     SELECT gl.itemrate
-//                     FROM goodsreceiptnote grn
-//                     INNER JOIN goodsreceiptnotelineitem gl
-//                         ON gl.goodsreceiptnotelineitemid = grn.docid
-//                     WHERE gl.item = i.id
-//                     AND grn.approvestatustypenum = 2
-//                     ORDER BY grn.createddatetime DESC
-//                     FETCH NEXT 1 ROWS ONLY
-//                 ),0)
-//             )
-//         ),
-//     2) AS absolute_margin,
-
-//     ivm.quantity AS scheme_qty,
-
-//     ivm.freeqty AS offer_qty,
-
-//     (
-//         NVL((
-//             SELECT gl.itemrate
-//             FROM goodsreceiptnote grn
-//             INNER JOIN goodsreceiptnotelineitem gl
-//                 ON gl.goodsreceiptnotelineitemid = grn.docid
-//             WHERE gl.item = i.id
-//             AND grn.approvestatustypenum = 2
-//             ORDER BY grn.createddatetime DESC
-//             FETCH NEXT 1 ROWS ONLY
-//         ),0)
-//     ) AS net_rate,
-
-//     ROUND(
-//         (
-//             (
-//                 (
-//                     NVL((
-//                         SELECT gl.mrp
-//                         FROM goodsreceiptnote grn
-//                         INNER JOIN goodsreceiptnotelineitem gl
-//                             ON gl.goodsreceiptnotelineitemid = grn.docid
-//                         WHERE gl.item = i.id
-//                         AND grn.approvestatustypenum = 2
-//                         ORDER BY grn.createddatetime DESC
-//                         FETCH NEXT 1 ROWS ONLY
-//                     ),0)
-//                 )
-//                 -
-//                 (
-//                     NVL((
-//                         SELECT gl.itemrate
-//                         FROM goodsreceiptnote grn
-//                         INNER JOIN goodsreceiptnotelineitem gl
-//                             ON gl.goodsreceiptnotelineitemid = grn.docid
-//                         WHERE gl.item = i.id
-//                         AND grn.approvestatustypenum = 2
-//                         ORDER BY grn.createddatetime DESC
-//                         FETCH NEXT 1 ROWS ONLY
-//                     ),0)
-//                 )
-//             )
-//             /
-//             NULLIF(
-//                 (
-//                     NVL((
-//                         SELECT gl.mrp
-//                         FROM goodsreceiptnote grn
-//                         INNER JOIN goodsreceiptnotelineitem gl
-//                             ON gl.goodsreceiptnotelineitemid = grn.docid
-//                         WHERE gl.item = i.id
-//                         AND grn.approvestatustypenum = 2
-//                         ORDER BY grn.createddatetime DESC
-//                         FETCH NEXT 1 ROWS ONLY
-//                     ),0)
-//                 ),0
-//             )
-//         ) * 100,
-//     2) AS profit_margin,
-
-//     ROUND(
-//         (
-//             (
-//                 NVL((
-//                     SELECT gl.mrp
-//                     FROM goodsreceiptnote grn
-//                     INNER JOIN goodsreceiptnotelineitem gl
-//                         ON gl.goodsreceiptnotelineitemid = grn.docid
-//                     WHERE gl.item = i.id
-//                     AND grn.approvestatustypenum = 2
-//                     ORDER BY grn.createddatetime DESC
-//                     FETCH NEXT 1 ROWS ONLY
-//                 ),0)
-//             )
-//             /
-//             NULLIF(
-//                 (
-//                     NVL((
-//                         SELECT gl.itemrate
-//                         FROM goodsreceiptnote grn
-//                         INNER JOIN goodsreceiptnotelineitem gl
-//                             ON gl.goodsreceiptnotelineitemid = grn.docid
-//                         WHERE gl.item = i.id
-//                         AND grn.approvestatustypenum = 2
-//                         ORDER BY grn.createddatetime DESC
-//                         FETCH NEXT 1 ROWS ONLY
-//                     ),0)
-//                 ),0
-//             )
-//         ) * 100,
-//     2) AS total_margin_markup,
-
-//     NULL AS remarks
-
-// FROM item i
-
-// INNER JOIN drugdetail dd
-//     ON dd.item_refid = i.ID
-
-// INNER JOIN genericdrugmapping dgm
-//     ON dgm.itemgenericid = dd.itemgenericid
-
-// INNER JOIN druggenerics dg
-//     ON dg.drug_gen_id = dgm.druggenerics
-
-// LEFT JOIN manufacturer m
-//     ON m.id = i.manufacturer_id
-
-// LEFT JOIN markettermaster market
-//     ON market.id = i.marketter_id
-
-// LEFT JOIN uom u
-//     ON u.id = i.purchaseuom
-
-// LEFT JOIN itemvendormap ivm
-//     ON ivm.itemid = i.id
-
-// WHERE i.itemtypenum = 1
-// AND i.isactive = 1
-// AND dg.drug_gen_id = :genericId
-// `;
-
-//     const result = await conn.execute(query, {
-//       fromDate,
-//       toDate,
-//       genericId: genIdNum
-//     });
-
-//     const data = result.rows.map(r => ({
-//       sno: r.SNO,
-//       introduced_on: r.INTRODUCED_ON,
-//       brand_name: r.BRAND_NAME,
-//       manufacturer: r.MANUFACTURER,
-//       marketer: r.MARKETER,
-//       consultant: r.CONSULTANT,
-//       present_stock: r.PRESENT_STOCK,
-//       purchase_quantity: r.PURCHASE_QUANTITY,
-//       sale_qty: r.SALE_QTY,
-//       pack: r.PACK,
-//       mrp_incl_gst: r.MRP_INCL_GST,
-//       rate_incl_gst: r.RATE_INCL_GST,
-//       absolute_margin: r.ABSOLUTE_MARGIN,
-//       scheme_qty: r.SCHEME_QTY,
-//       offer_qty: r.OFFER_QTY,
-//       net_rate: r.NET_RATE,
-//       profit_margin: r.PROFIT_MARGIN,
-//       total_margin_markup: r.TOTAL_MARGIN_MARKUP,
-//       remarks: r.REMARKS
-//     }));
-
-//     res.json(data);
-//   } catch (err) {
-//     console.error('POST /api/reports/item-margin-report error:', err);
-//     res.status(500).json({ error: 'Internal server error.', detail: err.message });
-//   } finally {
-//     await conn.close();
-//   }
-// });
-
-
-// =============================================================
-// POST /api/reports/item-margin-report — Fetch existing generic details (READ-ONLY)
-// MRP and Rate are converted from per-strip/per-pack to per-unit using pack quantity
-// extracted from u.name (examples: 1/Strip, 10/Strip, 1/Vial)
-// =============================================================
-// app.post('/api/reports/item-margin-report', async (req, res) => {
-//   const conn = await getConn();
-//   try {
-//     const { fromDate, toDate, genericId } = req.body;
-
-//     if (!fromDate || !toDate || genericId === undefined || genericId === null) {
-//       return res.status(400).json({
-//         error: 'fromDate, toDate, and genericId are required.'
-//       });
-//     }
-
-//     const genIdNum = parseInt(genericId, 10);
-//     if (isNaN(genIdNum)) {
-//       return res.status(400).json({
-//         error: 'genericId must be a valid number.'
-//       });
-//     }
-
-//     const query = `
-//       WITH latest_purchase_rate AS (
-//         SELECT
-//             li.item,
-//             MAX(li.itemrate) KEEP (DENSE_RANK LAST ORDER BY li.docdetailid) AS latest_rate
-//         FROM goodsreceiptnotelineitem li
-//         WHERE li.itemrate IS NOT NULL
-//           AND li.itemrate > 0
-//         GROUP BY li.item
-//       )
-//       SELECT
-//           ROW_NUMBER() OVER (ORDER BY i.description) AS SNO,
-
-//           i.createddatetime AS introduced_on,
-
-//           i.description AS brand_name,
-
-//           m.manufacturer_name AS manufacturer,
-
-//           market.marketter_name AS marketer,
-
-//           NVL((
-//               SELECT LISTAGG(e.employee_name, ',')
-//               FROM itemdoctormap idm
-//               INNER JOIN employee e
-//                   ON e.employee_id = idm.doctorid
-//               WHERE idm.itemid = i.id
-//                 AND idm.status = 1
-//           ), ' ') AS consultant,
-
-//           NVL((
-//               SELECT SUM(cs.currentstock)
-//               FROM currentstock cs
-//               WHERE cs.item = i.id
-//                 AND cs.expirydate > SYSDATE
-//           ), 0) AS present_stock,
-
-//           NVL((
-//               SELECT SUM(gl.quantity)
-//               FROM goodsreceiptnote grn
-//               INNER JOIN goodsreceiptnotelineitem gl
-//                   ON gl.goodsreceiptnotelineitemid = grn.docid
-//               WHERE gl.item = i.id
-//                 AND grn.approvestatustypenum = 2
-//                 AND grn.createddatetime BETWEEN
-//                     TO_DATE(:fromDate,'DD/MM/YYYY HH24:MI:SS')
-//                     AND TO_DATE(:toDate,'DD/MM/YYYY HH24:MI:SS')
-//           ), 0) AS purchase_quantity,
-
-//           NVL((
-//               SELECT SUM(ibd.issued_qty)
-//               FROM issueheader ih
-//               INNER JOIN issuedetail id
-//                   ON id.issueheader_id = ih.transaction_id
-//               INNER JOIN issuebatchdetail ibd
-//                   ON ibd.issuedetail_id = id.detail_id
-//               WHERE ih.createddt BETWEEN
-//                     TO_DATE(:fromDate,'DD/MM/YYYY HH24:MI:SS')
-//                     AND TO_DATE(:toDate,'DD/MM/YYYY HH24:MI:SS')
-//                 AND ih.issue_status = 452
-//                 AND id.item = i.id
-//           ), 0) AS sale_qty,
-
-//           u.name AS pack,
-
-//           /* Extract numeric pack quantity from values like:
-//              1/Strip, 10/Strip, 1/Vial, 1/Botl */
-//           TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')) AS pack_qty,
-
-//           /* MRP per unit/tablet = current MRP divided by pack quantity */
-//           ROUND(
-//               NVL(i.mrp, 0) /
-//               NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0),
-//           4) AS mrp_incl_gst,
-
-//           /* Latest purchase rate per unit/tablet = latest itemrate divided by pack qty */
-//           ROUND(
-//               NVL(lpr.latest_rate, 0) /
-//               NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0),
-//           4) AS rate_incl_gst,
-
-//           /* Absolute margin per unit/tablet */
-//           ROUND(
-//               (
-//                   NVL(i.mrp, 0) /
-//                   NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0)
-//               )
-//               -
-//               (
-//                   NVL(lpr.latest_rate, 0) /
-//                   NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0)
-//               ),
-//           4) AS absolute_margin,
-
-//           ivm.quantity AS scheme_qty,
-
-//           ivm.freeqty AS offer_qty,
-
-//           /* Net rate per unit/tablet */
-//           ROUND(
-//               NVL(lpr.latest_rate, 0) /
-//               NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0),
-//           4) AS net_rate,
-
-//           /* Profit margin % calculated using per-unit values */
-//           ROUND(
-//               (
-//                   (
-//                       (
-//                           NVL(i.mrp, 0) /
-//                           NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0)
-//                       )
-//                       -
-//                       (
-//                           NVL(lpr.latest_rate, 0) /
-//                           NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0)
-//                       )
-//                   )
-//                   /
-//                   NULLIF(
-//                       (
-//                           NVL(i.mrp, 0) /
-//                           NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0)
-//                       ),
-//                       0
-//                   )
-//               ) * 100,
-//           2) AS profit_margin,
-
-//           /* Total margin markup % calculated using per-unit values */
-//           ROUND(
-//               (
-//                   (
-//                       NVL(i.mrp, 0) /
-//                       NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0)
-//                   )
-//                   /
-//                   NULLIF(
-//                       (
-//                           NVL(lpr.latest_rate, 0) /
-//                           NULLIF(TO_NUMBER(REGEXP_SUBSTR(u.name, '^[0-9]+')), 0)
-//                       ),
-//                       0
-//                   )
-//               ) * 100,
-//           2) AS total_margin_markup,
-
-//           NULL AS remarks
-
-//       FROM item i
-
-//       INNER JOIN drugdetail dd
-//           ON dd.item_refid = i.id
-
-//       INNER JOIN genericdrugmapping dgm
-//           ON dgm.itemgenericid = dd.itemgenericid
-
-//       INNER JOIN druggenerics dg
-//           ON dg.drug_gen_id = dgm.druggenerics
-
-//       LEFT JOIN manufacturer m
-//           ON m.id = i.manufacturer_id
-
-//       LEFT JOIN markettermaster market
-//           ON market.id = i.marketter_id
-
-//       LEFT JOIN uom u
-//           ON u.id = i.purchaseuom
-
-//       LEFT JOIN itemvendormap ivm
-//           ON ivm.itemid = i.id
-
-//       LEFT JOIN latest_purchase_rate lpr
-//           ON lpr.item = i.id
-
-//       WHERE i.itemtypenum = 1
-//         AND i.isactive = 1
-//         AND dg.drug_gen_id = :genericId
-//     `;
-
-//     const result = await conn.execute(query, {
-//       fromDate,
-//       toDate,
-//       genericId: genIdNum
-//     });
-
-//     const data = result.rows.map(r => ({
-//       sno: r.SNO,
-//       introduced_on: r.INTRODUCED_ON,
-//       brand_name: r.BRAND_NAME,
-//       manufacturer: r.MANUFACTURER,
-//       marketer: r.MARKETER,
-//       consultant: r.CONSULTANT,
-//       present_stock: r.PRESENT_STOCK,
-//       purchase_quantity: r.PURCHASE_QUANTITY,
-//       sale_qty: r.SALE_QTY,
-//       pack: r.PACK,
-//       pack_qty: r.PACK_QTY,
-//       mrp_incl_gst: r.MRP_INCL_GST,
-//       rate_incl_gst: r.RATE_INCL_GST,
-//       absolute_margin: r.ABSOLUTE_MARGIN,
-//       scheme_qty: r.SCHEME_QTY,
-//       offer_qty: r.OFFER_QTY,
-//       net_rate: r.NET_RATE,
-//       profit_margin: r.PROFIT_MARGIN,
-//       total_margin_markup: r.TOTAL_MARGIN_MARKUP,
-//       remarks: r.REMARKS
-//     }));
-
-//     res.json(data);
-//   } catch (err) {
-//     console.error('POST /api/reports/item-margin-report error:', err);
-//     res.status(500).json({
-//       error: 'Internal server error.',
-//       detail: err.message
-//     });
-//   } finally {
-//     await conn.close();
-//   }
-// });
 
 
 
@@ -7657,13 +7100,23 @@ function validatePassword(password) {
  *   department  string  optional
  */
 app.post('/api/register', async (req, res) => {
-  const { name, email, password, role, department } = req.body;
+  const { name, email, password, role, department, user_login_id } = req.body;
 
   // ── 1. Basic presence checks ──────────────────────────────────────────────
-  if (!name || !email || !password || !role) {
+  if (!name || !email || !password || !role || !user_login_id) {
     return res.status(400).json({
       success: false,
-      message: 'name, email, password, and role are required.',
+      message: 'name, email, password, role, and user_login_id are required.',
+    });
+  }
+
+  // ── 1.1 User ID validation ────────────────────────────────────────────────
+  const normalizedUserId = user_login_id.toLowerCase().trim();
+  const userIdRegex = /^[a-zA-Z0-9._-]{4,30}$/;
+  if (!userIdRegex.test(normalizedUserId)) {
+    return res.status(400).json({
+      success: false,
+      message: 'User ID must be 4-30 alphanumeric characters, including underscores, dots, or hyphens, and no spaces.',
     });
   }
 
@@ -7692,13 +7145,22 @@ app.post('/api/register', async (req, res) => {
       return res.status(409).json({ success: false, message: 'Email already registered.' });
     }
 
+    // ── 4.1 Duplicate User ID check ───────────────────────────────────────
+    const dupUserCheck = await conn.execute(
+      `SELECT COUNT(*) AS cnt FROM users WHERE LOWER(user_login_id) = :userLoginId`,
+      { userLoginId: normalizedUserId }
+    );
+    if (dupUserCheck.rows[0].CNT > 0) {
+      return res.status(409).json({ success: false, message: 'User ID already exists.' });
+    }
+
     // ── 5. Hash the password ──────────────────────────────────────────────
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
     // ── 6. Insert into DB ─────────────────────────────────────────────────
     const result = await conn.execute(
-      `INSERT INTO users (name, email, password, role, department, is_active, is_approved)
-       VALUES (:name, :email, :password, :role, :department, 1, 0)
+      `INSERT INTO users (name, email, password, role, department, is_active, is_approved, user_login_id)
+       VALUES (:name, :email, :password, :role, :department, 1, 0, :userLoginId)
        RETURNING user_id INTO :user_id`,
       {
         name: name.trim(),
@@ -7706,6 +7168,7 @@ app.post('/api/register', async (req, res) => {
         password: hashedPassword,
         role: role.toLowerCase().trim(),
         department: department && department.trim() !== '' ? department.trim() : null,
+        userLoginId: normalizedUserId,
         user_id: { dir: oracledb.BIND_OUT, type: oracledb.NUMBER },
       },
       { autoCommit: true }
@@ -7745,17 +7208,39 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
+// ─── GET /api/users/check-username ───────────────────────────────────────────
+app.get('/api/users/check-username', async (req, res) => {
+  const { username } = req.query;
+  if (!username) {
+    return res.status(400).json({ success: false, message: 'Username is required.' });
+  }
+  let conn;
+  try {
+    conn = await getConn();
+    const check = await conn.execute(
+      `SELECT COUNT(*) AS cnt FROM users WHERE LOWER(user_login_id) = :username`,
+      { username: username.toLowerCase().trim() }
+    );
+    return res.json({ available: check.rows[0].CNT === 0 });
+  } catch (err) {
+    console.error('[GET /api/users/check-username] Error:', err);
+    return res.status(500).json({ success: false, message: 'Server error.' });
+  } finally {
+    if (conn) await conn.close();
+  }
+});
+
 // ─── POST /api/login ───────────────────────────────────────────────────────────
 app.post('/api/login', async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ success: false, message: 'Email and password required' });
+  const { userId, password } = req.body;
+  if (!userId || !password) return res.status(400).json({ success: false, message: 'User ID and password required' });
 
   let conn;
   try {
     conn = await getConn();
     const result = await conn.execute(
-      `SELECT user_id, password, role, is_approved, force_password_reset FROM users WHERE email = :email AND is_active = 1`,
-      { email: email.toLowerCase().trim() }
+      `SELECT user_id, password, role, is_approved, force_password_reset FROM users WHERE LOWER(user_login_id) = LOWER(:userId) AND is_active = 1`,
+      { userId: userId.trim() }
     );
 
     if (result.rows.length === 0) {
@@ -7801,7 +7286,7 @@ app.get('/api/users/:id', async (req, res) => {
   try {
     conn = await getConn();
     const result = await conn.execute(
-      `SELECT user_id, name, email, role, department, is_active
+      `SELECT user_id, user_login_id, name, email, role, department, is_active
        FROM users WHERE user_id = :id`,
       { id: userId }
     );
@@ -7818,19 +7303,30 @@ app.get('/api/users/:id', async (req, res) => {
 });
 
 // ─── PUT /api/users/:id ───────────────────────────────────────────────────────
-// Update name, role, department, or is_active. Password change handled separately.
+// Update name, role, department, is_active, or user_login_id. Password change handled separately.
 app.put('/api/users/:id', async (req, res) => {
   const userId = Number(req.params.id);
   if (isNaN(userId)) return res.status(400).json({ success: false, message: 'Invalid user ID.' });
 
-  const { name, role, department, is_active } = req.body;
-  if (!name && !role && department === undefined && is_active === undefined) {
+  const { name, role, department, is_active, user_login_id } = req.body;
+  if (!name && !role && department === undefined && is_active === undefined && !user_login_id) {
     return res.status(400).json({ success: false, message: 'Nothing to update.' });
   }
 
   let conn;
   try {
     conn = await getConn();
+
+    // Check if user exists first to get details for validation and audit logs
+    const userCheck = await conn.execute(
+      `SELECT name, email, user_login_id FROM users WHERE user_id = :userId`,
+      { userId }
+    );
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+    const currentUser = userCheck.rows[0];
+    const oldLoginId = currentUser.USER_LOGIN_ID || '';
 
     // Build dynamic SET clause
     const setClauses = [];
@@ -7845,15 +7341,66 @@ app.put('/api/users/:id', async (req, res) => {
       setClauses.push('is_active  = :is_active'); binds.is_active = is_active ? 1 : 0;
     }
 
-    const result = await conn.execute(
+    let isUserIdChanged = false;
+    let normalizedNewId = '';
+    if (user_login_id && user_login_id.trim() !== '') {
+      normalizedNewId = user_login_id.toLowerCase().trim();
+      if (normalizedNewId !== oldLoginId.toLowerCase().trim()) {
+        isUserIdChanged = true;
+      }
+    }
+
+    if (isUserIdChanged) {
+      // 1. Verify admin token in headers
+      const adminId = req.headers['x-admin-id'];
+      if (!adminId || isNaN(Number(adminId))) {
+        return res.status(401).json({ success: false, message: 'Admin authentication required to change User ID.' });
+      }
+      const adminCheck = await conn.execute(
+        `SELECT admin_id FROM admin_users WHERE admin_id = :adminId`,
+        { adminId: Number(adminId) }
+      );
+      if (adminCheck.rows.length === 0) {
+        return res.status(401).json({ success: false, message: 'Admin not found.' });
+      }
+      req.adminId = Number(adminId);
+
+      // 2. Validate regex: ^[a-zA-Z0-9._-]{4,30}$
+      const userIdRegex = /^[a-zA-Z0-9._-]{4,30}$/;
+      if (!userIdRegex.test(normalizedNewId)) {
+        return res.status(400).json({ success: false, message: 'User ID must be 4-30 alphanumeric characters, including underscores, dots, or hyphens, and no spaces.' });
+      }
+
+      // 3. Validate uniqueness
+      const dupCheck = await conn.execute(
+        `SELECT COUNT(*) AS cnt FROM users WHERE LOWER(user_login_id) = :newId AND user_id <> :id`,
+        { newId: normalizedNewId, id: userId }
+      );
+      if (dupCheck.rows[0].CNT > 0) {
+        return res.status(409).json({ success: false, message: 'User ID already exists.' });
+      }
+
+      setClauses.push('user_login_id = :user_login_id');
+      binds.user_login_id = normalizedNewId;
+    }
+
+    await conn.execute(
       `UPDATE users SET ${setClauses.join(', ')} WHERE user_id = :id`,
       binds,
       { autoCommit: true }
     );
 
-    if (result.rowsAffected === 0) {
-      return res.status(404).json({ success: false, message: 'User not found.' });
+    // Write audit log entry if User ID was updated
+    if (isUserIdChanged) {
+      await writeAdminAudit(
+        conn,
+        req.adminId,
+        'USER_LOGIN_ID_UPDATED',
+        userId,
+        `Updated User ID for user ${currentUser.NAME} (${currentUser.EMAIL}). Old User ID: ${oldLoginId}, New User ID: ${normalizedNewId}`
+      );
     }
+
     return res.status(200).json({ success: true, message: 'User updated successfully.' });
   } catch (err) {
     console.error('[PUT /:id] Error:', err);
@@ -8290,6 +7837,7 @@ app.get('/api/admin/users', requireAdminAuth, async (req, res) => {
     conn = await getConn();
     const result = await conn.execute(
       `SELECT user_id,
+          user_login_id,
           name,
           email,
           role,
@@ -8307,6 +7855,7 @@ app.get('/api/admin/users', requireAdminAuth, async (req, res) => {
       if (!grouped[r]) grouped[r] = [];
       grouped[r].push({
         user_id: row.USER_ID,
+        user_login_id: row.USER_LOGIN_ID,
         name: row.NAME,
         email: row.EMAIL,
         role: row.ROLE,
@@ -8460,13 +8009,14 @@ app.get('/api/admin/pending-users', requireAdminAuth, async (req, res) => {
   try {
     conn = await getConn();
     const result = await conn.execute(
-      `SELECT user_id, name, email, role, department
+      `SELECT user_id, user_login_id, name, email, role, department
        FROM users
        WHERE is_approved = 0 AND is_active = 1
        ORDER BY user_id DESC`
     );
     const users = result.rows.map(row => ({
       user_id: row.USER_ID,
+      user_login_id: row.USER_LOGIN_ID,
       name: row.NAME,
       email: row.EMAIL,
       role: row.ROLE,
@@ -8515,6 +8065,76 @@ app.put('/api/admin/approve-user/:userId', requireAdminAuth, async (req, res) =>
     });
   } catch (err) {
     console.error('[PUT /api/admin/approve-user] Error:', err.message);
+    return res.status(500).json({ success: false, message: 'Internal server error.' });
+  } finally {
+    if (conn) await conn.close();
+  }
+});
+
+// =============================================================
+// PUT /api/admin/users/:userId/role — Update a user's role
+// =============================================================
+app.put('/api/admin/users/:userId/role', requireAdminAuth, async (req, res) => {
+  const userId = Number(req.params.userId);
+  if (isNaN(userId)) {
+    return res.status(400).json({ success: false, message: 'Invalid user ID.' });
+  }
+
+  let { role } = req.body;
+  if (typeof role !== 'string') {
+    return res.status(400).json({ success: false, message: 'Role must be a string.' });
+  }
+
+  role = role.trim();
+  const normalizedRole = role.toLowerCase();
+  const ALLOWED_ROLES = ['doctor', 'hod', 'pharmacist', 'pharmacyhead', 'ceo'];
+  if (!ALLOWED_ROLES.includes(normalizedRole)) {
+    return res.status(400).json({ success: false, message: 'Invalid role value.' });
+  }
+
+  function formatRole(r) {
+    const l = (r || '').toLowerCase().trim();
+    if (l === 'hod') return 'HOD';
+    if (l === 'ceo') return 'CEO';
+    if (l === 'pharmacyhead') return 'PharmacyHead';
+    return l.charAt(0).toUpperCase() + l.slice(1);
+  }
+
+  let conn;
+  try {
+    conn = await getConn();
+    const userCheck = await conn.execute(
+      `SELECT user_id, name, email, role FROM users WHERE user_id = :userId`,
+      { userId }
+    );
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+    const user = userCheck.rows[0];
+    const oldRole = user.ROLE || '';
+
+    await conn.execute(
+      `UPDATE users SET role = :role WHERE user_id = :userId`,
+      { role: normalizedRole, userId },
+      { autoCommit: true }
+    );
+
+    // Write audit log entry
+    await writeAdminAudit(
+      conn,
+      req.adminId,
+      'ROLE_UPDATED',
+      userId,
+      `Updated role for user ${user.NAME} (${user.EMAIL}). Old Role: ${formatRole(oldRole)}, New Role: ${formatRole(normalizedRole)}`
+    );
+
+    return res.json({
+      success: true,
+      message: 'Role updated successfully.',
+      role: formatRole(normalizedRole)
+    });
+  } catch (err) {
+    console.error('[PUT /api/admin/users/:userId/role] Error:', err.message);
     return res.status(500).json({ success: false, message: 'Internal server error.' });
   } finally {
     if (conn) await conn.close();
@@ -8628,6 +8248,77 @@ async function boot() {
       console.error('Migration error adding column ENTRY_DATA:', migErr.message);
     } finally {
       await conn.close();
+    }
+
+    // Column migration check for USER_LOGIN_ID in USERS
+    try {
+      const connUsers = await getConn();
+      try {
+        // 1. Try to add column
+        try {
+          await connUsers.execute(`ALTER TABLE users ADD (user_login_id VARCHAR2(50))`);
+          console.log('   ✔ Column USER_LOGIN_ID added as nullable.');
+        } catch (addErr) {
+          if (addErr.message.includes('ORA-01430')) {
+            console.log('   – Column USER_LOGIN_ID already exists.');
+          } else {
+            throw addErr;
+          }
+        }
+
+        // 2. Fetch and backfill existing users (only if any null exists)
+        const checkNull = await connUsers.execute(
+          `SELECT COUNT(*) AS cnt FROM users WHERE user_login_id IS NULL`
+        );
+        if (checkNull.rows[0].CNT > 0) {
+          console.log('   🔧 Backfilling null User IDs...');
+          const existing = await connUsers.execute(
+            `SELECT user_id, role, name FROM users WHERE user_login_id IS NULL`
+          );
+          for (const row of existing.rows) {
+            const roleBase = (row.ROLE || 'user').toLowerCase().trim();
+            const loginId = `${roleBase}${row.USER_ID}`;
+            await connUsers.execute(
+              `UPDATE users SET user_login_id = :loginId WHERE user_id = :userId`,
+              { loginId, userId: row.USER_ID }
+            );
+          }
+          console.log(`   ✔ Backfilled ${existing.rows.length} existing users.`);
+        }
+
+        // 3. Make column NOT NULL
+        try {
+          await connUsers.execute(
+            `ALTER TABLE users MODIFY (user_login_id VARCHAR2(50) NOT NULL)`
+          );
+          console.log('   ✔ Column USER_LOGIN_ID modified to NOT NULL.');
+        } catch (nnErr) {
+          if (nnErr.message.includes('ORA-01442') || nnErr.message.includes('already NOT NULL') || nnErr.message.includes('already null') || nnErr.message.includes('already NOT NULL')) {
+            console.log('   – Column USER_LOGIN_ID is already NOT NULL.');
+          } else {
+            throw nnErr;
+          }
+        }
+
+        // 4. Create unique index
+        try {
+          await connUsers.execute(
+            `CREATE UNIQUE INDEX UK_USERS_LOGIN_ID ON users (user_login_id)`
+          );
+          console.log('   ✔ Unique index UK_USERS_LOGIN_ID created.');
+        } catch (idxErr) {
+          if (idxErr.message.includes('ORA-00955') || idxErr.message.includes('already exists')) {
+            console.log('   – Unique index UK_USERS_LOGIN_ID already exists.');
+          } else {
+            throw idxErr;
+          }
+        }
+
+      } finally {
+        await connUsers.close();
+      }
+    } catch (migErr) {
+      console.error('Migration error on USERS table:', migErr.message);
     }
 
     // Serve React frontend

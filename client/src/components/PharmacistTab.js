@@ -885,7 +885,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
     return {
       ...row,
       drug_name: row.drug_name || row.brand_name || '',
-      effective_created_at: defaultDate || '',
+      effective_created_at: '',
       remarks: row.remarks || '',
     };
   };
@@ -1074,14 +1074,10 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
     setIrAction(act);
     setIrErr('');
     setSelectedIrDrugs([]);
-    // Default effective date from existing EFFECTIVE_CREATED_AT or CREATED_AT
     const baseDate = req.EFFECTIVE_CREATED_AT || req.CREATED_AT;
     let local = '';
     if (baseDate) {
-      const d = new Date(baseDate);
-      const pad = n => String(n).padStart(2, '0');
-      local = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-      setIrEffectiveDate(local);
+      setIrEffectiveDate('');
     } else {
       setIrEffectiveDate('');
     }
@@ -1093,7 +1089,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
         if (e.effective_created_at) {
           const d = new Date(e.effective_created_at);
           const pad = n => String(n).padStart(2, '0');
-          entryLocal = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+          entryLocal = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
         }
         return {
           drug_name: e.drug_name || '',
@@ -1106,7 +1102,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
       setEffectiveDrugEntries([
         {
           drug_name: '',
-          effective_created_at: local,
+          effective_created_at: '',
           remarks: ''
         }
       ]);
@@ -1430,7 +1426,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
 
                       <button
                         type="button"
-                        onClick={() => setEffectiveDrugEntries(prev => [...prev, { ...EMPTY_EFFECTIVE_ENTRY, effective_created_at: irEffectiveDate }])}
+                        onClick={() => setEffectiveDrugEntries(prev => [...prev, { ...EMPTY_EFFECTIVE_ENTRY, effective_created_at: '' }])}
                         style={{
                           background: 'none', border: '1px dashed #10b981', color: '#10b981',
                           padding: '4px 12px', borderRadius: 6, cursor: 'pointer', fontSize: '0.75rem',
@@ -1470,6 +1466,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                               <th style={{ padding: '8px 10px', fontWeight: 600, textAlign: 'right' }}>Net Rate</th>
                               <th style={{ padding: '8px 10px', fontWeight: 600, textAlign: 'right' }}>Profit Margin</th>
                               <th style={{ padding: '8px 10px', fontWeight: 600, textAlign: 'right' }}>Total Margin</th>
+                              <th style={{ padding: '8px 10px', fontWeight: 600, width: '120px' }}>Introduced On</th>
                               <th style={{ padding: '8px 10px', fontWeight: 600, width: '180px' }}>Effective Created Date *</th>
                               <th style={{ padding: '8px 10px', fontWeight: 600, width: '200px' }}>Remarks</th>
                               <th style={{ padding: '8px 10px', fontWeight: 600, textAlign: 'center', width: '60px' }}>Remove</th>
@@ -1541,13 +1538,16 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                                 {/* Total Margin */}
                                 <td style={{ padding: '6px 8px', textAlign: 'right' }}>{entry.total_margin_markup !== undefined && entry.total_margin_markup !== '' ? `${entry.total_margin_markup}%` : '—'}</td>
 
+                                {/* Introduced On */}
+                                <td style={{ padding: '6px 8px' }}>{formatIntroducedDate(entry.introduced_on)}</td>
+
                                 {/* Effective Created Date (Editable) */}
                                 <td style={{ padding: '6px 8px' }}>
                                   <input
-                                    type="datetime-local"
+                                    type="date"
                                     className="form-input"
-                                    style={{ height: 28, fontSize: '0.75rem', padding: '2px 6px', width: '170px' }}
-                                    value={entry.effective_created_at}
+                                    style={{ height: 28, fontSize: '0.75rem', padding: '2px 6px', width: '150px' }}
+                                    value={entry.effective_created_at || ''}
                                     onChange={e => {
                                       const val = e.target.value;
                                       setEffectiveDrugEntries(prev => prev.map((item, i) => i === idx ? { ...item, effective_created_at: val } : item));

@@ -150,10 +150,6 @@ export default function DTCCommitteeTab({ currentUser, onNotificationsRead }) {
   const [dtcExistingDetails, setDtcExistingDetails] = useState([]);
   const [effectiveDrugEntries, setEffectiveDrugEntries] = useState([]);
   // Final DTC drug selection state
-  const [selectionType, setSelectionType] = useState(''); // 'original' | 'alternative'
-  const [selectedAltId, setSelectedAltId] = useState(null);
-  const [selectionNotes, setSelectionNotes] = useState('');
-  const [selectionErr, setSelectionErr] = useState('');
   const [submittingSelection, setSubmittingSelection] = useState(false);
   const [dtcSelectedBrand, setDtcSelectedBrand] = useState('');
   const [dtcSelectedCategory, setDtcSelectedCategory] = useState('');
@@ -540,49 +536,6 @@ export default function DTCCommitteeTab({ currentUser, onNotificationsRead }) {
 
     } finally {
       setGenericLoading(false);
-    }
-  };
-
-  const handleFinalSelect = async () => {
-    if (!selectionType) {
-      setSelectionErr('Please select a drug before forwarding to CEO.');
-      return;
-    }
-    if (selectionType === 'alternative' && !selectedAltId) {
-      setSelectionErr('Please choose one of the pharmacist alternatives.');
-      return;
-    }
-    setSubmittingSelection(true);
-    setSelectionErr('');
-    try {
-      const selectedBrand = selectionType === 'original'
-        ? selected.BRAND_NAME
-        : (alternatives.find(a => (a.ALT_ID || a.alt_id) === selectedAltId) || {}).BRAND_NAME || dtcSelectedBrand;
-      const payload = {
-        selection_type: selectionType,
-        selected_alternative_id: selectionType === 'alternative' ? selectedAltId : null,
-        remarks: selectionNotes.trim() || dtcRecommendationNotes || '',
-        performed_by: currentUser.USER_ID,
-        dtc_selected_brand: selectedBrand,
-        dtc_selected_category: dtcSelectedCategory || selected.CATEGORY || 'Formulary',
-        dtc_selection_reasons: dtcSelectionReasons.length > 0 ? dtcSelectionReasons : ['DTC Approved'],
-        dtc_recommendation_notes: selectionNotes.trim() || dtcRecommendationNotes || '',
-        dtc_reviewed_by_name: dtcReviewedByName || currentUser.NAME || 'DTC Chairperson',
-        dtc_review_signature: dtcReviewSignature || 'Approved via Modal',
-        dtc_remarks: dtcRemarks || selectionNotes.trim() || ''
-      };
-      await axios.post(`${API}/dtc/final-select/${selected.REQUEST_ID}`, payload);
-      const selName = selectionType === 'original'
-        ? selected.BRAND_NAME
-        : (alternatives.find(a => (a.ALT_ID || a.alt_id) === selectedAltId) || {}).BRAND_NAME || 'Alternative';
-      setAlertMsg({ type: 'success', msg: `✅ Final drug selected: ${selName}. Request #${selected.REQUEST_ID} forwarded to CEO.` });
-      closeModal();
-      await loadRequests();
-      setDashKey(k => k + 1);
-    } catch (err) {
-      setSelectionErr(err.response?.data?.error || 'Selection failed. Please try again.');
-    } finally {
-      setSubmittingSelection(false);
     }
   };
 
@@ -1323,6 +1276,7 @@ export default function DTCCommitteeTab({ currentUser, onNotificationsRead }) {
                           <th style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--primary-light)', textAlign: 'right' }}>Net Rate</th>
                           <th style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--primary-light)', textAlign: 'right' }}>Profit Margin</th>
                           <th style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--primary-light)', textAlign: 'right' }}>Total Margin</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--primary-light)', width: '120px' }}>Introduced On</th>
                           <th style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--primary-light)' }}>Effective Created Date</th>
                           <th style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--primary-light)' }}>Remarks</th>
                         </tr>
@@ -1350,6 +1304,15 @@ export default function DTCCommitteeTab({ currentUser, onNotificationsRead }) {
                               <td style={{ padding: '6px 8px', textAlign: 'right' }}>{entry.net_rate !== undefined ? entry.net_rate : (entry.NET_RATE !== undefined ? entry.NET_RATE : '—')}</td>
                               <td style={{ padding: '6px 8px', textAlign: 'right' }}>{entry.profit_margin !== undefined ? (typeof entry.profit_margin === 'number' ? `${entry.profit_margin}%` : entry.profit_margin) : (entry.PROFIT_MARGIN !== undefined ? (typeof entry.PROFIT_MARGIN === 'number' ? `${entry.PROFIT_MARGIN}%` : entry.PROFIT_MARGIN) : '—')}</td>
                               <td style={{ padding: '6px 8px', textAlign: 'right' }}>{entry.total_margin_markup !== undefined ? (typeof entry.total_margin_markup === 'number' ? `${entry.total_margin_markup}%` : entry.total_margin_markup) : (entry.TOTAL_MARGIN_MARKUP !== undefined ? (typeof entry.TOTAL_MARGIN_MARKUP === 'number' ? `${entry.TOTAL_MARGIN_MARKUP}%` : entry.TOTAL_MARGIN_MARKUP) : '—')}</td>
+                              <td style={{ padding: '6px 8px' }}>
+                                {(()=>{
+                                  const val = entry.introduced_on || entry.INTRODUCED_ON;
+                                  if (!val) return '—';
+                                  const d = new Date(val);
+                                  if (isNaN(d.getTime())) return String(val);
+                                  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+                                })()}
+                              </td>
                               <td style={{ padding: '6px 8px' }}>{formattedDate}</td>
                               <td style={{ padding: '6px 8px' }}>{entry.remarks || entry.REMARKS || '—'}</td>
                             </tr>
@@ -1366,82 +1329,8 @@ export default function DTCCommitteeTab({ currentUser, onNotificationsRead }) {
                   <div style={{ fontWeight: 700, marginBottom: 12 }}>📊 Pharmacist Comparison Sheet</div>
                   {loadingAlts ? <div className="spinner" /> : <div className="table-wrap"><AlternativesTable alts={alternatives} /></div>}
 
-                  {/* ── Final Drug Selection Panel ── */}
-                  <div style={{ marginTop: 24, borderTop: '2px solid #2563eb', paddingTop: 20 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                      <span style={{ fontSize: '1.1rem' }}>🏆</span>
-                      <span style={{ fontWeight: 700, fontSize: '1rem', color: '#1e293b' }}>Select Final Drug for CEO Approval</span>
-                      <span style={{ fontSize: '0.75rem', background: '#dbeafe', color: '#1e40af', borderRadius: 20, padding: '2px 10px', fontWeight: 600 }}>Required — choose exactly one</span>
-                    </div>
-
-                    {/* Original drug option */}
-                    <label style={{
-                      display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 16px',
-                      borderRadius: 10, border: selectionType === 'original' ? '2px solid #16a34a' : '1.5px solid #e2e8f0',
-                      background: selectionType === 'original' ? '#f0fdf4' : '#f8fafc',
-                      cursor: 'pointer', marginBottom: 10, transition: 'all 0.15s',
-                    }}>
-                      <input type="radio" name="drugSelect" value="original"
-                        checked={selectionType === 'original'}
-                        onChange={() => { setSelectionType('original'); setSelectedAltId(null); setSelectionErr(''); }}
-                        style={{ marginTop: 3, accentColor: '#16a34a' }}
-                      />
-                      <div>
-                        <div style={{ fontWeight: 700, color: '#15803d', fontSize: '0.9rem' }}>📌 Original Requested Drug</div>
-                        <div style={{ fontSize: '0.82rem', color: '#334155', marginTop: 2 }}>
-                          {selected.BRAND_NAME} · {selected.MANUFACTURER} · {selected.DOSAGE_FORM} {selected.DOSE_STRENGTH}
-                        </div>
-                      </div>
-                    </label>
-
-                    {/* Pharmacist alternatives */}
-                    {alternatives.map((alt, idx) => {
-                      const altId = alt.ALT_ID || alt.alt_id;
-                      const isChosen = selectionType === 'alternative' && selectedAltId === altId;
-                      return (
-                        <label key={altId || idx} style={{
-                          display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 16px',
-                          borderRadius: 10, border: isChosen ? '2px solid #2563eb' : '1.5px solid #e2e8f0',
-                          background: isChosen ? '#eff6ff' : '#fff',
-                          cursor: 'pointer', marginBottom: 8, transition: 'all 0.15s',
-                        }}>
-                          <input type="radio" name="drugSelect" value={altId}
-                            checked={isChosen}
-                            onChange={() => { setSelectionType('alternative'); setSelectedAltId(altId); setSelectionErr(''); }}
-                            style={{ marginTop: 3, accentColor: '#2563eb' }}
-                          />
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontWeight: 700, color: isChosen ? '#1e40af' : '#334155', fontSize: '0.9rem' }}>
-                              Alt {idx + 1}: {alt.BRAND_NAME || alt.brand_name}
-                            </div>
-                            <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: 2, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                              <span>🏭 {alt.MANUFACTURER || alt.manufacturer || '—'}</span>
-                              <span>₹ MRP: {alt.MRP ?? alt.mrp ?? '—'}</span>
-                              <span>₹ Net: {alt.NET_RATE ?? alt.net_rate ?? '—'}</span>
-                              <span>📊 Margin: {alt.PROFIT_MARGIN ?? alt.profit_margin ?? '—'}{(alt.PROFIT_MARGIN || alt.profit_margin) ? '%' : ''}</span>
-                            </div>
-                            {(alt.REMARK || alt.remark) && (
-                              <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: 4 }}>💬 {alt.REMARK || alt.remark}</div>
-                            )}
-                          </div>
-                        </label>
-                      );
-                    })}
-
-                    <div style={{ marginTop: 14 }}>
-                      <label style={{ fontSize: '0.82rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 6 }}>Selection Notes / Rationale (optional)</label>
-                      <ApprovalRemarksPanel
-                        role="DTC"
-                        value={selectionNotes}
-                        onChange={setSelectionNotes}
-                        placeholder="Selection notes / rationale..."
-                        rows={2}
-                      />
-                    </div>
-
-                    {selectionErr && (
-                      <div className="alert alert-error" style={{ marginTop: 10, padding: '8px 14px', fontSize: '0.82rem' }}>{selectionErr}</div>
-                    )}
+                  <div style={{ marginTop: 24, borderTop: '2px solid #2563eb', paddingTop: 20, fontSize: '0.85rem', color: '#475569' }}>
+                    Open the Comparison Sheet to mark each row's recommendation and forward the final selection to the CEO.
                   </div>
                 </div>
               )}
@@ -1455,29 +1344,14 @@ export default function DTCCommitteeTab({ currentUser, onNotificationsRead }) {
                 <button className="btn btn-danger btn-sm" onClick={() => setAction('reject')}>✕ Reject</button>
               </div>
               {selected.CURRENT_STAGE === 'DTCFinal' ? (
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <button
-                    className="btn btn-primary"
-                    style={{ background: '#7c3aed', border: 'none', fontWeight: 700, borderRadius: 10, padding: '8px 22px' }}
-                    onClick={() => setShowCompSheet(true)}
-                    disabled={loadingAlts}
-                  >
-                    📊 View Comparison Sheet
-                  </button>
-                  <button
-                    onClick={handleFinalSelect}
-                    disabled={submittingSelection || !selectionType}
-                    style={{
-                      padding: '8px 22px', borderRadius: 10, border: 'none', fontWeight: 700, fontSize: '0.875rem',
-                      background: selectionType ? '#2563eb' : '#94a3b8',
-                      color: '#fff', cursor: selectionType ? 'pointer' : 'not-allowed',
-                      boxShadow: selectionType ? '0 4px 12px rgba(37,99,235,0.3)' : 'none',
-                      transition: 'all 0.2s',
-                    }}
-                  >
-                    {submittingSelection ? <><div className="spinner" style={{ display: 'inline-block', width: 14, height: 14, marginRight: 6 }} /> Processing…</> : '🏆 Confirm Selection & Forward to CEO'}
-                  </button>
-                </div>
+                <button
+                  className="btn btn-primary"
+                  style={{ background: '#7c3aed', border: 'none', fontWeight: 700, borderRadius: 10, padding: '8px 22px' }}
+                  onClick={() => setShowCompSheet(true)}
+                  disabled={loadingAlts}
+                >
+                  📊 View Comparison Sheet
+                </button>
               ) : (
                 <button className="btn btn-success" onClick={() => setAction('approve')}>✓ Approve</button>
               )}

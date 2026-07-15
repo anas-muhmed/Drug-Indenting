@@ -777,6 +777,7 @@ export default function PharmacyHeadTab({ currentUser, onNotificationsRead }) {
                           <th style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--primary-light)', textAlign: 'right' }}>Net Rate</th>
                           <th style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--primary-light)', textAlign: 'right' }}>Profit Margin</th>
                           <th style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--primary-light)', textAlign: 'right' }}>Total Margin</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--primary-light)', width: '120px' }}>Introduced On</th>
                           <th style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--primary-light)' }}>Effective Created Date</th>
                           {/* <th style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--primary-light)' }}>Remarks</th> */}
                         </tr>
@@ -804,6 +805,15 @@ export default function PharmacyHeadTab({ currentUser, onNotificationsRead }) {
                               <td style={{ padding: '6px 8px', textAlign: 'right' }}>{entry.net_rate !== undefined ? entry.net_rate : (entry.NET_RATE !== undefined ? entry.NET_RATE : '—')}</td>
                               <td style={{ padding: '6px 8px', textAlign: 'right' }}>{entry.profit_margin !== undefined ? (typeof entry.profit_margin === 'number' ? `${entry.profit_margin}%` : entry.profit_margin) : (entry.PROFIT_MARGIN !== undefined ? (typeof entry.PROFIT_MARGIN === 'number' ? `${entry.PROFIT_MARGIN}%` : entry.PROFIT_MARGIN) : '—')}</td>
                               <td style={{ padding: '6px 8px', textAlign: 'right' }}>{entry.total_margin_markup !== undefined ? (typeof entry.total_margin_markup === 'number' ? `${entry.total_margin_markup}%` : entry.total_margin_markup) : (entry.TOTAL_MARGIN_MARKUP !== undefined ? (typeof entry.TOTAL_MARGIN_MARKUP === 'number' ? `${entry.TOTAL_MARGIN_MARKUP}%` : entry.TOTAL_MARGIN_MARKUP) : '—')}</td>
+                              <td style={{ padding: '6px 8px' }}>
+                                {(()=>{
+                                  const val = entry.introduced_on || entry.INTRODUCED_ON;
+                                  if (!val) return '—';
+                                  const d = new Date(val);
+                                  if (isNaN(d.getTime())) return String(val);
+                                  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+                                })()}
+                              </td>
                               <td style={{ padding: '6px 8px' }}>{formattedDate}</td>
                               {/* <td style={{ padding: '6px 8px' }}>{entry.remarks || entry.REMARKS || '—'}</td> */}
                             </tr>

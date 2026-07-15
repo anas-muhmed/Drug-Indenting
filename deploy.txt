@@ -1,79 +1,3 @@
-FINAL DEPLOYMENT FLOW
-1. Open project root
-cd D:\drug-indenting-system
-2. Install backend dependencies
-
-npm install --omit=dev
-
-3. Go into frontend
-cd client
-4. Install frontend dependencies
-
-npm install
-
-5. Build React frontend
-npm run build
-
-This creates:
-client/build
-6. Return to root
-
-cd ..
-
-7. Create .env
-
-In root folder:
-
-DB_USER=moscmar18
-DB_PASSWORD=moscmar18
-DB_CONNECT=192.168.1.104:1521/lifetest
-PORT=5000
-GROQ_API_KEY=your_key
-
-8. Install PM2
-
-npm install -g pm2
-
-9. Start application
-
-pm2 start server.js --name drug-indenting-backend
-
-10. Verify logs
-pm2 logs
-
-Expected:
-
-✅ Oracle DB pool created
-✅ Schema setup complete
-🚀 Drug Indenting Server running on http://localhost:5000
-11. Open from browser
-
-From hospital PCs:
-
-http://SERVER-IP:5000
-
-Example:
-
-http://192.168.1.50:5000
-12. Enable auto-start after reboot (Windows)
-npm install -g pm2-windows-service
-
-Then:
-
-pm2-service-install
-Future Update Flow
-
-Whenever updating code:
-
-Stop app
-pm2 stop drug-indenting-backend
-Replace updated files
-If frontend changed
-cd client
-npm run build
-cd ..
-Restart app
-pm2 restart drug-indenting-backend
 
 Your deployment architecture is now production-ready for an internal hospital LAN application
 
@@ -95,35 +19,59 @@ SELECT COUNT(*) FROM drug_requests;
 after every this this should return 0
 
 
+DECLARE
+  -- Disable/enable constraints ONLY for our project tables
+  PROCEDURE toggle_constraints(p_enable BOOLEAN) IS
+  BEGIN
+    FOR r IN (
+      SELECT table_name, constraint_name 
+      FROM user_constraints 
+      WHERE constraint_type = 'R'
+        AND table_name IN (
+          'USER_REQUEST_QUOTAS', 'ADMIN_AUDIT_LOGS', 'ANALYSIS_DRAFTS', 
+          'DRUG_EFFECTIVE_ENTRIES', 'DRUG_EXISTING_DETAILS', 'DRUG_ALTERNATIVE_NEGOTIATIONS', 
+          'DRUG_ALTERNATIVES', 'AUDIT_LOGS', 'NOTIFICATIONS', 'REJECTION_REMARK_HISTORY', 
+          'APPROVAL_REMARK_HISTORY', 'BLACKLISTED_COMPANIES', 'DRUG_REQUESTS', 'USERS', 'ADMIN_USERS'
+        )
+    ) LOOP
+      IF p_enable THEN
+        EXECUTE IMMEDIATE 'ALTER TABLE "' || r.table_name || '" ENABLE CONSTRAINT "' || r.constraint_name || '"';
+      ELSE
+        EXECUTE IMMEDIATE 'ALTER TABLE "' || r.table_name || '" DISABLE CONSTRAINT "' || r.constraint_name || '"';
+      END IF;
+    END LOOP;
+  END;
 BEGIN
-    -- Workflow & Notifications
-    DELETE FROM notifications;
-    DELETE FROM audit_logs;
+  -- 1. Disable constraints only for our tables
+  toggle_constraints(FALSE);
 
-    -- Comparison Sheet
-    DELETE FROM drug_alternative_negotiations;
-    DELETE FROM drug_existing_details;
-    DELETE FROM drug_effective_entries;
-    DELETE FROM analysis_drafts;
-    DELETE FROM drug_alternatives;
+  -- 2. Truncate all project tables
+  EXECUTE IMMEDIATE 'TRUNCATE TABLE user_request_quotas';
+  EXECUTE IMMEDIATE 'TRUNCATE TABLE admin_audit_logs';
+  EXECUTE IMMEDIATE 'TRUNCATE TABLE analysis_drafts';
+  EXECUTE IMMEDIATE 'TRUNCATE TABLE drug_effective_entries';
+  EXECUTE IMMEDIATE 'TRUNCATE TABLE drug_existing_details';
+  EXECUTE IMMEDIATE 'TRUNCATE TABLE drug_alternative_negotiations';
+  EXECUTE IMMEDIATE 'TRUNCATE TABLE drug_alternatives';
+  EXECUTE IMMEDIATE 'TRUNCATE TABLE audit_logs';
+  EXECUTE IMMEDIATE 'TRUNCATE TABLE notifications';
+  EXECUTE IMMEDIATE 'TRUNCATE TABLE rejection_remark_history';
+  EXECUTE IMMEDIATE 'TRUNCATE TABLE approval_remark_history';
+  EXECUTE IMMEDIATE 'TRUNCATE TABLE blacklisted_companies';
+  EXECUTE IMMEDIATE 'TRUNCATE TABLE drug_requests';
+  EXECUTE IMMEDIATE 'TRUNCATE TABLE users';
+  EXECUTE IMMEDIATE 'TRUNCATE TABLE admin_users';
 
-    -- Main Requests
-    DELETE FROM drug_requests;
-
-    -- Dashboard / Analytics
-    DELETE FROM user_request_quotas;
-    DELETE FROM admin_audit_logs;
-
-    -- Remarks History
-    DELETE FROM rejection_remark_history;
-    DELETE FROM approval_remark_history;
-
-    COMMIT;
+  -- 3. Re-enable constraints only for our tables
+  toggle_constraints(TRUE);
 END;
 /
+
 1-07-26
 
 03-07-26
  just -----
+
+ this hhhaa0 15
 
  

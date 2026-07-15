@@ -23,6 +23,11 @@ import ApprovalRemarksPanel from './ApprovalRemarksPanel';
 
 const HOSPITAL = 'MALANKARA ORTHODOX SYRIAN CHURCH MEDICAL MISSION KOLENCHERY-ERNAKULAM';
 
+function getVal(obj, key) {
+  if (!obj) return '';
+  return obj[key] ?? obj[key.toUpperCase()] ?? '';
+}
+
 function fmt(v) {
   if (v === null || v === undefined || Number.isNaN(v)) {
     return '';
@@ -98,41 +103,41 @@ function isAltCellModified(alt, colId) {
   if (!alt) return false;
 
   if (colId === 'mrp_per_pack') {
-    return isFieldModified(alt.mrp_per_pack ?? alt.mrp, alt.negotiated_mrp, true);
+    return isFieldModified(getVal(alt, 'mrp_per_pack') || getVal(alt, 'mrp'), getVal(alt, 'negotiated_mrp'), true);
   }
   if (colId === 'rate_per_pack') {
-    return isFieldModified(alt.rate_per_pack ?? alt.rate, alt.negotiated_rate, true);
+    return isFieldModified(getVal(alt, 'rate_per_pack') || getVal(alt, 'rate'), getVal(alt, 'negotiated_rate'), true);
   }
   if (colId === 'gst_percent') {
-    return isFieldModified(alt.gst_percent ?? alt.gst, alt.negotiated_gst, true);
+    return isFieldModified(getVal(alt, 'gst_percent') || getVal(alt, 'gst'), getVal(alt, 'negotiated_gst'), true);
   }
   if (colId === 'qty') {
-    return isFieldModified(alt.qty, alt.negotiated_scheme_qty, true);
+    return isFieldModified(getVal(alt, 'qty'), getVal(alt, 'negotiated_scheme_qty'), true);
   }
   if (colId === 'offer') {
-    return isFieldModified(alt.offer, alt.negotiated_scheme_offer, false);
+    return isFieldModified(getVal(alt, 'offer'), getVal(alt, 'negotiated_scheme_offer'), false);
   }
   if (colId === 'remark') {
-    return isFieldModified(alt.remark, alt.negotiation_remarks, false);
+    return isFieldModified(getVal(alt, 'remark'), getVal(alt, 'negotiation_remarks'), false);
   }
 
   // Derived columns
   if (['mrp', 'rate', 'markupmargin', 'net_rate', 'profit_margin', 'abs_margin', 'margin'].includes(colId)) {
     const origDerived = calcDerived(
-      alt.mrp_per_pack ?? alt.mrp,
-      alt.rate_per_pack ?? alt.rate,
-      alt.gst_percent ?? alt.gst,
-      alt.pack,
-      alt.qty,
-      alt.offer
+      getVal(alt, 'mrp_per_pack') || getVal(alt, 'mrp'),
+      getVal(alt, 'rate_per_pack') || getVal(alt, 'rate'),
+      getVal(alt, 'gst_percent') || getVal(alt, 'gst'),
+      getVal(alt, 'pack'),
+      getVal(alt, 'qty'),
+      getVal(alt, 'offer')
     );
     const derived = calcDerived(
-      alt.negotiated_mrp,
-      alt.negotiated_rate,
-      alt.negotiated_gst,
-      alt.pack,
-      alt.negotiated_scheme_qty,
-      alt.negotiated_scheme_offer
+      getVal(alt, 'negotiated_mrp'),
+      getVal(alt, 'negotiated_rate'),
+      getVal(alt, 'negotiated_gst'),
+      getVal(alt, 'pack'),
+      getVal(alt, 'negotiated_scheme_qty'),
+      getVal(alt, 'negotiated_scheme_offer')
     );
 
     const derivedKey = colId === 'markupmargin' ? 'markupmargin' : (colId === 'abs_margin' ? 'abs_margin' : colId);
@@ -1083,6 +1088,7 @@ export default function ComparisonSheet({
     }
 
     const mappedRows = selectedReportRows.map(row => ({
+      ...row,
       introduced_on: formatIntroducedDate(row.introduced_on),
       brand_name: row.brand_name || '',
       status: row.status || '',
@@ -1325,6 +1331,7 @@ export default function ComparisonSheet({
       if (hasPropDetails) {
         lastPropRef.current = propExistingDetails;
         target = propExistingDetails.map(row => ({
+          ...row,
           introduced_on: row.INTRODUCED_ON ?? row.introduced_on ?? '',
           brand_name: row.BRAND_NAME ?? row.brand_name ?? '',
           status: row.STATUS ?? row.status ?? '',
@@ -1347,28 +1354,36 @@ export default function ComparisonSheet({
           remark: row.REMARK ?? row.remark ?? row.remarks ?? row.remarksJson ?? '',
         }));
       } else if (hasEffectiveEntries) {
-        target = effectiveDrugEntries.map(row => ({
-          introduced_on: row.introduced_on ?? row.INTRODUCED_ON ?? '',
-          brand_name: row.brand_name || row.BRAND_NAME || row.drug_name || '',
-          status: row.status ?? row.STATUS ?? '',
-          manufacturer: row.manufacturer ?? row.MANUFACTURER ?? '',
-          marketer: row.marketer ?? row.MARKETER ?? '',
-          consultant: row.consultant ?? row.CONSULTANT ?? '',
-          present_stock: row.present_stock ?? row.PRESENT_STOCK ?? '',
-          purchase_qty: row.purchase_qty ?? row.PURCHASE_QTY ?? row.purchase_quantity ?? row.PURCHASE_QUANTITY ?? '',
-          sale_qty: row.sale_qty ?? row.SALE_QTY ?? '',
-          pack: row.pack ?? row.PACK ?? '',
-          mrp_inc_gst_nos: row.mrp_inc_gst_nos ?? row.MRP_INC_GST_NOS ?? row.mrp_incl_gst ?? '',
-          rate_inc_gst_nos: row.rate_inc_gst_nos ?? row.RATE_INC_GST_NOS ?? row.rate_incl_gst ?? '',
-          markup_margin: row.markup_margin ?? row.MARKUP_MARGIN ?? row.total_margin_markup ?? '',
-          scheme_qty: row.scheme_qty ?? row.SCHEME_QTY ?? '',
-          scheme_offer: row.scheme_offer ?? row.SCHEME_OFFER ?? row.offer_qty ?? row.OFFER_QTY ?? '',
-          net_rate: row.net_rate ?? row.NET_RATE ?? '',
-          profit_margin: row.profit_margin ?? row.PROFIT_MARGIN ?? '',
-          absolute_margin: row.absolute_margin ?? row.ABSOLUTE_MARGIN ?? '',
-          total_margin: row.total_margin ?? row.TOTAL_MARGIN ?? row.total_margin_markup ?? '',
-          remark: row.remark ?? row.REMARK ?? row.remarks ?? row.remarksJson ?? '',
-        }));
+        const hasLocalDetails = existingDetails && existingDetails.length > 0 &&
+          !(existingDetails.length === 1 && Object.values(existingDetails[0]).every(v => v === '' || v === null || v === undefined));
+
+        if (!hasLocalDetails) {
+          target = effectiveDrugEntries.map(row => ({
+            ...row,
+            introduced_on: row.introduced_on ?? row.INTRODUCED_ON ?? '',
+            brand_name: row.brand_name || row.BRAND_NAME || row.drug_name || '',
+            status: row.status ?? row.STATUS ?? '',
+            manufacturer: row.manufacturer ?? row.MANUFACTURER ?? '',
+            marketer: row.marketer ?? row.MARKETER ?? '',
+            consultant: row.consultant ?? row.CONSULTANT ?? '',
+            present_stock: row.present_stock ?? row.PRESENT_STOCK ?? '',
+            purchase_qty: row.purchase_qty ?? row.PURCHASE_QTY ?? row.purchase_quantity ?? row.PURCHASE_QUANTITY ?? '',
+            sale_qty: row.sale_qty ?? row.SALE_QTY ?? '',
+            pack: row.pack ?? row.PACK ?? '',
+            mrp_inc_gst_nos: row.mrp_inc_gst_nos ?? row.MRP_INC_GST_NOS ?? row.mrp_incl_gst ?? '',
+            rate_inc_gst_nos: row.rate_inc_gst_nos ?? row.RATE_INC_GST_NOS ?? row.rate_incl_gst ?? '',
+            markup_margin: row.markup_margin ?? row.MARKUP_MARGIN ?? row.total_margin_markup ?? '',
+            scheme_qty: row.scheme_qty ?? row.SCHEME_QTY ?? '',
+            scheme_offer: row.scheme_offer ?? row.SCHEME_OFFER ?? row.offer_qty ?? row.OFFER_QTY ?? '',
+            net_rate: row.net_rate ?? row.NET_RATE ?? '',
+            profit_margin: row.profit_margin ?? row.PROFIT_MARGIN ?? '',
+            absolute_margin: row.absolute_margin ?? row.ABSOLUTE_MARGIN ?? '',
+            total_margin: row.total_margin ?? row.TOTAL_MARGIN ?? row.total_margin_markup ?? '',
+            remark: row.remark ?? row.REMARK ?? row.remarks ?? row.remarksJson ?? '',
+          }));
+        } else {
+          target = existingDetails;
+        }
       } else if (existingGenericData && Object.keys(existingGenericData).length > 0 && existingGenericData.existing_brand_name) {
         target = [{
           introduced_on: existingGenericData.existing_introduced_on || '',
@@ -1580,7 +1595,6 @@ export default function ComparisonSheet({
     onExistingChange({ ...existingGenericData, [field]: val });
   };
 
-  const getVal = (obj, key) => obj?.[key] ?? '';
 
 
   // ── Auto-generate recommendations from Recommended rows ──
@@ -1589,24 +1603,24 @@ export default function ComparisonSheet({
 
     // Check original drug rows (new quotation remark === 'Recommended')
     const originalRemarkNew = getVal(alternatives[0], 'remark');
-    const originalRemarkNeg = alternatives[0]?.negotiation_remarks ?? '';
+    const originalRemarkNeg = getVal(alternatives[0], 'negotiation_remarks');
     if (alternatives[0] && (originalRemarkNew === 'Recommended' || originalRemarkNeg === 'Recommended')) {
       const a = alternatives[0];
       autoRecs.push({
-        brand_name: a.brand_name || a.BRAND_NAME || requestInfo.BRAND_NAME,
+        brand_name: getVal(a, 'brand_name') || requestInfo?.BRAND_NAME || requestInfo?.brand_name || '',
         category: 'FORMULARY',
         reasons: ['DTC Approved'],
         is_original: true,
         alternative_id: null,
-        mrp: a.negotiated_mrp ?? a.mrp_per_pack ?? a.mrp ?? '',
-        rate: a.negotiated_rate ?? a.rate_per_pack ?? a.rate ?? '',
-        gst_percent: a.negotiated_gst ?? a.gst_percent ?? '',
-        scheme_qty: a.negotiated_scheme_qty ?? a.qty ?? '',
-        scheme_offer: a.negotiated_scheme_offer ?? a.offer ?? '',
-        net_rate: a.negotiated_net_rate ?? a.net_rate ?? '',
-        profit_margin: a.negotiated_profit_margin ?? a.profit_margin ?? '',
-        absolute_margin: a.negotiated_absolute_margin ?? a.abs_margin ?? '',
-        total_margin: a.negotiated_total_margin ?? a.margin ?? '',
+        mrp: getVal(a, 'negotiated_mrp') || getVal(a, 'mrp_per_pack') || getVal(a, 'mrp') || '',
+        rate: getVal(a, 'negotiated_rate') || getVal(a, 'rate_per_pack') || getVal(a, 'rate') || '',
+        gst_percent: getVal(a, 'negotiated_gst') || getVal(a, 'gst_percent') || '',
+        scheme_qty: getVal(a, 'negotiated_scheme_qty') || getVal(a, 'qty') || '',
+        scheme_offer: getVal(a, 'negotiated_scheme_offer') || getVal(a, 'offer') || '',
+        net_rate: getVal(a, 'negotiated_net_rate') || getVal(a, 'net_rate') || '',
+        profit_margin: getVal(a, 'negotiated_profit_margin') || getVal(a, 'profit_margin') || '',
+        absolute_margin: getVal(a, 'negotiated_absolute_margin') || getVal(a, 'abs_margin') || getVal(a, 'absolute_margin') || '',
+        total_margin: getVal(a, 'negotiated_total_margin') || getVal(a, 'margin') || getVal(a, 'total_margin') || '',
         remarks: originalRemarkNeg || originalRemarkNew || ''
       });
     }
@@ -1614,23 +1628,23 @@ export default function ComparisonSheet({
     // Check alternative drug rows (index 1+)
     alternatives.slice(1).forEach((a) => {
       const remarkNew = getVal(a, 'remark');
-      const remarkNeg = a.negotiation_remarks ?? '';
+      const remarkNeg = getVal(a, 'negotiation_remarks');
       if (remarkNew === 'Recommended' || remarkNeg === 'Recommended') {
         autoRecs.push({
-          brand_name: a.brand_name || a.BRAND_NAME,
+          brand_name: getVal(a, 'brand_name') || '',
           category: 'FORMULARY',
           reasons: ['DTC Approved'],
           is_original: false,
-          alternative_id: a.alt_id || a.ALT_ID || null,
-          mrp: a.negotiated_mrp ?? a.mrp_per_pack ?? a.mrp ?? '',
-          rate: a.negotiated_rate ?? a.rate_per_pack ?? a.rate ?? '',
-          gst_percent: a.negotiated_gst ?? a.gst_percent ?? '',
-          scheme_qty: a.negotiated_scheme_qty ?? a.qty ?? '',
-          scheme_offer: a.negotiated_scheme_offer ?? a.offer ?? '',
-          net_rate: a.negotiated_net_rate ?? a.net_rate ?? '',
-          profit_margin: a.negotiated_profit_margin ?? a.profit_margin ?? '',
-          absolute_margin: a.negotiated_absolute_margin ?? a.abs_margin ?? '',
-          total_margin: a.negotiated_total_margin ?? a.margin ?? '',
+          alternative_id: getVal(a, 'alt_id') || null,
+          mrp: getVal(a, 'negotiated_mrp') || getVal(a, 'mrp_per_pack') || getVal(a, 'mrp') || '',
+          rate: getVal(a, 'negotiated_rate') || getVal(a, 'rate_per_pack') || getVal(a, 'rate') || '',
+          gst_percent: getVal(a, 'negotiated_gst') || getVal(a, 'gst_percent') || '',
+          scheme_qty: getVal(a, 'negotiated_scheme_qty') || getVal(a, 'qty') || '',
+          scheme_offer: getVal(a, 'negotiated_scheme_offer') || getVal(a, 'offer') || '',
+          net_rate: getVal(a, 'negotiated_net_rate') || getVal(a, 'net_rate') || '',
+          profit_margin: getVal(a, 'negotiated_profit_margin') || getVal(a, 'profit_margin') || '',
+          absolute_margin: getVal(a, 'negotiated_absolute_margin') || getVal(a, 'abs_margin') || getVal(a, 'absolute_margin') || '',
+          total_margin: getVal(a, 'negotiated_total_margin') || getVal(a, 'margin') || getVal(a, 'total_margin') || '',
           remarks: remarkNeg || remarkNew || ''
         });
       }
@@ -1639,6 +1653,101 @@ export default function ComparisonSheet({
     return autoRecs;
   }, [alternatives, requestInfo]);
 
+
+  // ── Footer Recommendation State ──────────────────────────────────────────
+  // Isolated state: one object per recommended drug.
+  // { brand_name, selected_as, reasons_obj }
+  const REASON_KEYS = [
+    { key: 'lowestComparableMRP', label: 'Lowest / Comparable MRP' },
+    { key: 'betterMargin', label: 'Better Margin' },
+    { key: 'reputedManufacturer', label: 'Reputed Manufacturer / Marketer' },
+    { key: 'clinicianPreference', label: 'Clinician Preference' },
+    { key: 'betterPatientAffordability', label: 'Better Patient Affordability' },
+    { key: 'dcgiWhoApproved', label: 'DCGI & WHO-GMP Approved' },
+  ];
+
+  const makeEmptyReasonsObj = () =>
+    Object.fromEntries(REASON_KEYS.map(r => [r.key, false]));
+
+  const [footerRecs, setFooterRecs] = React.useState([]);
+  const prevFooterKeyRef = React.useRef('');
+
+  // Sync footerRecs whenever the recommended drugs change, preserving user selections.
+  React.useEffect(() => {
+    const autoRecs = buildAutoRecommendations();
+    const key = JSON.stringify(autoRecs.map(r => r.brand_name));
+    if (prevFooterKeyRef.current === key) return;
+    prevFooterKeyRef.current = key;
+
+    setFooterRecs(prev => {
+      // Build a map of previously saved selections from dtcFinalRecommendations prop
+      const savedMap = {};
+      const savedSrc = (dtcFinalRecommendations && dtcFinalRecommendations.length > 0)
+        ? dtcFinalRecommendations
+        : [];
+      savedSrc.forEach(s => {
+        if (s && s.brand_name) savedMap[s.brand_name.toLowerCase()] = s;
+      });
+      // Build a map of current footer state keyed by brand_name
+      const prevMap = {};
+      prev.forEach(p => { if (p.brand_name) prevMap[p.brand_name.toLowerCase()] = p; });
+
+      return autoRecs.map(rec => {
+        const lbn = (rec.brand_name || '').toLowerCase();
+        const fromPrev = prevMap[lbn];
+        const fromSaved = savedMap[lbn];
+
+        // Priority: existing UI state > saved DB value > default
+        if (fromPrev) {
+          return { ...fromPrev, brand_name: rec.brand_name };
+        }
+        if (fromSaved) {
+          // Re-hydrate reasons_obj from stored reasons array
+          const reasonsArr = fromSaved.reasons || [];
+          const reasons_obj = makeEmptyReasonsObj();
+          REASON_KEYS.forEach(rk => {
+            if (reasonsArr.includes(rk.label)) reasons_obj[rk.key] = true;
+          });
+          // Also accept pre-serialized reasons_obj if present
+          if (fromSaved.reasons_obj && typeof fromSaved.reasons_obj === 'object') {
+            REASON_KEYS.forEach(rk => {
+              if (fromSaved.reasons_obj[rk.key] !== undefined) reasons_obj[rk.key] = !!fromSaved.reasons_obj[rk.key];
+            });
+          }
+          return {
+            brand_name: rec.brand_name,
+            selected_as: fromSaved.selected_as || fromSaved.category || 'FORMULARY',
+            reasons_obj,
+          };
+        }
+        return {
+          brand_name: rec.brand_name,
+          selected_as: 'FORMULARY',
+          reasons_obj: makeEmptyReasonsObj(),
+        };
+      });
+    });
+  }, [alternatives, dtcFinalRecommendations, buildAutoRecommendations]);
+
+  const updateFooterRec = React.useCallback((idx, patch) => {
+    setFooterRecs(prev => {
+      const next = prev.map((item, i) => i === idx ? { ...item, ...patch } : item);
+      if (onDtcFinalRecommendationsChange) {
+        // Persist selections: merge with auto-rec data for downstream use
+        const autoRecs = buildAutoRecommendations();
+        const merged = next.map((fr, i) => ({
+          ...(autoRecs[i] || {}),
+          brand_name: fr.brand_name,
+          selected_as: fr.selected_as,
+          category: fr.selected_as,
+          reasons_obj: fr.reasons_obj,
+          reasons: REASON_KEYS.filter(rk => fr.reasons_obj[rk.key]).map(rk => rk.label),
+        }));
+        onDtcFinalRecommendationsChange(merged);
+      }
+      return next;
+    });
+  }, [buildAutoRecommendations, onDtcFinalRecommendationsChange]);
 
 
   return (
@@ -1890,8 +1999,21 @@ export default function ComparisonSheet({
                 }
 
                 const autoRecs = buildAutoRecommendations();
+                // Merge footer selections (selected_as + reasons_obj) into the payload
+                const recsWithFooter = autoRecs.map((rec, i) => {
+                  const fr = footerRecs[i];
+                  if (!fr) return rec;
+                  const reasonsArr = REASON_KEYS.filter(rk => fr.reasons_obj && fr.reasons_obj[rk.key]).map(rk => rk.label);
+                  return {
+                    ...rec,
+                    selected_as: fr.selected_as || rec.category,
+                    category: fr.selected_as || rec.category,
+                    reasons_obj: fr.reasons_obj,
+                    reasons: reasonsArr.length > 0 ? reasonsArr : rec.reasons,
+                  };
+                });
                 onDtcFinalize({
-                  recommendations: autoRecs,
+                  recommendations: recsWithFooter,
                   notes: localRecommendationNotes,
                   reviewed_by_name: "Dr Susan Mani",
                   review_signature: "Dr Susan Mani",
@@ -2521,8 +2643,8 @@ export default function ComparisonSheet({
                   {alternatives.map((alt, i) => {
                     const rowStyle = i === 0 ? DR_ROW : NEW_ROW;
                     const derived = calcDerived(
-                      alt.mrp_per_pack, alt.rate_per_pack, alt.gst_percent,
-                      alt.pack, alt.qty, alt.offer,
+                      getVal(alt, 'mrp_per_pack'), getVal(alt, 'rate_per_pack'), getVal(alt, 'gst_percent'),
+                      getVal(alt, 'pack'), getVal(alt, 'qty'), getVal(alt, 'offer')
                     );
                     return (
                       <tr key={i} style={rowStyle}>
@@ -2580,14 +2702,14 @@ export default function ComparisonSheet({
 
                     // Compute derived values for negotiated fields
                     const derived = calcDerived(
-                      alt.negotiated_mrp, alt.negotiated_rate, alt.negotiated_gst,
-                      alt.pack, alt.negotiated_scheme_qty, alt.negotiated_scheme_offer
+                      getVal(alt, 'negotiated_mrp'), getVal(alt, 'negotiated_rate'), getVal(alt, 'negotiated_gst'),
+                      getVal(alt, 'pack'), getVal(alt, 'negotiated_scheme_qty'), getVal(alt, 'negotiated_scheme_offer')
                     );
 
                     // Compute derived values for original fields to compare changes
                     const origDerived = calcDerived(
-                      alt.mrp_per_pack ?? alt.mrp, alt.rate_per_pack ?? alt.rate, alt.gst_percent ?? alt.gst,
-                      alt.pack, alt.qty, alt.offer
+                      getVal(alt, 'mrp_per_pack') || getVal(alt, 'mrp'), getVal(alt, 'rate_per_pack') || getVal(alt, 'rate'), getVal(alt, 'gst_percent') || getVal(alt, 'gst'),
+                      getVal(alt, 'pack'), getVal(alt, 'qty'), getVal(alt, 'offer')
                     );
 
                     const phEditable = mode === 'pharmacy_head';
@@ -2628,39 +2750,39 @@ export default function ComparisonSheet({
 
                           if (col.id === 'mrp_per_pack') {
                             fieldName = 'negotiated_mrp';
-                            fieldVal = alt.negotiated_mrp;
+                            fieldVal = getVal(alt, 'negotiated_mrp');
                             cellEditable = phEditable;
-                            origVal = alt.mrp_per_pack ?? alt.mrp ?? '';
+                            origVal = getVal(alt, 'mrp_per_pack') || getVal(alt, 'mrp') || '';
                           } else if (col.id === 'rate_per_pack') {
                             fieldName = 'negotiated_rate';
-                            fieldVal = alt.negotiated_rate;
+                            fieldVal = getVal(alt, 'negotiated_rate');
                             cellEditable = phEditable;
-                            origVal = alt.rate_per_pack ?? alt.rate ?? '';
+                            origVal = getVal(alt, 'rate_per_pack') || getVal(alt, 'rate') || '';
                           } else if (col.id === 'gst_percent') {
                             fieldName = 'negotiated_gst';
-                            fieldVal = alt.negotiated_gst;
+                            fieldVal = getVal(alt, 'negotiated_gst');
                             cellEditable = phEditable;
-                            origVal = alt.gst_percent ?? alt.gst ?? '';
+                            origVal = getVal(alt, 'gst_percent') || getVal(alt, 'gst') || '';
                           } else if (col.id === 'qty') {
                             fieldName = 'negotiated_scheme_qty';
-                            fieldVal = alt.negotiated_scheme_qty;
+                            fieldVal = getVal(alt, 'negotiated_scheme_qty');
                             cellEditable = phEditable;
-                            origVal = alt.qty ?? '';
+                            origVal = getVal(alt, 'qty') || '';
                           } else if (col.id === 'offer') {
                             fieldName = 'negotiated_scheme_offer';
-                            fieldVal = alt.negotiated_scheme_offer;
+                            fieldVal = getVal(alt, 'negotiated_scheme_offer');
                             cellEditable = phEditable;
-                            origVal = alt.offer ?? '';
+                            origVal = getVal(alt, 'offer') || '';
                           } else if (col.id === 'remark') {
                             fieldName = 'negotiation_remarks';
-                            fieldVal = alt.negotiation_remarks;
+                            fieldVal = getVal(alt, 'negotiation_remarks');
                             cellEditable = mode === 'dtc';
                             cellOptions = mode === 'dtc' ? ['Recommended', 'Not Recommended'] : undefined;
                             isNum = false;
-                            origVal = alt.remark ?? '';
+                            origVal = getVal(alt, 'remark') || '';
                           } else {
                             // Shared properties are read-only in the negotiated table
-                            fieldVal = alt[col.id];
+                            fieldVal = getVal(alt, col.id);
                             cellEditable = false;
                           }
 
@@ -2827,56 +2949,175 @@ export default function ComparisonSheet({
           </div>
 
 
-          {/* ── Footer (matches Excel footer) ── */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderTop: '2px solid #1e3a5f' }}>
-            {[
-              { label: 'PREPARED BY', value: `${requestInfo.PREPARED_BY || requestInfo.PHARMACIST_NAME || 'Pharmacist'} — ${today}` },
-              { label: 'REVIEWED BY', value: 'Manager — Pharmacy Services' },
-              { label: 'SANCTIONED BY', value: 'Secretary MOSCMM' },
-            ].map((f, i) => (
-              <div key={i} style={{ padding: '10px 14px', borderRight: i < 2 ? '1px solid #d1d5db' : 'none', fontSize: '0.72rem' }}>
-                <div style={{ fontWeight: 700, color: '#1e3a5f', marginBottom: 4 }}>{f.label}:</div>
-                <div style={{ color: '#6b7280' }}>{f.value}</div>
+          {/* ── FINAL RECOMMENDATION Footer (Excel Style) ── */}
+          {footerRecs.length > 0 && (
+            <div style={{
+              borderTop: '2.5px solid #1e3a5f',
+              padding: '18px 20px 20px',
+              background: '#f8fafc',
+            }}>
+              <div style={{
+                fontWeight: 800,
+                fontSize: '0.83rem',
+                color: '#1e3a5f',
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                marginBottom: 16,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                borderBottom: '1.5px solid #cbd5e1',
+                paddingBottom: 10,
+              }}>
+                <span>📋</span> FINAL RECOMMENDATION(S) — DTC Committee
               </div>
-            ))}
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderTop: '1px solid #d1d5db', fontSize: '0.72rem' }}>
-            {/* DTC Remarks */}
-            <div style={{ padding: '10px 14px', borderRight: '1px solid #d1d5db' }}>
-              <div style={{ fontWeight: 700, color: '#1e3a5f', marginBottom: 4 }}>REMARKS BY CHAIRPERSON (DTC):</div>
-              {mode === 'dtc' ? (
-                <ApprovalRemarksPanel
-                  role="DTC"
-                  value={localDtcRemarks}
-                  onChange={handleDtcRemarksChange}
-                  placeholder="Enter Chairperson remarks..."
-                  rows={2}
-                  hidePredefined={true}
-                  hideRecent={true}
-                />
-              ) : (
-                <div style={{ minHeight: 36, borderBottom: '1px solid #9ca3af', color: '#374151', paddingTop: 4 }}>
-                  {localDtcRemarks || requestInfo.DTC_REMARKS || requestInfo.DTC_FINAL_REMARKS || '—'}
-                </div>
-              )}
+              {/* 2-column responsive grid */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))',
+                gap: '16px',
+              }}>
+                {footerRecs.map((fr, idx) => {
+                  const isDtcMode = mode === 'dtc';
+                  const recNum = idx + 1;
+                  return (
+                    <div
+                      key={fr.brand_name + idx}
+                      style={{
+                        border: '1.5px solid #1e3a5f',
+                        borderRadius: 10,
+                        overflow: 'hidden',
+                        background: '#ffffff',
+                        boxShadow: '0 2px 8px rgba(30,58,95,0.08)',
+                        fontSize: '0.75rem',
+                      }}
+                    >
+                      {/* Block Header */}
+                      <div style={{
+                        background: '#1e3a5f',
+                        color: '#ffffff',
+                        fontWeight: 700,
+                        fontSize: '0.78rem',
+                        padding: '8px 14px',
+                        letterSpacing: '0.04em',
+                        textTransform: 'uppercase',
+                      }}>
+                        Final Recommendation #{recNum}
+                      </div>
+
+                      <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+                        {/* Selected Brand */}
+                        <div>
+                          <div style={{ fontWeight: 700, color: '#1e3a5f', fontSize: '0.7rem', textTransform: 'uppercase', marginBottom: 3, letterSpacing: '0.04em' }}>Selected Brand:</div>
+                          <div style={{
+                            border: '1px solid #cbd5e1',
+                            borderRadius: 6,
+                            padding: '6px 10px',
+                            background: '#f1f5f9',
+                            fontWeight: 700,
+                            color: '#0f172a',
+                            fontSize: '0.82rem',
+                          }}>
+                            {fr.brand_name || '—'}
+                          </div>
+                        </div>
+
+                        {/* Selected As: Formulary / Non-Formulary */}
+                        <div>
+                          <div style={{ fontWeight: 700, color: '#1e3a5f', fontSize: '0.7rem', textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.04em' }}>Selected As:</div>
+                          <div style={{ display: 'flex', gap: 18 }}>
+                            {['FORMULARY', 'NON-FORMULARY'].map(opt => {
+                              const isSelected = (fr.selected_as || 'FORMULARY') === opt;
+                              return (
+                                <label
+                                  key={opt}
+                                  style={{
+                                    display: 'flex', alignItems: 'center', gap: 6,
+                                    cursor: isDtcMode ? 'pointer' : 'default',
+                                    fontWeight: isSelected ? 700 : 400,
+                                    color: isSelected ? '#1e3a5f' : '#475569',
+                                    fontSize: '0.78rem',
+                                  }}
+                                >
+                                  <input
+                                    type="radio"
+                                    name={`footer_rec_selected_as_${idx}`}
+                                    value={opt}
+                                    checked={isSelected}
+                                    disabled={!isDtcMode}
+                                    onChange={() => isDtcMode && updateFooterRec(idx, { selected_as: opt })}
+                                    style={{ accentColor: '#1e3a5f', width: 14, height: 14, cursor: isDtcMode ? 'pointer' : 'default' }}
+                                  />
+                                  {opt === 'FORMULARY' ? 'Formulary' : 'Non-Formulary'}
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Reasons */}
+                        <div>
+                          <div style={{ fontWeight: 700, color: '#1e3a5f', fontSize: '0.7rem', textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.04em' }}>Reason for Selection:</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                            {REASON_KEYS.map(rk => {
+                              const isChecked = !!(fr.reasons_obj && fr.reasons_obj[rk.key]);
+                              return (
+                                <label
+                                  key={rk.key}
+                                  style={{
+                                    display: 'flex', alignItems: 'center', gap: 7,
+                                    cursor: isDtcMode ? 'pointer' : 'default',
+                                    color: isChecked ? '#1e3a5f' : '#374151',
+                                    fontWeight: isChecked ? 600 : 400,
+                                    fontSize: '0.77rem',
+                                    padding: '2px 0',
+                                  }}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    disabled={!isDtcMode}
+                                    onChange={() => {
+                                      if (!isDtcMode) return;
+                                      const newReasonsObj = { ...fr.reasons_obj, [rk.key]: !isChecked };
+                                      updateFooterRec(idx, { reasons_obj: newReasonsObj });
+                                    }}
+                                    style={{ accentColor: '#1e3a5f', width: 14, height: 14, cursor: isDtcMode ? 'pointer' : 'default', flexShrink: 0 }}
+                                  />
+                                  <span>{isChecked ? '☑' : '☐'} {rk.label}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-            {/* PH Remarks */}
-            <div style={{ padding: '10px 14px' }}>
-              <div style={{ fontWeight: 700, color: '#1e3a5f', marginBottom: 4 }}>REMARKS BY PHARMACY HEAD:</div>
-              {mode === 'pharmacy_head' ? (
-                <ApprovalRemarksPanel
-                  role="PharmacyHead"
-                  value={phRemarks}
-                  onChange={onPhRemarksChange}
-                  placeholder="Enter Pharmacy Head remarks..."
-                  rows={2}
-                />
-              ) : (
-                <div style={{ minHeight: 36, borderBottom: '1px solid #9ca3af', color: '#374151', paddingTop: 4 }}>
-                  {requestInfo.PH_REVIEW_REMARKS || phRemarks || '—'}
-                </div>
-              )}
-            </div>
+          )}
+
+          {/* ── Remarks by Chairperson (DTC) ── */}
+          <div style={{ padding: '10px 14px', borderTop: '1px solid #d1d5db', fontSize: '0.72rem' }}>
+            <div style={{ fontWeight: 700, color: '#1e3a5f', marginBottom: 4 }}>REMARKS BY CHAIRPERSON (DTC):</div>
+            {mode === 'dtc' ? (
+              <ApprovalRemarksPanel
+                role="DTC"
+                value={localDtcRemarks}
+                onChange={handleDtcRemarksChange}
+                placeholder="Enter Chairperson remarks..."
+                rows={2}
+                hidePredefined={true}
+                hideRecent={true}
+              />
+            ) : (
+              <div style={{ minHeight: 36, borderBottom: '1px solid #9ca3af', color: '#374151', paddingTop: 4 }}>
+                {localDtcRemarks || requestInfo.DTC_REMARKS || requestInfo.DTC_FINAL_REMARKS || '—'}
+              </div>
+            )}
           </div>
 
           {/* ── Drug Effective Created Entries Section ── */}
@@ -2946,7 +3187,6 @@ export default function ComparisonSheet({
               </div>
             </div>
           )}
-
 
         </div>
       </div>

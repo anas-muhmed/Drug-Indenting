@@ -345,7 +345,7 @@ function Toast({ msg, type, onClose }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 function LoginForm({ onSwitch, onForceReset }) {
     const navigate = useNavigate();
-    const [form, setForm] = useState({ email: "", password: "" });
+    const [form, setForm] = useState({ userId: "", password: "" });
     const [errors, setErrors] = useState({});
     const [loading, setLoading] = useState(false);
     const [toast, setToast] = useState(null);
@@ -354,8 +354,7 @@ function LoginForm({ onSwitch, onForceReset }) {
 
     function validate() {
         const e = {};
-        if (!form.email.trim()) e.email = "Email is required.";
-        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = "Enter a valid email address.";
+        if (!form.userId.trim()) e.userId = "User ID is required.";
         if (!form.password) e.password = "Password is required.";
         return e;
     }
@@ -368,7 +367,7 @@ function LoginForm({ onSwitch, onForceReset }) {
         setErrors({});
         setLoading(true);
         try {
-            const res = await fetch(`${API}/login`, { method: 'POST', body: JSON.stringify({ email: form.email, password: form.password }), headers: { "Content-Type": "application/json" } });
+            const res = await fetch(`${API}/login`, { method: 'POST', body: JSON.stringify({ userId: form.userId, password: form.password }), headers: { "Content-Type": "application/json" } });
             const data = await res.json();
 
             if (data.success) {
@@ -433,8 +432,8 @@ function LoginForm({ onSwitch, onForceReset }) {
             )}
 
             <form onSubmit={handleSubmit} noValidate>
-                <Field label="Email Address" error={errors.email}>
-                    <Input icon="mail" type="email" placeholder="you@hospital.org" value={form.email} onChange={set("email")} />
+                <Field label="User ID" error={errors.userId}>
+                    <Input icon="user" type="text" placeholder="Enter User ID" value={form.userId} onChange={set("userId")} autoComplete="username" />
                 </Field>
                 <Field label="Password" error={errors.password}>
                     <Input icon="lock" type="password" placeholder="Enter your password" value={form.password} onChange={set("password")} />
@@ -478,7 +477,7 @@ function LoginForm({ onSwitch, onForceReset }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 function RegisterForm({ onSwitch }) {
     const [form, setForm] = useState({
-        name: "", email: "", password: "", confirmPassword: "",
+        user_login_id: "", name: "", email: "", password: "", confirmPassword: "",
         role: "", department: "",
     });
     const [errors, setErrors] = useState({});
@@ -487,10 +486,50 @@ function RegisterForm({ onSwitch }) {
     const [pwFocused, setPwFocused] = useState(false);
     const [submitted, setSubmitted] = useState(false);
 
+    const [checkingUsername, setCheckingUsername] = useState(false);
+    const [usernameStatus, setUsernameStatus] = useState(null); // { available: boolean, message: string }
+
     const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+    useEffect(() => {
+        const username = form.user_login_id.trim();
+        if (username.length < 4) {
+            setUsernameStatus(null);
+            return;
+        }
+        if (!/^[a-zA-Z0-9._-]+$/.test(username)) {
+            setUsernameStatus({ available: false, message: "Invalid characters" });
+            return;
+        }
+
+        const handler = setTimeout(async () => {
+            setCheckingUsername(true);
+            try {
+                const res = await fetch(`/api/users/check-username?username=${encodeURIComponent(username)}`);
+                const data = await res.json();
+                if (data.available) {
+                    setUsernameStatus({ available: true, message: "✓ Available" });
+                } else {
+                    setUsernameStatus({ available: false, message: "Already taken" });
+                }
+            } catch (err) {
+                setUsernameStatus(null);
+            } finally {
+                setCheckingUsername(false);
+            }
+        }, 500);
+
+        return () => clearTimeout(handler);
+    }, [form.user_login_id]);
 
     function validate() {
         const e = {};
+        if (!form.user_login_id.trim()) e.user_login_id = "User ID is required.";
+        else if (form.user_login_id.trim().length < 4) e.user_login_id = "User ID must be at least 4 characters.";
+        else if (form.user_login_id.trim().length > 30) e.user_login_id = "User ID must be at most 30 characters.";
+        else if (!/^[a-zA-Z0-9._-]+$/.test(form.user_login_id.trim())) e.user_login_id = "Only letters, numbers, underscores, dots, or hyphens are allowed.";
+        else if (usernameStatus && !usernameStatus.available) e.user_login_id = "User ID is already taken.";
+
         if (!form.name.trim()) e.name = "Full name is required.";
         else if (form.name.trim().length < 2) e.name = "Name must be at least 2 characters.";
 
@@ -520,7 +559,14 @@ function RegisterForm({ onSwitch }) {
             const res = await fetch(`${API}/register`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: form.name, email: form.email, password: form.password, role: form.role, department: form.department }),
+                body: JSON.stringify({
+                    name: form.name,
+                    email: form.email,
+                    password: form.password,
+                    role: form.role,
+                    department: form.department,
+                    user_login_id: form.user_login_id
+                }),
             });
             if (!res.ok) throw new Error("Registration failed");
             setSubmitted(true);
@@ -582,6 +628,20 @@ function RegisterForm({ onSwitch }) {
             <form onSubmit={handleSubmit} noValidate>
                 <Field label="Full Name" error={errors.name}>
                     <Input icon="user" placeholder="Dr. Priya Menon" value={form.name} onChange={set("name")} />
+                </Field>
+
+                <Field label="User ID" error={errors.user_login_id}>
+                    <div style={{ position: 'relative' }}>
+                        <Input icon="id-badge-2" placeholder="doctor01" value={form.user_login_id} onChange={set("user_login_id")} />
+                        {checkingUsername && (
+                            <i className="ti ti-loader-2" style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', animation: 'spin 1s linear infinite', color: 'var(--text-muted)' }} />
+                        )}
+                        {!checkingUsername && usernameStatus && (
+                            <span style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', fontSize: '0.8rem', fontWeight: 600, color: usernameStatus.available ? '#10b981' : '#ef4444' }}>
+                                {usernameStatus.message}
+                            </span>
+                        )}
+                    </div>
                 </Field>
 
                 <Field label="Email Address" error={errors.email}>
