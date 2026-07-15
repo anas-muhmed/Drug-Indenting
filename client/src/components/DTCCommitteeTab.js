@@ -473,7 +473,6 @@ export default function DTCCommitteeTab({ currentUser, onNotificationsRead }) {
     setSelectedReasons([]); setCustomRemarks(['']); setRemarkErr('');
     setAlternatives([]);
     setDtcAltView([]); setDtcEgdView({}); setDtcExistingDetails([]); setShowCompSheet(false);
-    setSelectionType(''); setSelectedAltId(null); setSelectionNotes(''); setSelectionErr('');
     setDtcSelectedBrand(''); setDtcSelectedCategory(''); setDtcSelectionReasons([]); setDtcRecommendationNotes('');
     setAuditLogs([]);
     setDtcReviewedByName(''); setDtcReviewSignature(''); setDtcRemarks(''); setPhFinalRecommendation('');
@@ -798,7 +797,7 @@ export default function DTCCommitteeTab({ currentUser, onNotificationsRead }) {
         <div className="card">
           <div className="card-title" style={{ justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div className="icon">✅</div>Final DTC Evaluation
+              <div className="icon">✅</div>Final DTC EvaluationZ
               <span className="badge badge-approved">With Pharmacist Quotations</span>
             </div>
             <button className="btn btn-ghost btn-sm" onClick={loadRequests}>↺ Refresh</button>

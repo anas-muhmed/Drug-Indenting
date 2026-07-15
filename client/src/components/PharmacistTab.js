@@ -77,6 +77,22 @@ const extractDosageForm = (value = '') => {
   return v.charAt(0).toUpperCase() + v.slice(1);
 };
 
+function renderStatusBadge(status) {
+  if (!status) return '—';
+  const clean = String(status).toLowerCase().trim();
+  const isInactive = clean.includes('inactive');
+  const badgeStyle = {
+    display: 'inline-flex', alignItems: 'center',
+    padding: '3px 8px', borderRadius: '12px',
+    fontSize: '0.72rem', fontWeight: 600, whiteSpace: 'nowrap'
+  };
+  if (!isInactive) {
+    return <span style={{ ...badgeStyle, background: '#DCFCE7', color: '#15803D' }}>🟢 {status}</span>;
+  } else {
+    return <span style={{ ...badgeStyle, background: '#FEE2E2', color: '#B91C1C' }}>🔴 {status}</span>;
+  }
+}
+
 export default function PharmacistTab({ currentUser, onNotificationsRead }) {
   const [view, setView] = useState('pending');
   const [requests, setRequests] = useState([]);
@@ -1929,6 +1945,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                             <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>S.No.</th>
                             <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Introduced On</th>
                             <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Brand Name</th>
+                            <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Status</th>
                             <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Manufacturer</th>
                             <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Marketer</th>
                             <th style={{ padding: '8px 10px', borderBottom: '1px solid #cbd5e1' }}>Consultant</th>
@@ -1948,7 +1965,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                         <tbody>
                           {irFilteredReportRows.length === 0 ? (
                             <tr>
-                              <td colSpan={18} style={{ padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '0.8rem', background: '#f8fafc' }}>
+                              <td colSpan={19} style={{ padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '0.8rem', background: '#f8fafc' }}>
                                 No brands match the selected filter criteria.
                               </td>
                             </tr>
@@ -1971,6 +1988,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                                 <td style={{ padding: '8px 10px' }}>{row.sno}</td>
                                 <td style={{ padding: '8px 10px' }}>{formatIntroducedDate(row.introduced_on)}</td>
                                 <td style={{ padding: '8px 10px', fontWeight: 600 }}>{row.brand_name}</td>
+                                <td style={{ padding: '8px 10px' }}>{renderStatusBadge(row.status)}</td>
                                 <td style={{ padding: '8px 10px' }}>{row.manufacturer}</td>
                                 <td style={{ padding: '8px 10px' }}>{row.marketer}</td>
                                 <td style={{ padding: '8px 10px' }}>{row.consultant}</td>
