@@ -52,9 +52,9 @@ function DepartmentCombobox({ value, onChange, placeholder = 'Type or select...'
     const handleKey = (e) => {
         if (!open && e.key !== 'Tab') setOpen(true);
         if (e.key === 'ArrowDown') { e.preventDefault(); setHighlighted(h => Math.min(h + 1, filtered.length - 1)); }
-        if (e.key === 'ArrowUp')   { e.preventDefault(); setHighlighted(h => Math.max(h - 1, 0)); }
-        if (e.key === 'Enter')     { e.preventDefault(); if (filtered[highlighted]) select(filtered[highlighted]); else setOpen(false); }
-        if (e.key === 'Escape')    { setOpen(false); }
+        if (e.key === 'ArrowUp') { e.preventDefault(); setHighlighted(h => Math.max(h - 1, 0)); }
+        if (e.key === 'Enter') { e.preventDefault(); if (filtered[highlighted]) select(filtered[highlighted]); else setOpen(false); }
+        if (e.key === 'Escape') { setOpen(false); }
     };
 
     return (
@@ -232,8 +232,8 @@ function Select({ icon, children, ...props }) {
                 outline: "none", appearance: "none", cursor: "pointer",
                 fontFamily: 'inherit', transition: "all 0.2s ease",
             }}
-            onFocus={(e) => { e.target.style.borderColor = "var(--primary)"; e.target.style.boxShadow = "0 0 0 4px rgba(14,165,233,0.15)"; }}
-            onBlur={(e) => { e.target.style.borderColor = "var(--border)"; e.target.style.boxShadow = "none"; }}
+                onFocus={(e) => { e.target.style.borderColor = "var(--primary)"; e.target.style.boxShadow = "0 0 0 4px rgba(14,165,233,0.15)"; }}
+                onBlur={(e) => { e.target.style.borderColor = "var(--border)"; e.target.style.boxShadow = "none"; }}
             >
                 {children}
             </select>
@@ -307,8 +307,8 @@ function SubmitBtn({ loading, children }) {
             transition: "all 0.2s ease",
             boxShadow: loading ? "none" : "0 4px 14px rgba(14,165,233,0.3)",
         }}
-        onMouseEnter={(e) => { if(!loading) e.currentTarget.style.transform = "translateY(-2px)" }}
-        onMouseLeave={(e) => { if(!loading) e.currentTarget.style.transform = "translateY(0)" }}
+            onMouseEnter={(e) => { if (!loading) e.currentTarget.style.transform = "translateY(-2px)" }}
+            onMouseLeave={(e) => { if (!loading) e.currentTarget.style.transform = "translateY(0)" }}
         >
             {loading && <i className="ti ti-loader-2" aria-hidden="true" style={{ fontSize: 18, animation: "spin 1s linear infinite" }} />}
             {children}
@@ -407,7 +407,7 @@ function LoginForm({ onSwitch, onForceReset }) {
     return (
         <div style={{ width: '100%', maxWidth: 440, margin: '0 auto' }}>
             <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-            
+
             <div style={{ marginBottom: '2.5rem' }}>
                 <h2 style={{ margin: "0 0 8px", fontSize: '2rem', fontWeight: 700, color: "var(--text)", letterSpacing: '-0.02em' }}>Welcome back</h2>
                 <p style={{ margin: 0, fontSize: '0.95rem', color: "var(--text-muted)" }}>Sign in to manage your drug addition requests.</p>
@@ -432,8 +432,8 @@ function LoginForm({ onSwitch, onForceReset }) {
             )}
 
             <form onSubmit={handleSubmit} noValidate>
-                <Field label="User ID" error={errors.userId}>
-                    <Input icon="user" type="text" placeholder="Enter User ID" value={form.userId} onChange={set("userId")} autoComplete="username" />
+                <Field label="Emp ID" error={errors.userId}>
+                    <Input icon="user" type="text" placeholder="Enter Your MOSC Employee ID" value={form.userId} onChange={set("userId")} autoComplete="username" />
                 </Field>
                 <Field label="Password" error={errors.password}>
                     <Input icon="lock" type="password" placeholder="Enter your password" value={form.password} onChange={set("password")} />
@@ -461,8 +461,8 @@ function LoginForm({ onSwitch, onForceReset }) {
                 fontWeight: 600, transition: "all 0.2s ease",
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
             }}
-            onMouseEnter={(e) => e.currentTarget.style.background = "#f1f5f9"}
-            onMouseLeave={(e) => e.currentTarget.style.background = "#f8fafc"}
+                onMouseEnter={(e) => e.currentTarget.style.background = "#f1f5f9"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "#f8fafc"}
             >
                 Create an account
             </button>
@@ -525,7 +525,6 @@ function RegisterForm({ onSwitch }) {
     function validate() {
         const e = {};
         if (!form.user_login_id.trim()) e.user_login_id = "User ID is required.";
-        else if (form.user_login_id.trim().length < 4) e.user_login_id = "User ID must be at least 4 characters.";
         else if (form.user_login_id.trim().length > 30) e.user_login_id = "User ID must be at most 30 characters.";
         else if (!/^[a-zA-Z0-9._-]+$/.test(form.user_login_id.trim())) e.user_login_id = "Only letters, numbers, underscores, dots, or hyphens are allowed.";
         else if (usernameStatus && !usernameStatus.available) e.user_login_id = "User ID is already taken.";
@@ -604,8 +603,8 @@ function RegisterForm({ onSwitch }) {
                     fontSize: '0.95rem', color: "#ffffff", cursor: "pointer",
                     fontWeight: 600, transition: "all 0.2s ease"
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.filter = "brightness(0.95)"}
-                onMouseLeave={(e) => e.currentTarget.style.filter = "none"}
+                    onMouseEnter={(e) => e.currentTarget.style.filter = "brightness(0.95)"}
+                    onMouseLeave={(e) => e.currentTarget.style.filter = "none"}
                 >
                     Back to Sign In
                 </button>
@@ -619,7 +618,7 @@ function RegisterForm({ onSwitch }) {
     return (
         <div style={{ width: '100%', maxWidth: 440, margin: '0 auto' }}>
             <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-            
+
             <div style={{ marginBottom: '2rem' }}>
                 <h2 style={{ margin: "0 0 8px", fontSize: '2rem', fontWeight: 700, color: "var(--text)", letterSpacing: '-0.02em' }}>Create account</h2>
                 <p style={{ margin: 0, fontSize: '0.95rem', color: "var(--text-muted)" }}>Join MedPortal to streamline hospital drug indenting.</p>
@@ -630,9 +629,9 @@ function RegisterForm({ onSwitch }) {
                     <Input icon="user" placeholder="Dr. Priya Menon" value={form.name} onChange={set("name")} />
                 </Field>
 
-                <Field label="User ID" error={errors.user_login_id}>
+                <Field label="Emp ID" error={errors.user_login_id}>
                     <div style={{ position: 'relative' }}>
-                        <Input icon="id-badge-2" placeholder="doctor01" value={form.user_login_id} onChange={set("user_login_id")} />
+                        <Input icon="id-badge-2" placeholder="Enter MOSC Employee ID" value={form.user_login_id} onChange={set("user_login_id")} />
                         {checkingUsername && (
                             <i className="ti ti-loader-2" style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', animation: 'spin 1s linear infinite', color: 'var(--text-muted)' }} />
                         )}
@@ -713,8 +712,8 @@ function RegisterForm({ onSwitch }) {
                 fontSize: '0.95rem', color: "var(--text)", cursor: "pointer", fontWeight: 600,
                 transition: "all 0.2s ease",
             }}
-            onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg)"}
-            onMouseLeave={(e) => e.currentTarget.style.background = "none"}
+                onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg)"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "none"}
             >
                 Sign in instead
             </button>
@@ -760,8 +759,8 @@ export default function AuthForms() {
         }}>
             {/* LEFT PANE: Branding / Graphic */}
             <div style={{
-                flex: 1, 
-                display: "none", 
+                flex: 1,
+                display: "none",
                 '@media (min-width: 900px)': { display: "flex" }, // Need CSS media queries in JS, we'll use a hack or just rely on flex-basis
             }} className="auth-left-pane">
                 <style>{`
@@ -786,14 +785,14 @@ export default function AuthForms() {
                         box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
                     }
                 `}</style>
-                
+
                 {/* Gradient Overlay */}
                 <div style={{
-                    position: 'absolute', inset: 0, 
+                    position: 'absolute', inset: 0,
                     background: 'linear-gradient(135deg, rgba(14,165,233,0.4) 0%, rgba(2,132,199,0.8) 100%)',
                     zIndex: 1
                 }} />
-                
+
                 {/* Content */}
                 <div style={{
                     position: 'relative', zIndex: 2, height: '100%',
@@ -802,8 +801,8 @@ export default function AuthForms() {
                 }}>
                     {/* Logo Area */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div style={{ 
-                            width: 48, height: 48, borderRadius: 14, 
+                        <div style={{
+                            width: 48, height: 48, borderRadius: 14,
                             background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
                             boxShadow: '0 10px 25px rgba(0,0,0,0.1)'
                         }}>
@@ -822,7 +821,7 @@ export default function AuthForms() {
                         <p style={{ fontSize: '1.1rem', color: 'rgba(255,255,255,0.9)', lineHeight: 1.6 }}>
                             Streamline your hospital's drug indenting process. A unified portal for Doctors, HODs, Pharmacists, and the DTC to review and approve new formulary additions.
                         </p>
-                        
+
                         <div style={{ display: 'flex', gap: 20, marginTop: 40 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <i className="ti ti-shield-check" style={{ fontSize: 24, color: '#6ee7b7' }}></i>
@@ -849,8 +848,8 @@ export default function AuthForms() {
                         @media (min-width: 900px) { .mobile-brand { display: none; } }
                     `}</style>
                     <div className="mobile-brand">
-                        <div style={{ 
-                            width: 40, height: 40, borderRadius: 10, 
+                        <div style={{
+                            width: 40, height: 40, borderRadius: 10,
                             background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center',
                         }}>
                             <i className="ti ti-stethoscope" style={{ fontSize: 22, color: 'white' }}></i>

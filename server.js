@@ -7112,11 +7112,11 @@ app.post('/api/register', async (req, res) => {
 
   // ── 1.1 User ID validation ────────────────────────────────────────────────
   const normalizedUserId = user_login_id.toLowerCase().trim();
-  const userIdRegex = /^[a-zA-Z0-9._-]{4,30}$/;
+  const userIdRegex = /^[a-zA-Z0-9._-]{1,30}$/;
   if (!userIdRegex.test(normalizedUserId)) {
     return res.status(400).json({
       success: false,
-      message: 'User ID must be 4-30 alphanumeric characters, including underscores, dots, or hyphens, and no spaces.',
+      message: 'User ID must be 1-30 alphanumeric characters, including underscores, dots, or hyphens, and no spaces.',
     });
   }
 
