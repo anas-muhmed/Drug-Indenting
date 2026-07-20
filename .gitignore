@@ -101,3 +101,6 @@ Desktop.ini
 .LSOverride
 *~
 .svn/
+
+# Personal work diary — local notes only, not for the repo
+diary/

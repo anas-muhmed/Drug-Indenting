@@ -12,11 +12,14 @@ import oracledb from "oracledb";
 import fetch from "node-fetch";
 import bcrypt from 'bcrypt';
 import path from "path";
+import { fileURLToPath } from "url";
 import { normalizeGenericCombo, computeAltDerived, computeExistingDerived, validatePassword } from './utils/pureHelpers.js';
+import { signToken, normalizeRole } from './utils/auth.js';
+import { requireAuth, requireAdminAuth } from './middleware/requireAuth.js';
 
 const app = express();
 app.use(cors());
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 
 
 app.use(express.json());
@@ -1006,18 +1009,28 @@ const STAGE_LABELS = {
 // =============================================================
 // POST /api/requests  — Doctor submits a new drug request
 // =============================================================
-app.post('/api/requests', async (req, res) => {
+app.post('/api/requests', requireAuth, async (req, res) => {
+  const {
+    doctor_id, med_rep_name, med_rep_email, med_rep_phone,
+    request_type, formulary_request_type, category, request_source_type,
+    brand_name, generic_name, dose_strength, dosage_form,
+    manufacturer, marketer, existing_brands,
+    clinical_justification, expected_patients_pm, cost_reduction_benefit,
+    medicine_quantity, ai_content
+  } = req.body;
+
+  // Only doctors/HODs create requests, and only as themselves — without
+  // this, any authenticated user's token could submit a request with an
+  // arbitrary doctor_id, impersonating any doctor.
+  if (!['doctor', 'hod'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Only doctors and HODs can submit drug requests.' });
+  }
+  if (req.user.id !== Number(doctor_id)) {
+    return res.status(403).json({ error: 'You can only submit requests as yourself.' });
+  }
+
   const conn = await getConn();
   try {
-    const {
-      doctor_id, med_rep_name, med_rep_email, med_rep_phone,
-      request_type, formulary_request_type, category, request_source_type,
-      brand_name, generic_name, dose_strength, dosage_form,
-      manufacturer, marketer, existing_brands,
-      clinical_justification, expected_patients_pm, cost_reduction_benefit,
-      medicine_quantity, ai_content
-    } = req.body;
-
     // Validate source type
     const sourceType = (request_source_type || 'PROMOTIONAL').toUpperCase();
     if (!['PROMOTIONAL', 'NON_PROMOTIONAL'].includes(sourceType)) {
@@ -1269,12 +1282,21 @@ app.get('/api/requests/:requestId/existing-generic-data', async (req, res) => {
 // =============================================================
 // GET /api/requests/:role/:userId
 // =============================================================
-app.get('/api/requests/:role/:userId', async (req, res) => {
+app.get('/api/requests/:role/:userId', requireAuth, async (req, res) => {
+  const { role, userId } = req.params;
+  const normalizedRole = role?.toLowerCase();
+
+  // A token can only be used to view that same person's own requests —
+  // without this, any logged-in user's valid token could read anyone
+  // else's requests just by changing the URL's role/userId.
+  if (req.user.role !== normalizedRole || req.user.id !== Number(userId)) {
+    return res.status(403).json({ success: false, message: 'You are not authorized to view these requests.' });
+  }
+
   const conn = await getConn();
 
   try {
 
-    const { role, userId } = req.params;
     const {
       status,
       category,
@@ -1283,8 +1305,6 @@ app.get('/api/requests/:role/:userId', async (req, res) => {
       source_type,
       formulary_type
     } = req.query;
-
-    const normalizedRole = role?.toLowerCase();
 
     let query = '';
     let binds = {};
@@ -1941,7 +1961,10 @@ app.put('/api/requests/:id/initial-review-approve', async (req, res) => {
 // =============================================================
 // GET /api/notifications/:userId
 // =============================================================
-app.get('/api/notifications/:userId', async (req, res) => {
+app.get('/api/notifications/:userId', requireAuth, async (req, res) => {
+  if (req.user.id !== Number(req.params.userId)) {
+    return res.status(403).json({ error: 'You are not authorized to view these notifications.' });
+  }
   const conn = await getConn();
   try {
     const result = await conn.execute(
@@ -1965,9 +1988,20 @@ app.get('/api/notifications/:userId', async (req, res) => {
 // =============================================================
 // PUT /api/notifications/:id/read
 // =============================================================
-app.put('/api/notifications/:id/read', async (req, res) => {
+app.put('/api/notifications/:id/read', requireAuth, async (req, res) => {
   const conn = await getConn();
   try {
+    const ownerCheck = await conn.execute(
+      `SELECT user_id FROM notifications WHERE notification_id = :id`,
+      { id: req.params.id }
+    );
+    if (ownerCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Notification not found.' });
+    }
+    if (ownerCheck.rows[0].USER_ID !== req.user.id) {
+      return res.status(403).json({ error: 'You are not authorized to modify this notification.' });
+    }
+
     await conn.execute(
       `UPDATE notifications SET is_read = 1 WHERE notification_id = :id`,
       { id: req.params.id }
@@ -7177,11 +7211,15 @@ app.post('/api/login', async (req, res) => {
       });
     }
 
+    const role = normalizeRole(user.ROLE);
+    const token = signToken({ id: user.USER_ID, role, type: 'user' });
+
     return res.status(200).json({
       success: true,
       user_id: user.USER_ID,
       role: user.ROLE,
       force_password_reset: user.FORCE_PASSWORD_RESET === 1,
+      token,
     });
   } catch (err) {
     console.error('[POST /api/login] Error:', err);
@@ -7607,33 +7645,6 @@ app.put('/api/requests/:id/resubmit-correction', async (req, res) => {
   }
 });
 
-// =============================================================
-// ADMIN MIDDLEWARE — validate admin session token (admin_id stored client-side)
-// =============================================================
-async function requireAdminAuth(req, res, next) {
-  const adminId = req.headers['x-admin-id'];
-  if (!adminId || isNaN(Number(adminId))) {
-    return res.status(401).json({ success: false, message: 'Admin authentication required.' });
-  }
-  let conn;
-  try {
-    conn = await getConn();
-    const check = await conn.execute(
-      `SELECT admin_id FROM admin_users WHERE admin_id = :adminId`,
-      { adminId: Number(adminId) }
-    );
-    if (check.rows.length === 0) {
-      return res.status(401).json({ success: false, message: 'Admin not found.' });
-    }
-    req.adminId = Number(adminId);
-    next();
-  } catch (err) {
-    return res.status(500).json({ success: false, message: 'Auth check failed.' });
-  } finally {
-    if (conn) await conn.close();
-  }
-}
-
 // Helper: write admin audit log
 async function writeAdminAudit(conn, adminId, action, targetUser, details) {
   try {
@@ -7728,12 +7739,15 @@ app.post('/api/admin/login', async (req, res) => {
     if (!isMatch) {
       return res.status(401).json({ success: false, message: 'Invalid credentials.' });
     }
+    const token = signToken({ id: admin.ADMIN_ID, role: 'admin', type: 'admin' });
+
     return res.status(200).json({
       success: true,
       admin_id: admin.ADMIN_ID,
       name: admin.NAME,
       email: admin.EMAIL,
       role: 'admin',
+      token,
     });
   } catch (err) {
     console.error('[POST /api/admin/login] Error:', err.message);
@@ -8253,7 +8267,13 @@ async function boot() {
   }
 }
 
-boot();
+// Only auto-start when run directly (`node server.js`) — not when imported
+// by tests, so importing this file never tries to reach Oracle on its own.
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  boot();
+}
+
+export default app;
 
 
 
