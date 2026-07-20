@@ -12,6 +12,7 @@ import oracledb from "oracledb";
 import fetch from "node-fetch";
 import bcrypt from 'bcrypt';
 import path from "path";
+import { normalizeGenericCombo, computeAltDerived, computeExistingDerived, validatePassword } from './utils/pureHelpers.js';
 
 const app = express();
 app.use(cors());
@@ -35,9 +36,9 @@ async function initDB() {
   oracledb.fetchAsString = [oracledb.CLOB];
 
   pool = await oracledb.createPool({
-    user: 'moscmar18',
-    password: 'moscmar18',
-    connectString: '192.168.1.104:1521/lifetest',
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    connectString: process.env.DB_CONNECT_STRING,
     poolMin: 0,
     poolMax: 10,
     poolIncrement: 1,
@@ -1002,44 +1003,6 @@ const STAGE_LABELS = {
 // Called server-side before every drug_alternatives INSERT so that
 // existing consumers of mrp/rate/markup_margin/... columns still work.
 // =============================================================
-function computeAltDerived(alt) {
-  const mp = parseFloat(alt.mrp_per_pack) || 0;
-  const rp = parseFloat(alt.rate_per_pack) || 0;
-  const g = parseFloat(alt.gst_percent) || 0;
-  const pk = parseFloat(alt.pack) || 0;
-  const q = parseFloat(alt.qty) || 0;
-  const o = parseFloat(alt.offer) || 0;
-
-  // MRP is inclusive of GST natively; do not apply/multiply GST
-  const mrp = pk > 0 ? +(mp / pk).toFixed(4) : null;
-  const rate = pk > 0 ? +(rp * (1 + g / 100) / pk).toFixed(4) : null;
-
-  const markup = mrp != null && rate != null && rate > 0
-    ? +(((mrp - rate) / rate) * 100).toFixed(2) : null;
-
-  const netRate = rate != null ? ((q + o) > 0 ? +(rate * q / (q + o)).toFixed(4) : rate) : null;
-
-  const profit = mrp != null && netRate != null && mrp > 0
-    ? +(((mrp - netRate) / mrp) * 100).toFixed(2) : null;
-
-  const absMargin = mrp != null && netRate != null
-    ? +(mrp - netRate).toFixed(4) : null;
-
-  const totalMargin = mrp != null && netRate != null && netRate > 0
-    ? +(((mrp - netRate) / netRate) * 100).toFixed(2) : null;
-
-  // Fall back to any values the frontend already computed (old-format submissions)
-  return {
-    mrp: mrp ?? parseFloat(alt.mrp) ?? null,
-    rate: rate ?? parseFloat(alt.rate) ?? null,
-    markup_margin: markup ?? parseFloat(alt.markupmargin) ?? null,
-    profit_margin: profit ?? parseFloat(alt.profit_margin) ?? null,
-    absolute_margin: absMargin ?? parseFloat(alt.margin) ?? null,
-    net_rate: netRate ?? parseFloat(alt.net_rate) ?? null,
-    total_margin: totalMargin ?? parseFloat(alt.margin) ?? null,
-  };
-}
-
 // =============================================================
 // POST /api/requests  — Doctor submits a new drug request
 // =============================================================
@@ -2942,13 +2905,6 @@ app.get('/api/audit/:requestId', async (req, res) => {
 // Each token is trimmed, lowercased, and empty tokens are discarded.
 // The returned array is sorted alphabetically so that
 // "Aspirin + Clopidogrel" and "Clopidogrel + Aspirin" produce the same tokens.
-function normalizeGenericCombo(str) {
-  return str
-    .split(/\+|,|&|\/|\s+and\s+/i)   // split on delimiters
-    .map(t => t.trim().toLowerCase()) // normalise case & whitespace
-    .filter(Boolean)                  // drop empty tokens
-    .sort();                          // order-independent matching
-}
 // ────────────────────────────────────────────────────────────────────────────
 
 //generic search 
@@ -3590,8 +3546,7 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_MODEL = "openai/gpt-oss-120b";
 
 if (!GROQ_API_KEY) {
-  console.error("❌ GROQ_API_KEY missing in .env");
-  process.exit(1);
+  console.warn("⚠️  GROQ_API_KEY missing in .env — AI drug-profile endpoints will return errors until it's set.");
 }
 
 // ── SYSTEM PROMPT ─────────────────────────────────────────
@@ -4148,6 +4103,9 @@ ALTERNATIVE 1
 // ── AI CALL FUNCTION ─────────────────────────────────────
 
 async function askAI(userPrompt, systemPrompt) {
+  if (!GROQ_API_KEY) {
+    throw new Error("AI service unavailable: GROQ_API_KEY not configured");
+  }
   try {
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -5679,37 +5637,6 @@ app.post('/api/dtc/final-select/:requestId', async (req, res) => {
   }
 });
 
-// Helper for existing drug rows calculation
-function computeExistingDerived(row) {
-  const mp = parseFloat(row.mrp_pack) || 0;
-  const rp = parseFloat(row.rate_pack) || 0;
-  const g = parseFloat(row.gst_percent) || 0;
-  const pk = parseFloat(row.pack) || 0;
-  const q = parseFloat(row.scheme_qty) || 0;
-  const o = parseFloat(row.scheme_offer) || 0;
-
-  const mrp = pk > 0 ? +(mp * (1 + g / 100) / pk).toFixed(4) : null;
-  const rate = pk > 0 ? +(rp * (1 + g / 100) / pk).toFixed(4) : null;
-
-  const markup = mrp != null && rate != null && rate > 0
-    ? +(((mrp - rate) / rate) * 100).toFixed(2) : null;
-  const profit = mrp != null && rate != null && mrp > 0
-    ? +(((mrp - rate) / mrp) * 100).toFixed(2) : null;
-  const absMargin = mrp != null && rate != null
-    ? +(mrp - rate).toFixed(4) : null;
-  const netRate = rate != null && (q + o) > 0
-    ? +(rate * q / (q + o)).toFixed(4) : null;
-
-  return {
-    mrp_inc_gst_nos: mrp,
-    rate_inc_gst_nos: rate,
-    markup_margin: markup,
-    profit_margin: profit,
-    absolute_margin: absMargin,
-    net_rate: netRate,
-  };
-}
-
 // =============================================================
 // PUT /api/pharmacist/comparison/:requestId — Save Existing Drug Rows
 // =============================================================
@@ -7078,18 +7005,6 @@ const SALT_ROUNDS = 12;
 //  • At least 1 uppercase letter  [A-Z]
 //  • At least 1 symbol            [!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]
 //  • At least 1 digit             [0-9]
-const PASSWORD_REGEX = /^(?=.*[A-Z])(?=.*[!@#$%^&*()\-_=+\[\]{};':"\\|,.<>/?])(?=.*\d).{6,}$/;
-
-function validatePassword(password) {
-  const errors = [];
-  if (!password || password.length < 6) errors.push('Password must be at least 6 characters.');
-  if (!/[A-Z]/.test(password)) errors.push('Password must contain at least one uppercase letter.');
-  if (!/[!@#$%^&*()\-_=+\[\]{};':"\\|,.<>/?]/.test(password))
-    errors.push('Password must contain at least one special symbol.');
-  if (!/\d/.test(password)) errors.push('Password must contain at least one number.');
-  return errors;
-}
-
 // ─── POST /api/users/register ─────────────────────────────────────────────────
 /**
  * Body (JSON):
