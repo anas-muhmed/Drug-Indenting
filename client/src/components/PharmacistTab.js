@@ -1379,6 +1379,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                       </td>
                       <td>
                         <div style={{ display: 'flex', gap: 6 }}>
+                          <button className="btn btn-ghost btn-sm" onClick={() => openView(r)}>View</button>
                           <button className="btn btn-success btn-sm" onClick={() => openIrPanel(r, 'approve')}>Add/Approve</button>
                           {/* <button className="btn btn-danger btn-sm" onClick={() => openIrPanel(r, 'reject')}>✕ Reject</button> */}
                         </div>
