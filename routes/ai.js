@@ -9,11 +9,14 @@ import { getConn } from '../db/pool.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { ALL_PROFILE_SYSTEM_PROMPT, ALL_PROFILE_SYSTEM_PROMPT2 } from '../prompts/drugProfilePrompts.js';
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_MODEL = "openai/gpt-oss-120b";
 
-if (!GROQ_API_KEY) {
-  console.warn("⚠️  GROQ_API_KEY missing in .env — AI drug-profile endpoints will return errors until it's set.");
+// Read at call time, not at import time: ES module imports are fully
+// evaluated before dotenv.config() (server.js) runs, so capturing this
+// into a module-level const here would always see it as undefined,
+// regardless of what's actually in .env.
+function getGroqApiKey() {
+  return process.env.GROQ_API_KEY;
 }
 
 const router = express.Router();
@@ -21,14 +24,15 @@ const router = express.Router();
 // ── AI CALL FUNCTION ─────────────────────────────────────
 
 async function askAI(userPrompt, systemPrompt) {
-  if (!GROQ_API_KEY) {
+  const apiKey = getGroqApiKey();
+  if (!apiKey) {
     throw new Error("AI service unavailable: GROQ_API_KEY not configured");
   }
   try {
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${GROQ_API_KEY}`,
+        "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({

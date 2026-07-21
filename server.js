@@ -84,6 +84,9 @@ app.use('/api/admin', adminRouter);
 
 async function boot() {
 
+  if (!process.env.GROQ_API_KEY) {
+    console.warn("⚠️  GROQ_API_KEY missing in .env — AI drug-profile endpoints will return errors until it's set.");
+  }
 
   try {
     await initDB();
