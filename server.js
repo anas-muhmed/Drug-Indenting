@@ -15,7 +15,9 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { normalizeGenericCombo, computeAltDerived, computeExistingDerived, validatePassword } from './utils/pureHelpers.js';
 import { signToken, normalizeRole } from './utils/auth.js';
-import { requireAuth, requireAdminAuth } from './middleware/requireAuth.js';
+import { requireAuth, requireAdminAuth, requireRole } from './middleware/requireAuth.js';
+import { extractBearerToken, verifyToken } from './utils/auth.js';
+import { getApproverRoleForStage } from './utils/workflow.js';
 
 const app = express();
 app.use(cors());
@@ -1070,6 +1072,7 @@ app.post('/api/requests', requireAuth, async (req, res) => {
         }
       }
     }
+    
 
     const qCheck = await conn.execute(
       `SELECT COUNT(*) AS cnt FROM user_request_quotas WHERE user_id = :userId`,
@@ -1258,7 +1261,7 @@ app.post('/api/requests', requireAuth, async (req, res) => {
 
 // =============================================================
 // GET /api/requests/:requestId/existing-generic-data
-app.get('/api/requests/:requestId/existing-generic-data', async (req, res) => {
+app.get('/api/requests/:requestId/existing-generic-data', requireAuth, async (req, res) => {
   const conn = await getConn();
   try {
     const rid = parseInt(req.params.requestId);
@@ -1504,11 +1507,12 @@ app.get('/api/requests/:role/:userId', requireAuth, async (req, res) => {
 // =============================================================
 // PUT /api/requests/:id/approve
 // =============================================================
-app.put('/api/requests/:id/approve', async (req, res) => {
+app.put('/api/requests/:id/approve', requireAuth, async (req, res) => {
   const conn = await getConn();
   try {
     const requestId = parseInt(req.params.id);
-    const { performed_by, remarks } = req.body;
+    const { remarks } = req.body;
+    const performed_by = req.user.id; // never trust a client-supplied performer id
 
     const reqResult = await conn.execute(
       `SELECT dr.*, u.name AS doctor_name, u.department AS doctor_dept
@@ -1523,6 +1527,15 @@ app.put('/api/requests/:id/approve', async (req, res) => {
     if (dr.STATUS !== 'Pending' && dr.STATUS !== 'EMERGENCY_PENDING_DTC' && dr.STATUS !== 'PENDING_HOD' && dr.STATUS !== 'HOD_APPROVED' && dr.STATUS !== 'PHARMACY_HEAD_REJECTED_PENDING_DTC') return res.status(400).json({ error: 'Request is no longer pending.' });
 
     const fromStage = dr.CURRENT_STAGE;
+
+    // The core Bucket B rule: only the role responsible for the request's
+    // CURRENT stage may approve it — e.g. only 'hod' can approve while it
+    // sits at the HOD stage, only 'ceo' once it reaches CEO, etc.
+    const approverRole = getApproverRoleForStage(fromStage);
+    if (!approverRole || req.user.role !== approverRole) {
+      return res.status(403).json({ error: 'You are not authorized to approve this request at its current stage.' });
+    }
+
     let toStage = NEXT_STAGE[fromStage];
 
     // PHARMACIST Direct Flow overrides
@@ -1662,11 +1675,12 @@ app.put('/api/requests/:id/approve', async (req, res) => {
 // =============================================================
 // PUT /api/requests/:id/reject
 // =============================================================
-app.put('/api/requests/:id/reject', async (req, res) => {
+app.put('/api/requests/:id/reject', requireAuth, async (req, res) => {
   const conn = await getConn();
   try {
     const requestId = parseInt(req.params.id);
-    const { performed_by, remarks, customRemarks } = req.body;
+    const { remarks, customRemarks } = req.body;
+    const performed_by = req.user.id; // never trust a client-supplied performer id
 
     if (!remarks || remarks.trim() === '') {
       return res.status(400).json({ error: 'Remarks are mandatory when rejecting a request.' });
@@ -1685,6 +1699,12 @@ app.put('/api/requests/:id/reject', async (req, res) => {
     if (dr.STATUS !== 'Pending' && dr.STATUS !== 'EMERGENCY_PENDING_DTC' && dr.STATUS !== 'PENDING_HOD' && dr.STATUS !== 'HOD_APPROVED' && dr.STATUS !== 'PHARMACY_HEAD_REJECTED_PENDING_DTC') return res.status(400).json({ error: 'Request is no longer pending.' });
 
     const fromStage = dr.CURRENT_STAGE;
+
+    const approverRole = getApproverRoleForStage(fromStage);
+    if (!approverRole || req.user.role !== approverRole) {
+      return res.status(403).json({ error: 'You are not authorized to reject this request at its current stage.' });
+    }
+
     const remarksCol = fromStage === 'HOD' ? 'hod_remarks'
       : fromStage === 'PharmacistInitialReview' ? 'pharmacist_remarks'
         : fromStage === 'PharmacyHead' ? 'ph_remarks'
@@ -1819,11 +1839,12 @@ app.put('/api/requests/:id/reject', async (req, res) => {
 // Dedicated endpoint for Pharmacist Initial Review approval
 // Saves effective_created_at and advances stage to PharmacyHead
 // =============================================================
-app.put('/api/requests/:id/initial-review-approve', async (req, res) => {
+app.put('/api/requests/:id/initial-review-approve', requireAuth, async (req, res) => {
   const conn = await getConn();
   try {
     const requestId = parseInt(req.params.id);
-    const { performed_by, effective_created_at, remarks, effective_drug_entries } = req.body;
+    const { effective_created_at, remarks, effective_drug_entries } = req.body;
+    const performed_by = req.user.id; // never trust a client-supplied performer id
 
     const reqResult = await conn.execute(
       `SELECT dr.*, u.name AS doctor_name, u.department AS doctor_dept
@@ -1837,6 +1858,11 @@ app.put('/api/requests/:id/initial-review-approve', async (req, res) => {
     const dr = reqResult.rows[0];
     if (dr.CURRENT_STAGE !== 'PharmacistInitialReview') {
       return res.status(400).json({ error: 'Request is not in PharmacistInitialReview stage.' });
+    }
+
+    const approverRole = getApproverRoleForStage(dr.CURRENT_STAGE);
+    if (!approverRole || req.user.role !== approverRole) {
+      return res.status(403).json({ error: 'You are not authorized to review this request.' });
     }
     if (dr.STATUS !== 'HOD_APPROVED' && dr.STATUS !== 'Pending') {
       return res.status(400).json({ error: 'Request is not awaiting pharmacist initial review.' });
@@ -2019,15 +2045,41 @@ app.put('/api/notifications/:id/read', requireAuth, async (req, res) => {
 // GET /api/dashboard/:role
 // =============================================================
 app.get('/api/dashboard/:role', async (req, res) => {
+  const { role } = req.params;
+  const { userId, source_type, formulary_type } = req.query;
+  const normalizedRole = role ? role.toLowerCase().trim() : '';
+
+  const token = extractBearerToken(req.headers.authorization);
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
+  let decoded;
+  try {
+    decoded = verifyToken(token);
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid or expired session. Please log in again.' });
+  }
+
+  if (normalizedRole === 'admin') {
+    if (decoded.type !== 'admin') {
+      return res.status(403).json({ error: 'Only an admin can view this dashboard.' });
+    }
+  } else {
+    // Role-level dashboards (pharmacyhead/pharmacist/dtccommittee/ceo) just
+    // require your token's role to match; doctor/hod additionally require
+    // the userId query param to be you, since those are personal views.
+    if (decoded.type !== 'user' || decoded.role !== normalizedRole) {
+      return res.status(403).json({ error: 'You are not authorized to view this dashboard.' });
+    }
+    if ((normalizedRole === 'doctor' || normalizedRole === 'hod') && decoded.id !== Number(userId)) {
+      return res.status(403).json({ error: 'You can only view your own dashboard.' });
+    }
+  }
+
   const conn = await getConn();
   try {
-    const { role } = req.params;
-    const { userId, source_type, formulary_type } = req.query;
-
     let whereClause = '1=1';
     const binds = {};
-
-    const normalizedRole = role ? role.toLowerCase().trim() : '';
 
     if (normalizedRole === 'doctor') {
       whereClause = 'doctor_id = :userId';
@@ -2088,7 +2140,7 @@ app.get('/api/dashboard/:role', async (req, res) => {
 // =============================================================
 
 // GET /api/analytics/summary — System-wide KPI counts
-app.get('/api/analytics/summary', async (req, res) => {
+app.get('/api/analytics/summary', requireRole('ceo', 'dtc', 'dtccommittee'), async (req, res) => {
   const conn = await getConn();
   try {
     const r = await conn.execute(`
@@ -2131,7 +2183,7 @@ app.get('/api/analytics/summary', async (req, res) => {
 });
 
 // GET /api/analytics/workflow-stages — Count per workflow stage
-app.get('/api/analytics/workflow-stages', async (req, res) => {
+app.get('/api/analytics/workflow-stages', requireRole('ceo', 'dtc', 'dtccommittee'), async (req, res) => {
   const conn = await getConn();
   try {
     const r = await conn.execute(`
@@ -2148,7 +2200,7 @@ app.get('/api/analytics/workflow-stages', async (req, res) => {
 });
 
 // GET /api/analytics/doctor-performance — Per-doctor/HOD analytics
-app.get('/api/analytics/doctor-performance', async (req, res) => {
+app.get('/api/analytics/doctor-performance', requireRole('ceo', 'dtc', 'dtccommittee'), async (req, res) => {
   const conn = await getConn();
   try {
     const r = await conn.execute(`
@@ -2188,7 +2240,7 @@ app.get('/api/analytics/doctor-performance', async (req, res) => {
 });
 
 // GET /api/analytics/drug-analytics — Top drugs by requests/approvals/rejections
-app.get('/api/analytics/drug-analytics', async (req, res) => {
+app.get('/api/analytics/drug-analytics', requireRole('ceo', 'dtc', 'dtccommittee'), async (req, res) => {
   const conn = await getConn();
   try {
     const [topBrands, topGenerics, topRejected, topApproved] = await Promise.all([
@@ -2228,7 +2280,7 @@ app.get('/api/analytics/drug-analytics', async (req, res) => {
 });
 
 // GET /api/analytics/rejection-breakdown — Rejections per stage + top remarks
-app.get('/api/analytics/rejection-breakdown', async (req, res) => {
+app.get('/api/analytics/rejection-breakdown', requireRole('ceo', 'dtc', 'dtccommittee'), async (req, res) => {
   const conn = await getConn();
   try {
     const [breakdown, remarks] = await Promise.all([
@@ -2264,7 +2316,7 @@ app.get('/api/analytics/rejection-breakdown', async (req, res) => {
 });
 
 // GET /api/analytics/request-history — Paginated full request list
-app.get('/api/analytics/request-history', async (req, res) => {
+app.get('/api/analytics/request-history', requireRole('ceo', 'dtc', 'dtccommittee'), async (req, res) => {
   const conn = await getConn();
   try {
     const page = Math.max(1, parseInt(req.query.page) || 1);
@@ -2342,7 +2394,7 @@ app.get('/api/analytics/request-history', async (req, res) => {
 });
 
 // GET /api/analytics/workflow-tracker — Live workflow tracking
-app.get('/api/analytics/workflow-tracker', async (req, res) => {
+app.get('/api/analytics/workflow-tracker', requireRole('ceo', 'dtc', 'dtccommittee'), async (req, res) => {
   const conn = await getConn();
   const role = (req.query.role || '').toLowerCase();
   const userId = req.query.userId ? parseInt(req.query.userId, 10) : null;
@@ -2490,7 +2542,7 @@ app.get('/api/analytics/workflow-tracker', async (req, res) => {
 });
 
 // GET /api/analytics/audit-trail — Global request audit trail
-app.get('/api/analytics/audit-trail', async (req, res) => {
+app.get('/api/analytics/audit-trail', requireRole('ceo', 'dtc', 'dtccommittee'), async (req, res) => {
   const conn = await getConn();
   const role = (req.query.role || '').toLowerCase();
   const userId = req.query.userId ? parseInt(req.query.userId, 10) : null;
@@ -2565,7 +2617,7 @@ app.get('/api/analytics/audit-trail', async (req, res) => {
 });
 
 // GET /api/analytics/drilldown — Drilldown for metric or stage click
-app.get('/api/analytics/drilldown', async (req, res) => {
+app.get('/api/analytics/drilldown', requireRole('ceo', 'dtc', 'dtccommittee'), async (req, res) => {
   const conn = await getConn();
   try {
     const type = req.query.type;
@@ -2670,7 +2722,7 @@ app.get('/api/analytics/drilldown', async (req, res) => {
 // =============================================================
 // GET /api/dtc/user-quotas — Retrieve all Doctors/HODs request quotas & usage
 // =============================================================
-app.get('/api/dtc/user-quotas', async (req, res) => {
+app.get('/api/dtc/user-quotas', requireRole('dtc', 'dtccommittee'), async (req, res) => {
   const conn = await getConn();
   try {
     const usersRes = await conn.execute(
@@ -2741,7 +2793,7 @@ app.get('/api/dtc/user-quotas', async (req, res) => {
 // =============================================================
 // PUT /api/dtc/user-quotas/:userId — Update a doctor or HOD request quota
 // =============================================================
-app.put('/api/dtc/user-quotas/:userId', async (req, res) => {
+app.put('/api/dtc/user-quotas/:userId', requireRole('dtc', 'dtccommittee'), async (req, res) => {
   const conn = await getConn();
   try {
     const userId = parseInt(req.params.userId);
@@ -2808,11 +2860,14 @@ app.put('/api/dtc/user-quotas/:userId', async (req, res) => {
 // =============================================================
 // GET /api/user/quota/:userId — Fetch quota details for a Doctor/HOD
 // =============================================================
-app.get('/api/user/quota/:userId', async (req, res) => {
+app.get('/api/user/quota/:userId', requireAuth, async (req, res) => {
+  const userId = parseInt(req.params.userId);
+  if (req.user.id !== userId) {
+    return res.status(403).json({ error: 'You are not authorized to view this quota.' });
+  }
+
   const conn = await getConn();
   try {
-    const userId = parseInt(req.params.userId);
-
     const userRes = await conn.execute(
       `SELECT role FROM users WHERE user_id = :userId AND is_active = 1`,
       { userId }
@@ -2872,7 +2927,7 @@ app.get('/api/user/quota/:userId', async (req, res) => {
 // =============================================================
 // GET /api/users
 // =============================================================
-app.get('/api/users', async (req, res) => {
+app.get('/api/users', requireAuth, async (req, res) => {
   const conn = await getConn();
   try {
     const result = await conn.execute(
@@ -2890,7 +2945,7 @@ app.get('/api/users', async (req, res) => {
 // =============================================================
 // GET /api/audit/:requestId
 // =============================================================
-app.get('/api/audit/:requestId', async (req, res) => {
+app.get('/api/audit/:requestId', requireAuth, async (req, res) => {
   const conn = await getConn();
   const role = (req.query.role || '').toUpperCase();
   try {
@@ -2945,7 +3000,7 @@ app.get('/api/audit/:requestId', async (req, res) => {
 // =============================================================
 // POST /api/drugs/search
 // =============================================================
-app.post('/api/getGeneric', async (req, res) => {
+app.post('/api/getGeneric', requireAuth, async (req, res) => {
   const conn = await getConn();
 
   try {
@@ -3068,7 +3123,7 @@ app.post('/api/getGeneric', async (req, res) => {
 // POST /api/saveGenericItem
 // =============================================================
 
-app.post('/api/saveGenericItem', async (req, res) => {
+app.post('/api/saveGenericItem', requireAuth, async (req, res) => {
   console.log('REQ BODY:', req.body);
 
   const conn = await getConn();
@@ -3528,7 +3583,7 @@ app.post('/api/saveGenericItem', async (req, res) => {
 // POST /api/getPatientInfo
 // =============================================================
 
-app.post('/api/getPatientInfo', async (req, res) => {
+app.post('/api/getPatientInfo', requireRole('doctor'), async (req, res) => {
   const conn = await getConn();
 
   try {
@@ -4173,7 +4228,7 @@ async function askAI(userPrompt, systemPrompt) {
 // 🔹 ENDPOINT: DRUG PROFILE
 // ─────────────────────────────────────────────────────────
 
-app.post("/api/drug-profile", async (req, res) => {
+app.post("/api/drug-profile", requireAuth, async (req, res) => {
   const conn = await getConn();
   try {
 
@@ -4229,7 +4284,7 @@ app.post("/api/drug-profile", async (req, res) => {
   }
 });
 // api  for  alternative  durg 
-app.post("/api/alternative-drug", async (req, res) => {
+app.post("/api/alternative-drug", requireAuth, async (req, res) => {
   const conn = await getConn();
   try {
 
@@ -4293,7 +4348,7 @@ app.post("/api/alternative-drug", async (req, res) => {
 // =============================================================
 // POST /api/requests/pharmacist  — Pharmacist submits a direct request
 // =============================================================
-app.post('/api/requests/pharmacist', async (req, res) => {
+app.post('/api/requests/pharmacist', requireRole('pharmacist'), async (req, res) => {
   const conn = await getConn();
   try {
     const {
@@ -4375,7 +4430,7 @@ app.post('/api/requests/pharmacist', async (req, res) => {
     const result = await conn.execute(insertQuery, binds, { autoCommit: false });
     const reqId = result.outBinds.reqId[0];
 
-    await writeAudit(conn, reqId, 'SUBMITTED', doctor_id, null, 'PharmacyHead', 'Pharmacist direct request submitted.');
+    await writeAudit(conn, reqId, 'SUBMITTED', req.user.id, null, 'PharmacyHead', 'Pharmacist direct request submitted.');
     await conn.commit();
 
     // Notify PharmacyHead
@@ -4393,16 +4448,23 @@ app.post('/api/requests/pharmacist', async (req, res) => {
   }
 });
 
-app.post('/api/requests/emergency', async (req, res) => {
+app.post('/api/requests/emergency', requireAuth, async (req, res) => {
+  const {
+    doctor_id, request_type, category, brand_name, generic_name,
+    dose_strength, dosage_form, manufacturer, marketer,
+    existing_brands, clinical_justification, ai_content,
+    request_source_type
+  } = req.body;
+
+  if (!['doctor', 'hod'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Only doctors and HODs can submit emergency requests.' });
+  }
+  if (req.user.id !== Number(doctor_id)) {
+    return res.status(403).json({ error: 'You can only submit requests as yourself.' });
+  }
+
   const conn = await getConn();
   try {
-    const {
-      doctor_id, request_type, category, brand_name, generic_name,
-      dose_strength, dosage_form, manufacturer, marketer,
-      existing_brands, clinical_justification, ai_content,
-      request_source_type
-    } = req.body;
-
     const required = {
       doctor_id, request_type, category, brand_name, generic_name, dose_strength,
       dosage_form, manufacturer, marketer, clinical_justification
@@ -4486,7 +4548,7 @@ app.post('/api/requests/emergency', async (req, res) => {
       }
     );
     const requestId = insertResult.outBinds.request_id[0];
-    await writeAudit(conn, requestId, 'EMERGENCY_SUBMITTED', doctor_id, null, 'EmergencyDTC', `Source: ${sourceType}`);
+    await writeAudit(conn, requestId, 'EMERGENCY_SUBMITTED', req.user.id, null, 'EmergencyDTC', `Source: ${sourceType}`);
 
     // Notify DTC (decision makers), PH + Pharmacist (view-only awareness)
     const notifyUsers = await conn.execute(
@@ -4511,11 +4573,11 @@ app.post('/api/requests/emergency', async (req, res) => {
 // =============================================================
 // POST /api/requests/:id/place_order — Pharmacist places order for emergency
 // =============================================================
-app.post('/api/requests/:id/place_order', async (req, res) => {
+app.post('/api/requests/:id/place_order', requireRole('pharmacist'), async (req, res) => {
   const conn = await getConn();
   try {
     const requestId = parseInt(req.params.id);
-    const { performed_by } = req.body;
+    const performed_by = req.user.id; // never trust a client-supplied performer id
 
     const reqResult = await conn.execute(
       `SELECT status FROM drug_requests WHERE request_id = :requestId`, { requestId }
@@ -4544,11 +4606,12 @@ app.post('/api/requests/:id/place_order', async (req, res) => {
 // Pharmacist marks that the final drug was added to HIS inventory
 // =============================================================
 
-app.put('/api/requests/:id/mark-inventory-added', async (req, res) => {
+app.put('/api/requests/:id/mark-inventory-added', requireRole('pharmacist'), async (req, res) => {
   const conn = await getConn();
   try {
     const requestId = parseInt(req.params.id);
-    const { performed_by, inventory_item_name } = req.body;
+    const { inventory_item_name } = req.body;
+    const performed_by = req.user.id; // never trust a client-supplied performer id
 
     if (!requestId) return res.status(400).json({ error: 'Request ID required.' });
 
@@ -4591,11 +4654,11 @@ app.put('/api/requests/:id/mark-inventory-added', async (req, res) => {
 // =============================================================
 // POST /api/requests/:requestId/mark-inventory-received
 // =============================================================
-app.post('/api/requests/:requestId/mark-inventory-received', async (req, res) => {
+app.post('/api/requests/:requestId/mark-inventory-received', requireRole('pharmacist'), async (req, res) => {
   const conn = await getConn();
   try {
     const requestId = parseInt(req.params.requestId);
-    const { performed_by } = req.body;
+    const performed_by = req.user.id; // never trust a client-supplied performer id
 
     if (!requestId) return res.status(400).json({ error: 'Request ID required.' });
 
@@ -4677,11 +4740,12 @@ app.post('/api/requests/:requestId/mark-inventory-received', async (req, res) =>
 // =============================================================
 // POST /api/alternatives/:requestId — Pharmacist submits alternatives
 // =============================================================
-app.post('/api/alternatives/:requestId', async (req, res) => {
+app.post('/api/alternatives/:requestId', requireRole('pharmacist'), async (req, res) => {
   const conn = await getConn();
   try {
     const requestId = parseInt(req.params.requestId);
-    const { performed_by, alternatives, comparison_type, remarks, existing_generic_data } = req.body;
+    const { alternatives, comparison_type, remarks, existing_generic_data } = req.body;
+    const performed_by = req.user.id; // never trust a client-supplied performer id
 
     if (!alternatives || alternatives.length < 1) {
       return res.status(400).json({ error: 'Minimum 3 alternatives are required.' });
@@ -4808,17 +4872,17 @@ app.post('/api/alternatives/:requestId', async (req, res) => {
 // =============================================================
 // POST /api/pharmacist/correction-submit/:requestId — Resubmit corrected comparison sheet
 // =============================================================
-app.post('/api/pharmacist/correction-submit/:requestId', async (req, res) => {
+app.post('/api/pharmacist/correction-submit/:requestId', requireRole('pharmacist'), async (req, res) => {
   const conn = await getConn();
   try {
     const requestId = parseInt(req.params.requestId);
     const {
-      performed_by,
       alternatives,
       comparison_type,
       remarks,
       existing_generic_data
     } = req.body;
+    const performed_by = req.user.id; // never trust a client-supplied performer id
 
     if (!alternatives || alternatives.length < 1) {
       return res.status(400).json({ error: 'Minimum 1 alternative is required for correction.' });
@@ -4979,7 +5043,7 @@ app.post('/api/pharmacist/correction-submit/:requestId', async (req, res) => {
 // =============================================================
 // GET /api/alternatives/:requestId — Fetch alternatives for a request
 // =============================================================
-app.get('/api/alternatives/:requestId', async (req, res) => {
+app.get('/api/alternatives/:requestId', requireAuth, async (req, res) => {
   const conn = await getConn();
   try {
     const result = await conn.execute(
@@ -5046,7 +5110,7 @@ app.get('/api/alternatives/:requestId', async (req, res) => {
 // =============================================================
 // GET /api/alternatives/:requestId/selected — single DTC-selected drug
 // =============================================================
-app.get('/api/alternatives/:requestId/selected', async (req, res) => {
+app.get('/api/alternatives/:requestId/selected', requireAuth, async (req, res) => {
   const conn = await getConn();
   try {
     const requestId = parseInt(req.params.requestId);
@@ -5416,7 +5480,7 @@ app.get('/api/alternatives/:requestId/selected', async (req, res) => {
 // =============================================================
 // POST /api/dtc/final-select/:requestId — DTC selects final drug
 // =============================================================
-app.post('/api/dtc/final-select/:requestId', async (req, res) => {
+app.post('/api/dtc/final-select/:requestId', requireRole('dtc', 'dtccommittee'), async (req, res) => {
   const conn = await getConn();
   try {
     const requestId = parseInt(req.params.requestId);
@@ -5425,7 +5489,6 @@ app.post('/api/dtc/final-select/:requestId', async (req, res) => {
       selected_alternative_id,
       selection_type,
       remarks,
-      performed_by,
       dtc_selected_brand,
       dtc_selected_category,
       dtc_selection_reasons,
@@ -5436,6 +5499,7 @@ app.post('/api/dtc/final-select/:requestId', async (req, res) => {
       alternatives: altRows,
       existing_details: existingRows
     } = req.body;
+    const performed_by = req.user.id; // never trust a client-supplied performer id
 
     const reqResult = await conn.execute(
       `SELECT dr.*, u.name AS doctor_name
@@ -5674,7 +5738,7 @@ app.post('/api/dtc/final-select/:requestId', async (req, res) => {
 // =============================================================
 // PUT /api/pharmacist/comparison/:requestId — Save Existing Drug Rows
 // =============================================================
-app.put('/api/pharmacist/comparison/:requestId', async (req, res) => {
+app.put('/api/pharmacist/comparison/:requestId', requireRole('pharmacist'), async (req, res) => {
   const conn = await getConn();
   try {
     const requestId = parseInt(req.params.requestId);
@@ -5750,12 +5814,16 @@ app.put('/api/pharmacist/comparison/:requestId', async (req, res) => {
 // Stores the COMPLETE comparison sheet state as a lossless JSON snapshot.
 // The entire req.body (minus the three metadata keys) becomes draft_data,
 // so any new fields added in the frontend are automatically persisted.
-app.post('/api/pharmacist/drafts', async (req, res) => {
+app.post('/api/pharmacist/drafts', requireAuth, async (req, res) => {
+  const { request_id, pharmacist_id, draft_name } = req.body;
+  if (!request_id || !pharmacist_id) return res.status(400).json({ error: 'request_id and pharmacist_id are required.' });
+  if (req.user.id !== Number(pharmacist_id)) {
+    return res.status(403).json({ error: 'You can only save drafts as yourself.' });
+  }
+
   const conn = await getConn();
   try {
-    const { request_id, pharmacist_id, draft_name } = req.body;
     console.log('Saving draft for request', request_id, 'pharmacist', pharmacist_id);
-    if (!request_id || !pharmacist_id) return res.status(400).json({ error: 'request_id and pharmacist_id are required.' });
 
     // Build the draft data object: everything except the three metadata keys
     const dataObj = { ...req.body };
@@ -5812,10 +5880,14 @@ app.post('/api/pharmacist/drafts', async (req, res) => {
 });
 
 // GET /api/pharmacist/drafts/for-request/:requestId/:pharmacistId
-app.get('/api/pharmacist/drafts/for-request/:requestId/:pharmacistId', async (req, res) => {
+app.get('/api/pharmacist/drafts/for-request/:requestId/:pharmacistId', requireAuth, async (req, res) => {
+  const { requestId, pharmacistId } = req.params;
+  if (req.user.id !== Number(pharmacistId)) {
+    return res.status(403).json({ error: 'You are not authorized to view these drafts.' });
+  }
+
   const conn = await getConn();
   try {
-    const { requestId, pharmacistId } = req.params;
     const result = await conn.execute(
       `SELECT draft_id, draft_name, draft_data, updated_at
        FROM analysis_drafts
@@ -5840,10 +5912,14 @@ app.get('/api/pharmacist/drafts/for-request/:requestId/:pharmacistId', async (re
 // GET /api/pharmacist/drafts/:pharmacistId — list all DRAFT records for a pharmacist
 // Returns additional request columns (request_type, current_stage, req_status) and
 // parses draft_data so the frontend can read comp_type for the Comparison Type column.
-app.get('/api/pharmacist/drafts/:pharmacistId', async (req, res) => {
+app.get('/api/pharmacist/drafts/:pharmacistId', requireAuth, async (req, res) => {
+  const pid = parseInt(req.params.pharmacistId);
+  if (req.user.id !== pid) {
+    return res.status(403).json({ error: 'You are not authorized to view these drafts.' });
+  }
+
   const conn = await getConn();
   try {
-    const pid = parseInt(req.params.pharmacistId);
     const result = await conn.execute(
       `SELECT ad.draft_id, ad.request_id, ad.draft_name, ad.status,
               ad.created_at, ad.updated_at, ad.draft_data,
@@ -5871,7 +5947,7 @@ app.get('/api/pharmacist/drafts/:pharmacistId', async (req, res) => {
 });
 
 // GET /api/pharmacist/drafts/detail/:draftId
-app.get('/api/pharmacist/drafts/detail/:draftId', async (req, res) => {
+app.get('/api/pharmacist/drafts/detail/:draftId', requireAuth, async (req, res) => {
   const conn = await getConn();
   try {
     const did = parseInt(req.params.draftId);
@@ -5884,6 +5960,9 @@ app.get('/api/pharmacist/drafts/detail/:draftId', async (req, res) => {
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Draft not found.' });
     const row = result.rows[0];
+    if (row.PHARMACIST_ID !== req.user.id) {
+      return res.status(403).json({ error: 'You are not authorized to view this draft.' });
+    }
     let parsed = {};
     try { parsed = row.DRAFT_DATA ? JSON.parse(row.DRAFT_DATA) : {}; } catch { parsed = {}; }
     res.json({ ...row, DRAFT_DATA: parsed });
@@ -5896,10 +5975,21 @@ app.get('/api/pharmacist/drafts/detail/:draftId', async (req, res) => {
 });
 
 // PUT /api/pharmacist/drafts/:draftId — rename draft
-app.put('/api/pharmacist/drafts/:draftId', async (req, res) => {
+app.put('/api/pharmacist/drafts/:draftId', requireAuth, async (req, res) => {
   const conn = await getConn();
   try {
     const did = parseInt(req.params.draftId);
+    const ownerCheck = await conn.execute(
+      `SELECT pharmacist_id FROM analysis_drafts WHERE draft_id = :did`,
+      { did }
+    );
+    if (ownerCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Draft not found.' });
+    }
+    if (ownerCheck.rows[0].PHARMACIST_ID !== req.user.id) {
+      return res.status(403).json({ error: 'You are not authorized to modify this draft.' });
+    }
+
     const { draft_name } = req.body;
     await conn.execute(
       `UPDATE analysis_drafts SET draft_name = :name, updated_at = CURRENT_TIMESTAMP WHERE draft_id = :did`,
@@ -5915,10 +6005,21 @@ app.put('/api/pharmacist/drafts/:draftId', async (req, res) => {
 });
 
 // DELETE /api/pharmacist/drafts/:draftId — delete draft
-app.delete('/api/pharmacist/drafts/:draftId', async (req, res) => {
+app.delete('/api/pharmacist/drafts/:draftId', requireAuth, async (req, res) => {
   const conn = await getConn();
   try {
     const did = parseInt(req.params.draftId);
+    const ownerCheck = await conn.execute(
+      `SELECT pharmacist_id FROM analysis_drafts WHERE draft_id = :did`,
+      { did }
+    );
+    if (ownerCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Draft not found.' });
+    }
+    if (ownerCheck.rows[0].PHARMACIST_ID !== req.user.id) {
+      return res.status(403).json({ error: 'You are not authorized to delete this draft.' });
+    }
+
     await conn.execute(`DELETE FROM analysis_drafts WHERE draft_id = :did`, { did });
     await conn.commit();
     res.json({ message: 'Draft deleted.' });
@@ -5936,11 +6037,12 @@ app.delete('/api/pharmacist/drafts/:draftId', async (req, res) => {
 // PUT /api/pharmacy-head/comparison/:requestId
 // Pharmacy Head saves edits to alternatives + existing_generic_data
 // =============================================================
-app.put('/api/pharmacy-head/comparison/:requestId', async (req, res) => {
+app.put('/api/pharmacy-head/comparison/:requestId', requireRole('pharmacyhead'), async (req, res) => {
   const conn = await getConn();
   try {
     const requestId = parseInt(req.params.requestId);
-    const { performed_by, alternatives, existing_generic_data, ph_review2_remarks, ph_review_remarks, dtc_recommendation_notes, ph_final_recommendation } = req.body;
+    const { alternatives, existing_generic_data, ph_review2_remarks, ph_review_remarks, dtc_recommendation_notes, ph_final_recommendation } = req.body;
+    const performed_by = req.user.id; // never trust a client-supplied performer id
 
     if (!alternatives || !Array.isArray(alternatives)) {
       return res.status(400).json({ error: 'alternatives array is required.' });
@@ -6101,7 +6203,7 @@ app.put('/api/pharmacy-head/comparison/:requestId', async (req, res) => {
 // =============================================================
 
 // POST /api/dtc/blacklist — Add a new blacklist entry (DTC only)
-app.post('/api/dtc/blacklist', async (req, res) => {
+app.post('/api/dtc/blacklist', requireRole('dtc', 'dtccommittee'), async (req, res) => {
   const conn = await getConn();
   try {
     const { company_name, company_type, remarks, performed_by } = req.body;
@@ -6156,7 +6258,7 @@ app.post('/api/dtc/blacklist', async (req, res) => {
 });
 
 // GET /api/dtc/blacklist — Fetch all active blacklist entries (DTC only)
-app.get('/api/dtc/blacklist', async (req, res) => {
+app.get('/api/dtc/blacklist', requireRole('dtc', 'dtccommittee'), async (req, res) => {
   const conn = await getConn();
   try {
     const userId = req.query.user_id;
@@ -6192,7 +6294,7 @@ app.get('/api/dtc/blacklist', async (req, res) => {
 });
 
 // PUT /api/dtc/blacklist/:id/remove — Soft-delete a blacklist entry (DTC only)
-app.put('/api/dtc/blacklist/:id/remove', async (req, res) => {
+app.put('/api/dtc/blacklist/:id/remove', requireRole('dtc', 'dtccommittee'), async (req, res) => {
   const conn = await getConn();
   try {
     const blacklistId = parseInt(req.params.id);
@@ -6234,7 +6336,7 @@ app.put('/api/dtc/blacklist/:id/remove', async (req, res) => {
 // =============================================================
 // GET /api/rejection-remark-history — Fetch autocompletion suggestions
 // =============================================================
-app.get('/api/rejection-remark-history', async (req, res) => {
+app.get('/api/rejection-remark-history', requireAuth, async (req, res) => {
   const conn = await getConn();
   try {
     const q = req.query.q || '';
@@ -6319,7 +6421,7 @@ async function saveApprovalRemarks(conn, remarks, roleName, performedBy) {
 // =============================================================
 // GET /api/approval-remarks/:role — Fetch autocompletion suggestions
 // =============================================================
-app.get('/api/approval-remarks/:role', async (req, res) => {
+app.get('/api/approval-remarks/:role', requireAuth, async (req, res) => {
   const conn = await getConn();
   try {
     const role = req.params.role;
@@ -6362,7 +6464,7 @@ app.get('/api/approval-remarks/:role', async (req, res) => {
 // =============================================================
 // POST /api/approval-remarks/save — Save new approval remark
 // =============================================================
-app.post('/api/approval-remarks/save', async (req, res) => {
+app.post('/api/approval-remarks/save', requireAuth, async (req, res) => {
   const conn = await getConn();
   try {
     const { role_name, remark_text, performed_by } = req.body;
@@ -6389,7 +6491,7 @@ app.post('/api/approval-remarks/save', async (req, res) => {
 // =============================================================
 // GET /api/generics/search — Search distinct generic names
 // =============================================================
-app.get('/api/generics/search', async (req, res) => {
+app.get('/api/generics/search', requireAuth, async (req, res) => {
   const conn = await getConn();
   try {
     const q = req.query.q || '';
@@ -6419,7 +6521,7 @@ app.get('/api/generics/search', async (req, res) => {
 });
 
 
-app.post('/api/reports/item-margin-report', async (req, res) => {
+app.post('/api/reports/item-margin-report', requireAuth, async (req, res) => {
   const conn = await getConn();
 
   try {
@@ -7231,7 +7333,7 @@ app.post('/api/login', async (req, res) => {
 
 
 // ─── GET /api/users/:id ───────────────────────────────────────────────────────
-app.get('/api/users/:id', async (req, res) => {
+app.get('/api/users/:id', requireAuth, async (req, res) => {
   const userId = Number(req.params.id);
   if (isNaN(userId)) return res.status(400).json({ success: false, message: 'Invalid user ID.' });
 
@@ -7265,6 +7367,36 @@ app.put('/api/users/:id', async (req, res) => {
   if (!name && !role && department === undefined && is_active === undefined && !user_login_id) {
     return res.status(400).json({ success: false, message: 'Nothing to update.' });
   }
+
+  // role, is_active, and user_login_id are admin-only changes; a plain
+  // name/department edit is allowed by the user themselves too.
+  const requiresAdmin = role !== undefined || is_active !== undefined || !!user_login_id;
+
+  const token = extractBearerToken(req.headers.authorization);
+  if (!token) {
+    return res.status(401).json({ success: false, message: 'Authentication required.' });
+  }
+  let decoded;
+  try {
+    decoded = verifyToken(token);
+  } catch (err) {
+    return res.status(401).json({ success: false, message: 'Invalid or expired session. Please log in again.' });
+  }
+
+  let adminId = null;
+  if (decoded.type === 'admin') {
+    adminId = decoded.id;
+  } else if (decoded.type === 'user') {
+    if (requiresAdmin) {
+      return res.status(403).json({ success: false, message: 'Only an admin can change role, active status, or user ID.' });
+    }
+    if (decoded.id !== userId) {
+      return res.status(403).json({ success: false, message: 'You can only update your own profile.' });
+    }
+  } else {
+    return res.status(401).json({ success: false, message: 'Invalid token for this request.' });
+  }
+  req.adminId = adminId;
 
   let conn;
   try {
@@ -7304,19 +7436,7 @@ app.put('/api/users/:id', async (req, res) => {
     }
 
     if (isUserIdChanged) {
-      // 1. Verify admin token in headers
-      const adminId = req.headers['x-admin-id'];
-      if (!adminId || isNaN(Number(adminId))) {
-        return res.status(401).json({ success: false, message: 'Admin authentication required to change User ID.' });
-      }
-      const adminCheck = await conn.execute(
-        `SELECT admin_id FROM admin_users WHERE admin_id = :adminId`,
-        { adminId: Number(adminId) }
-      );
-      if (adminCheck.rows.length === 0) {
-        return res.status(401).json({ success: false, message: 'Admin not found.' });
-      }
-      req.adminId = Number(adminId);
+      // Admin auth for this change was already verified above (requiresAdmin).
 
       // 2. Validate regex: ^[a-zA-Z0-9._-]{4,30}$
       const userIdRegex = /^[a-zA-Z0-9._-]{4,30}$/;
@@ -7364,9 +7484,13 @@ app.put('/api/users/:id', async (req, res) => {
 });
 
 // ─── PATCH /api/users/:id/change-password ────────────────────────────────────
-app.patch('/api/users/:id/change-password', async (req, res) => {
+app.patch('/api/users/:id/change-password', requireAuth, async (req, res) => {
   const userId = Number(req.params.id);
   if (isNaN(userId)) return res.status(400).json({ success: false, message: 'Invalid user ID.' });
+
+  if (req.user.id !== userId) {
+    return res.status(403).json({ success: false, message: 'You can only change your own password.' });
+  }
 
   const { currentPassword, newPassword } = req.body;
   if (!currentPassword || !newPassword) {
@@ -7412,7 +7536,7 @@ app.patch('/api/users/:id/change-password', async (req, res) => {
 });
 
 // ─── DELETE /api/users/:id (soft delete) ─────────────────────────────────────
-app.delete('/api/users/:id', async (req, res) => {
+app.delete('/api/users/:id', requireAdminAuth, async (req, res) => {
   const userId = Number(req.params.id);
   if (isNaN(userId)) return res.status(400).json({ success: false, message: 'Invalid user ID.' });
 
@@ -7440,11 +7564,12 @@ app.delete('/api/users/:id', async (req, res) => {
 // PUT /api/requests/:id/revert-to-pharmacist
 // Pharmacy Head reverts comparison sheet back to Pharmacist
 // =============================================================
-app.put('/api/requests/:id/revert-to-pharmacist', async (req, res) => {
+app.put('/api/requests/:id/revert-to-pharmacist', requireRole('pharmacyhead'), async (req, res) => {
   const conn = await getConn();
   try {
     const requestId = parseInt(req.params.id);
-    const { performed_by, remarks } = req.body;
+    const { remarks } = req.body;
+    const performed_by = req.user.id; // never trust a client-supplied performer id
 
     if (!remarks || remarks.trim() === '') {
       return res.status(400).json({ error: 'Revert remarks are mandatory.' });
@@ -7510,17 +7635,17 @@ app.put('/api/requests/:id/revert-to-pharmacist', async (req, res) => {
 // Pharmacist resubmits corrected comparison sheet to Pharmacy Head
 // Saves corrected alternatives, remarks, and existing generic data before transitioning stage.
 // =============================================================
-app.put('/api/requests/:id/resubmit-correction', async (req, res) => {
+app.put('/api/requests/:id/resubmit-correction', requireRole('pharmacist'), async (req, res) => {
   const conn = await getConn();
   try {
     const requestId = parseInt(req.params.id);
     const {
-      performed_by,
       alternatives,
       remarks,
       comparison_type,
       existing_generic_data
     } = req.body;
+    const performed_by = req.user.id; // never trust a client-supplied performer id
 
     const reqResult = await conn.execute(
       `SELECT dr.*, u.name AS doctor_name FROM drug_requests dr
@@ -8114,9 +8239,13 @@ app.put('/api/admin/reject-user/:userId', requireAdminAuth, async (req, res) => 
 // POST /api/users/:id/change-password-force — User changes forced password
 // (called after force_password_reset = 1, clears the flag on success)
 // =============================================================
-app.post('/api/users/:id/change-password-force', async (req, res) => {
+app.post('/api/users/:id/change-password-force', requireAuth, async (req, res) => {
   const userId = Number(req.params.id);
   if (isNaN(userId)) return res.status(400).json({ success: false, message: 'Invalid user ID.' });
+
+  if (req.user.id !== userId) {
+    return res.status(403).json({ success: false, message: 'You can only change your own password.' });
+  }
 
   const { newPassword } = req.body;
   if (!newPassword) return res.status(400).json({ success: false, message: 'newPassword is required.' });

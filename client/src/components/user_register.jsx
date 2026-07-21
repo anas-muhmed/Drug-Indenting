@@ -375,11 +375,13 @@ function LoginForm({ onSwitch, onForceReset }) {
                 if (data.force_password_reset) {
                     localStorage.setItem('user_role', data.role);
                     localStorage.setItem('userid', data.user_id);
+                    localStorage.setItem('token', data.token);
                     onForceReset(data.user_id, data.role);
                     return;
                 }
                 localStorage.setItem('user_role', data.role);
                 localStorage.setItem('userid', data.user_id);
+                localStorage.setItem('token', data.token);
                 if (data.role === 'doctor') navigate('/dr_dashboard');
                 if (data.role === 'pharmacist') navigate('/pharmacist_dashboard');
                 if (data.role === 'ceo') navigate('/ceo_dashboard');

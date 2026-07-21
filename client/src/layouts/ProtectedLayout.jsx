@@ -30,7 +30,7 @@ function getDashboardPath(role) {
 }
 
 export default function ProtectedLayout() {
-    // Read credentials synchronously before any hooks — used for the early-exit guard below
+    // Read credentials synchronously before any hooks ï¿½ used for the early-exit guard below
     const storedUserId = localStorage.getItem('userid');
     const storedRole   = localStorage.getItem('user_role');
 
@@ -63,9 +63,10 @@ export default function ProtectedLayout() {
             if (foundUser) {
                 setCurrentUser(foundUser);
             } else {
-                // Stored userid not found among active users — invalid / stale session
+                // Stored userid not found among active users ï¿½ invalid / stale session
                 localStorage.removeItem('userid');
                 localStorage.removeItem('user_role');
+                localStorage.removeItem('token');
                 navigate('/register', { replace: true });
             }
         }).catch((err) => {
@@ -73,7 +74,7 @@ export default function ProtectedLayout() {
         }).finally(() => setLoadingUsers(false));
     }, []); // runs once on mount
 
-    // Poll unread notification count — 10 s interval.
+    // Poll unread notification count ï¿½ 10 s interval.
     // Only starts after a valid currentUser is set.
     const fetchUnread = useCallback(() => {
         if (!currentUser) return;
@@ -147,7 +148,7 @@ export default function ProtectedLayout() {
         );
     }
 
-    // Guard 2: Role authorization — redirect if accessing another role's path
+    // Guard 2: Role authorization ï¿½ redirect if accessing another role's path
     if (currentUser) {
         const userRole     = currentUser.ROLE?.toLowerCase().trim();
         const allowedRoles = PATH_ROLES[location.pathname];

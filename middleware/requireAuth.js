@@ -52,3 +52,37 @@ export function requireAdminAuth(req, res, next) {
   req.adminId = decoded.id;
   next();
 }
+
+// Requires the caller to be an authenticated user with one of the given
+// roles, OR an admin (admins can always reach role-gated management/
+// analytics views too). Used for routes restricted by role rather than
+// by per-user ownership — e.g. analytics dashboards only CEO/DTC/admin
+// are meant to see, per client/src/layouts/ProtectedLayout.jsx's
+// PATH_ROLES map and the AnalyticsDashboard import chain.
+export function requireRole(...allowedRoles) {
+  return (req, res, next) => {
+    const token = extractBearerToken(req.headers.authorization);
+    if (!token) {
+      return res.status(401).json({ success: false, message: 'Authentication required.' });
+    }
+
+    let decoded;
+    try {
+      decoded = verifyToken(token);
+    } catch (err) {
+      return res.status(401).json({ success: false, message: 'Invalid or expired session. Please log in again.' });
+    }
+
+    if (decoded.type === 'admin') {
+      req.adminId = decoded.id;
+      return next();
+    }
+
+    if (decoded.type === 'user' && allowedRoles.includes(decoded.role)) {
+      req.user = { id: decoded.id, role: decoded.role };
+      return next();
+    }
+
+    return res.status(403).json({ success: false, message: 'You are not authorized to access this resource.' });
+  };
+}

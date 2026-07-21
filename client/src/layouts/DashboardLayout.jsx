@@ -13,6 +13,7 @@ export default function DashboardLayout({
     const handleLogout = () => {
         localStorage.removeItem('userid');
         localStorage.removeItem('user_role');
+        localStorage.removeItem('token');
         setCurrentUser(null);
         navigate('/register');
     };

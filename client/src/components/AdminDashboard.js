@@ -21,7 +21,7 @@ function getRoleConfig(role) {
 function adminHeaders() {
   return {
     'Content-Type': 'application/json',
-    'x-admin-id': localStorage.getItem('admin_id') || '',
+    'Authorization': `Bearer ${localStorage.getItem('admin_token') || ''}`,
   };
 }
 
@@ -142,6 +142,7 @@ function AdminLogin({ onLogin }) {
       localStorage.setItem('admin_id', data.admin_id);
       localStorage.setItem('admin_name', data.name);
       localStorage.setItem('admin_email', data.email);
+      localStorage.setItem('admin_token', data.token);
       onLogin(data);
     } catch (err) {
       setError(err.message || 'Invalid credentials. Try again.');
@@ -780,6 +781,7 @@ export default function AdminDashboard() {
     localStorage.removeItem('admin_id');
     localStorage.removeItem('admin_name');
     localStorage.removeItem('admin_email');
+    localStorage.removeItem('admin_token');
     setAdmin(null);
     setUsersGrouped({});
     setAuditLogs([]);
