@@ -10,6 +10,7 @@ import { requireAdminAuth } from '../middleware/requireAuth.js';
 import { signToken, SALT_ROUNDS } from '../utils/auth.js';
 import { validatePassword } from '../utils/pureHelpers.js';
 import { writeAdminAudit } from '../utils/auditHelpers.js';
+import { ROLES } from '../utils/workflow.js';
 
 const router = express.Router();
 
@@ -367,16 +368,16 @@ router.put('/users/:userId/role', requireAdminAuth, async (req, res) => {
 
   role = role.trim();
   const normalizedRole = role.toLowerCase();
-  const ALLOWED_ROLES = ['doctor', 'hod', 'pharmacist', 'pharmacyhead', 'ceo'];
+  const ALLOWED_ROLES = [ROLES.DOCTOR, ROLES.HOD, ROLES.PHARMACIST, ROLES.PHARMACY_HEAD, ROLES.CEO];
   if (!ALLOWED_ROLES.includes(normalizedRole)) {
     return res.status(400).json({ success: false, message: 'Invalid role value.' });
   }
 
   function formatRole(r) {
     const l = (r || '').toLowerCase().trim();
-    if (l === 'hod') return 'HOD';
-    if (l === 'ceo') return 'CEO';
-    if (l === 'pharmacyhead') return 'PharmacyHead';
+    if (l === ROLES.HOD) return 'HOD';
+    if (l === ROLES.CEO) return 'CEO';
+    if (l === ROLES.PHARMACY_HEAD) return 'PharmacyHead';
     return l.charAt(0).toUpperCase() + l.slice(1);
   }
 

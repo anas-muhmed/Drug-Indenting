@@ -6,10 +6,11 @@
 import express from 'express';
 import { getConn } from '../db/pool.js';
 import { requireRole } from '../middleware/requireAuth.js';
+import { ROLES } from '../utils/workflow.js';
 
 const router = express.Router();
 
-router.get('/summary', requireRole('ceo', 'dtc', 'dtccommittee'), async (req, res) => {
+router.get('/summary', requireRole(ROLES.CEO, 'dtc', ROLES.DTC_COMMITTEE), async (req, res) => {
   const conn = await getConn();
   try {
     const r = await conn.execute(`
@@ -52,7 +53,7 @@ router.get('/summary', requireRole('ceo', 'dtc', 'dtccommittee'), async (req, re
 });
 
 // GET /api/analytics/workflow-stages — Count per workflow stage
-router.get('/workflow-stages', requireRole('ceo', 'dtc', 'dtccommittee'), async (req, res) => {
+router.get('/workflow-stages', requireRole(ROLES.CEO, 'dtc', ROLES.DTC_COMMITTEE), async (req, res) => {
   const conn = await getConn();
   try {
     const r = await conn.execute(`
@@ -69,7 +70,7 @@ router.get('/workflow-stages', requireRole('ceo', 'dtc', 'dtccommittee'), async 
 });
 
 // GET /api/analytics/doctor-performance — Per-doctor/HOD analytics
-router.get('/doctor-performance', requireRole('ceo', 'dtc', 'dtccommittee'), async (req, res) => {
+router.get('/doctor-performance', requireRole(ROLES.CEO, 'dtc', ROLES.DTC_COMMITTEE), async (req, res) => {
   const conn = await getConn();
   try {
     const r = await conn.execute(`
@@ -109,7 +110,7 @@ router.get('/doctor-performance', requireRole('ceo', 'dtc', 'dtccommittee'), asy
 });
 
 // GET /api/analytics/drug-analytics — Top drugs by requests/approvals/rejections
-router.get('/drug-analytics', requireRole('ceo', 'dtc', 'dtccommittee'), async (req, res) => {
+router.get('/drug-analytics', requireRole(ROLES.CEO, 'dtc', ROLES.DTC_COMMITTEE), async (req, res) => {
   const conn = await getConn();
   try {
     const [topBrands, topGenerics, topRejected, topApproved] = await Promise.all([
@@ -149,7 +150,7 @@ router.get('/drug-analytics', requireRole('ceo', 'dtc', 'dtccommittee'), async (
 });
 
 // GET /api/analytics/rejection-breakdown — Rejections per stage + top remarks
-router.get('/rejection-breakdown', requireRole('ceo', 'dtc', 'dtccommittee'), async (req, res) => {
+router.get('/rejection-breakdown', requireRole(ROLES.CEO, 'dtc', ROLES.DTC_COMMITTEE), async (req, res) => {
   const conn = await getConn();
   try {
     const [breakdown, remarks] = await Promise.all([
@@ -185,7 +186,7 @@ router.get('/rejection-breakdown', requireRole('ceo', 'dtc', 'dtccommittee'), as
 });
 
 // GET /api/analytics/request-history — Paginated full request list
-router.get('/request-history', requireRole('ceo', 'dtc', 'dtccommittee'), async (req, res) => {
+router.get('/request-history', requireRole(ROLES.CEO, 'dtc', ROLES.DTC_COMMITTEE), async (req, res) => {
   const conn = await getConn();
   try {
     const page = Math.max(1, parseInt(req.query.page) || 1);
@@ -263,7 +264,7 @@ router.get('/request-history', requireRole('ceo', 'dtc', 'dtccommittee'), async 
 });
 
 // GET /api/analytics/workflow-tracker — Live workflow tracking
-router.get('/workflow-tracker', requireRole('ceo', 'dtc', 'dtccommittee'), async (req, res) => {
+router.get('/workflow-tracker', requireRole(ROLES.CEO, 'dtc', ROLES.DTC_COMMITTEE), async (req, res) => {
   const conn = await getConn();
   const role = (req.query.role || '').toLowerCase();
   const userId = req.query.userId ? parseInt(req.query.userId, 10) : null;
@@ -272,10 +273,10 @@ router.get('/workflow-tracker', requireRole('ceo', 'dtc', 'dtccommittee'), async
     let whereClause = '1=1';
     const binds = {};
 
-    if (role === 'doctor' && userId) {
+    if (role === ROLES.DOCTOR && userId) {
       whereClause = '(dr.doctor_id = :userId OR dr.created_by_user_id = :userId)';
       binds.userId = userId;
-    } else if (role === 'hod' && userId) {
+    } else if (role === ROLES.HOD && userId) {
       whereClause = `(dr.hod_id = :userId 
         OR dr.created_by_user_id = :userId 
         OR u.department = (SELECT department FROM users WHERE user_id = :userId))`;
@@ -386,7 +387,7 @@ router.get('/workflow-tracker', requireRole('ceo', 'dtc', 'dtccommittee'), async
       return {
         request_id: row.REQUEST_ID,
         requester_name: row.REQUESTER_NAME || '—',
-        requester_role: row.REQUESTER_ROLE || 'doctor',
+        requester_role: row.REQUESTER_ROLE || ROLES.DOCTOR,
         department: row.DEPARTMENT || '—',
         brand_name: row.BRAND_NAME,
         generic_name: row.GENERIC_NAME,
@@ -411,7 +412,7 @@ router.get('/workflow-tracker', requireRole('ceo', 'dtc', 'dtccommittee'), async
 });
 
 // GET /api/analytics/audit-trail — Global request audit trail
-router.get('/audit-trail', requireRole('ceo', 'dtc', 'dtccommittee'), async (req, res) => {
+router.get('/audit-trail', requireRole(ROLES.CEO, 'dtc', ROLES.DTC_COMMITTEE), async (req, res) => {
   const conn = await getConn();
   const role = (req.query.role || '').toLowerCase();
   const userId = req.query.userId ? parseInt(req.query.userId, 10) : null;
@@ -420,10 +421,10 @@ router.get('/audit-trail', requireRole('ceo', 'dtc', 'dtccommittee'), async (req
     let whereClause = '1=1';
     const binds = {};
 
-    if (role === 'doctor' && userId) {
+    if (role === ROLES.DOCTOR && userId) {
       whereClause = '(dr.doctor_id = :userId OR dr.created_by_user_id = :userId)';
       binds.userId = userId;
-    } else if (role === 'hod' && userId) {
+    } else if (role === ROLES.HOD && userId) {
       whereClause = `(dr.hod_id = :userId 
         OR dr.created_by_user_id = :userId 
         OR u.department = (SELECT department FROM users WHERE user_id = :userId))`;
@@ -456,7 +457,7 @@ router.get('/audit-trail', requireRole('ceo', 'dtc', 'dtccommittee'), async (req
     let rows = result.rows;
 
     // Filter out internal stages for doctor and HOD roles
-    if (role === 'doctor' || role === 'hod') {
+    if (role === ROLES.DOCTOR || role === ROLES.HOD) {
       const internalStages = [
         'PharmacistInitialReview',
         'PharmacistCorrection',
@@ -486,7 +487,7 @@ router.get('/audit-trail', requireRole('ceo', 'dtc', 'dtccommittee'), async (req
 });
 
 // GET /api/analytics/drilldown — Drilldown for metric or stage click
-router.get('/drilldown', requireRole('ceo', 'dtc', 'dtccommittee'), async (req, res) => {
+router.get('/drilldown', requireRole(ROLES.CEO, 'dtc', ROLES.DTC_COMMITTEE), async (req, res) => {
   const conn = await getConn();
   try {
     const type = req.query.type;

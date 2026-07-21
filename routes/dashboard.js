@@ -9,6 +9,7 @@
 import express from 'express';
 import { getConn } from '../db/pool.js';
 import { extractBearerToken, verifyToken } from '../utils/auth.js';
+import { ROLES } from '../utils/workflow.js';
 
 const router = express.Router();
 
@@ -29,7 +30,7 @@ router.get('/:role', async (req, res) => {
     return res.status(401).json({ error: 'Invalid or expired session. Please log in again.' });
   }
 
-  if (normalizedRole === 'admin') {
+  if (normalizedRole === ROLES.ADMIN) {
     if (decoded.type !== 'admin') {
       return res.status(403).json({ error: 'Only an admin can view this dashboard.' });
     }
@@ -40,7 +41,7 @@ router.get('/:role', async (req, res) => {
     if (decoded.type !== 'user' || decoded.role !== normalizedRole) {
       return res.status(403).json({ error: 'You are not authorized to view this dashboard.' });
     }
-    if ((normalizedRole === 'doctor' || normalizedRole === 'hod') && decoded.id !== Number(userId)) {
+    if ((normalizedRole === ROLES.DOCTOR || normalizedRole === ROLES.HOD) && decoded.id !== Number(userId)) {
       return res.status(403).json({ error: 'You can only view your own dashboard.' });
     }
   }
@@ -50,21 +51,21 @@ router.get('/:role', async (req, res) => {
     let whereClause = '1=1';
     const binds = {};
 
-    if (normalizedRole === 'doctor') {
+    if (normalizedRole === ROLES.DOCTOR) {
       whereClause = 'doctor_id = :userId';
       binds.userId = userId;
-    } else if (normalizedRole === 'hod') {
+    } else if (normalizedRole === ROLES.HOD) {
       whereClause = '(hod_id = :userId OR created_by_user_id = :userId)';
       binds.userId = userId;
-    } else if (normalizedRole === 'pharmacyhead') {
+    } else if (normalizedRole === ROLES.PHARMACY_HEAD) {
       whereClause = `current_stage IN ('PharmacyHead','DTCCommittee','Pharmacist','PharmacyHeadReview2','DTCFinal','CEO','Final','Rejected','EmergencyDTC')`;
-    } else if (normalizedRole === 'pharmacist') {
+    } else if (normalizedRole === ROLES.PHARMACIST) {
       whereClause = `current_stage IN ('Pharmacist','PharmacyHeadReview2','DTCFinal','CEO','Final','Rejected','EmergencyDTC')`;
-    } else if (normalizedRole === 'dtccommittee') {
+    } else if (normalizedRole === ROLES.DTC_COMMITTEE) {
       whereClause = `current_stage IN ('DTCCommittee','Pharmacist','PharmacyHeadReview2','DTCFinal','CEO','Final','Rejected','EmergencyDTC')`;
-    } else if (normalizedRole === 'ceo') {
+    } else if (normalizedRole === ROLES.CEO) {
       whereClause = `current_stage IN ('CEO','Final','Rejected')`;
-    } else if (normalizedRole === 'admin') {
+    } else if (normalizedRole === ROLES.ADMIN) {
       whereClause = '1=1';
     }
 

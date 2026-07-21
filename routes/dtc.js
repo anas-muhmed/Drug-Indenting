@@ -6,10 +6,11 @@ import express from 'express';
 import { getConn } from '../db/pool.js';
 import { requireRole } from '../middleware/requireAuth.js';
 import { writeAudit, createNotification, saveApprovalRemarks } from '../utils/auditHelpers.js';
+import { ROLES } from '../utils/workflow.js';
 
 const router = express.Router();
 
-router.get('/user-quotas', requireRole('dtc', 'dtccommittee'), async (req, res) => {
+router.get('/user-quotas', requireRole('dtc', ROLES.DTC_COMMITTEE), async (req, res) => {
   const conn = await getConn();
   try {
     const usersRes = await conn.execute(
@@ -77,7 +78,7 @@ router.get('/user-quotas', requireRole('dtc', 'dtccommittee'), async (req, res) 
   }
 });
 
-router.put('/user-quotas/:userId', requireRole('dtc', 'dtccommittee'), async (req, res) => {
+router.put('/user-quotas/:userId', requireRole('dtc', ROLES.DTC_COMMITTEE), async (req, res) => {
   const conn = await getConn();
   try {
     const userId = parseInt(req.params.userId);
@@ -95,7 +96,7 @@ router.put('/user-quotas/:userId', requireRole('dtc', 'dtccommittee'), async (re
       return res.status(403).json({ error: 'Performing user not found or inactive.' });
     }
     const perfRole = perfRes.rows[0].ROLE ? perfRes.rows[0].ROLE.toLowerCase() : '';
-    if (perfRole !== 'dtc' && perfRole !== 'dtccommittee') {
+    if (perfRole !== 'dtc' && perfRole !== ROLES.DTC_COMMITTEE) {
       return res.status(403).json({ error: 'Unauthorized. Only DTC members can modify request quotas.' });
     }
 
@@ -107,7 +108,7 @@ router.put('/user-quotas/:userId', requireRole('dtc', 'dtccommittee'), async (re
       return res.status(404).json({ error: 'Target user not found or inactive.' });
     }
     const targetRole = userRes.rows[0].ROLE ? userRes.rows[0].ROLE.toLowerCase() : '';
-    if (targetRole !== 'doctor' && targetRole !== 'hod') {
+    if (targetRole !== ROLES.DOCTOR && targetRole !== ROLES.HOD) {
       return res.status(400).json({ error: 'Quotas can only be assigned to Doctors or HODs.' });
     }
 
@@ -141,7 +142,7 @@ router.put('/user-quotas/:userId', requireRole('dtc', 'dtccommittee'), async (re
   }
 });
 
-router.post('/final-select/:requestId', requireRole('dtc', 'dtccommittee'), async (req, res) => {
+router.post('/final-select/:requestId', requireRole('dtc', ROLES.DTC_COMMITTEE), async (req, res) => {
   const conn = await getConn();
   try {
     const requestId = parseInt(req.params.requestId);
@@ -396,7 +397,7 @@ router.post('/final-select/:requestId', requireRole('dtc', 'dtccommittee'), asyn
   }
 });
 
-router.post('/blacklist', requireRole('dtc', 'dtccommittee'), async (req, res) => {
+router.post('/blacklist', requireRole('dtc', ROLES.DTC_COMMITTEE), async (req, res) => {
   const conn = await getConn();
   try {
     const { company_name, company_type, remarks, performed_by } = req.body;
@@ -417,7 +418,7 @@ router.post('/blacklist', requireRole('dtc', 'dtccommittee'), async (req, res) =
       `SELECT role FROM users WHERE user_id = :p_uid AND is_active = 1`, { p_uid: performed_by }
     );
     const userRole = roleCheck.rows[0] ? (roleCheck.rows[0].ROLE || '').toLowerCase().trim() : '';
-    if (!roleCheck.rows.length || (userRole !== 'dtccommittee' && userRole !== 'dtc')) {
+    if (!roleCheck.rows.length || (userRole !== ROLES.DTC_COMMITTEE && userRole !== 'dtc')) {
       return res.status(403).json({ error: 'Access denied. Only DTC Committee members can manage the blacklist.' });
     }
 
@@ -450,7 +451,7 @@ router.post('/blacklist', requireRole('dtc', 'dtccommittee'), async (req, res) =
   }
 });
 
-router.get('/blacklist', requireRole('dtc', 'dtccommittee'), async (req, res) => {
+router.get('/blacklist', requireRole('dtc', ROLES.DTC_COMMITTEE), async (req, res) => {
   const conn = await getConn();
   try {
     const userId = req.query.user_id;
@@ -461,7 +462,7 @@ router.get('/blacklist', requireRole('dtc', 'dtccommittee'), async (req, res) =>
       `SELECT role FROM users WHERE user_id = :p_uid AND is_active = 1`, { p_uid: userId }
     );
     const userRole = roleCheck.rows[0] ? (roleCheck.rows[0].ROLE || '').toLowerCase().trim() : '';
-    if (!roleCheck.rows.length || (userRole !== 'dtccommittee' && userRole !== 'dtc')) {
+    if (!roleCheck.rows.length || (userRole !== ROLES.DTC_COMMITTEE && userRole !== 'dtc')) {
       return res.status(403).json({ error: 'Access denied. Only DTC Committee members can view the blacklist.' });
     }
 
@@ -485,7 +486,7 @@ router.get('/blacklist', requireRole('dtc', 'dtccommittee'), async (req, res) =>
   }
 });
 
-router.put('/blacklist/:id/remove', requireRole('dtc', 'dtccommittee'), async (req, res) => {
+router.put('/blacklist/:id/remove', requireRole('dtc', ROLES.DTC_COMMITTEE), async (req, res) => {
   const conn = await getConn();
   try {
     const blacklistId = parseInt(req.params.id);
@@ -498,7 +499,7 @@ router.put('/blacklist/:id/remove', requireRole('dtc', 'dtccommittee'), async (r
       `SELECT role FROM users WHERE user_id = :p_uid AND is_active = 1`, { p_uid: performed_by }
     );
     const userRole = roleCheck.rows[0] ? (roleCheck.rows[0].ROLE || '').toLowerCase().trim() : '';
-    if (!roleCheck.rows.length || (userRole !== 'dtccommittee' && userRole !== 'dtc')) {
+    if (!roleCheck.rows.length || (userRole !== ROLES.DTC_COMMITTEE && userRole !== 'dtc')) {
       return res.status(403).json({ error: 'Access denied. Only DTC Committee members can manage the blacklist.' });
     }
 

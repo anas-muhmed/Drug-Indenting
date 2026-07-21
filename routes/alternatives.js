@@ -9,10 +9,11 @@ import { getConn } from '../db/pool.js';
 import { requireAuth, requireRole } from '../middleware/requireAuth.js';
 import { computeAltDerived, formatEffectiveEntryRow } from '../utils/pureHelpers.js';
 import { writeAudit, createNotification } from '../utils/auditHelpers.js';
+import { ROLES } from '../utils/workflow.js';
 
 const router = express.Router();
 
-router.post('/alternatives/:requestId', requireRole('pharmacist'), async (req, res) => {
+router.post('/alternatives/:requestId', requireRole(ROLES.PHARMACIST), async (req, res) => {
   const conn = await getConn();
   try {
     const requestId = parseInt(req.params.requestId);
@@ -141,7 +142,7 @@ router.post('/alternatives/:requestId', requireRole('pharmacist'), async (req, r
   }
 });
 
-router.post('/pharmacist/correction-submit/:requestId', requireRole('pharmacist'), async (req, res) => {
+router.post('/pharmacist/correction-submit/:requestId', requireRole(ROLES.PHARMACIST), async (req, res) => {
   const conn = await getConn();
   try {
     const requestId = parseInt(req.params.requestId);
@@ -739,7 +740,7 @@ router.get('/alternatives/:requestId/selected', requireAuth, async (req, res) =>
   }
 });
 
-router.put('/pharmacist/comparison/:requestId', requireRole('pharmacist'), async (req, res) => {
+router.put('/pharmacist/comparison/:requestId', requireRole(ROLES.PHARMACIST), async (req, res) => {
   const conn = await getConn();
   try {
     const requestId = parseInt(req.params.requestId);
@@ -807,7 +808,7 @@ router.put('/pharmacist/comparison/:requestId', requireRole('pharmacist'), async
   }
 });
 
-router.put('/pharmacy-head/comparison/:requestId', requireRole('pharmacyhead'), async (req, res) => {
+router.put('/pharmacy-head/comparison/:requestId', requireRole(ROLES.PHARMACY_HEAD), async (req, res) => {
   const conn = await getConn();
   try {
     const requestId = parseInt(req.params.requestId);

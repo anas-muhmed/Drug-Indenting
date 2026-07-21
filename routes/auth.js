@@ -9,6 +9,7 @@ import oracledb from 'oracledb';
 import { getConn } from '../db/pool.js';
 import { signToken, normalizeRole, SALT_ROUNDS } from '../utils/auth.js';
 import { validatePassword } from '../utils/pureHelpers.js';
+import { ROLES } from '../utils/workflow.js';
 
 const router = express.Router();
 
@@ -90,7 +91,7 @@ router.post('/register', async (req, res) => {
     const newUserId = result.outBinds.user_id[0];
 
     const normalizedRole = role.toLowerCase().trim();
-    if (normalizedRole === 'doctor' || normalizedRole === 'hod') {
+    if (normalizedRole === ROLES.DOCTOR || normalizedRole === ROLES.HOD) {
       await conn.execute(
         `INSERT INTO user_request_quotas (user_id, quarterly_limit, updated_by)
          VALUES (:userId, 10, :updatedBy)`,

@@ -6,6 +6,7 @@
 import express from 'express';
 import { getConn } from '../db/pool.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { ROLES } from '../utils/workflow.js';
 
 const router = express.Router();
 
@@ -25,7 +26,7 @@ router.get('/:userId', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'User not found or inactive.' });
     }
     const role = userRes.rows[0].ROLE ? userRes.rows[0].ROLE.toLowerCase() : '';
-    if (role !== 'doctor' && role !== 'hod') {
+    if (role !== ROLES.DOCTOR && role !== ROLES.HOD) {
       return res.status(400).json({ error: 'Request quota is only applicable for Doctors or HODs.' });
     }
 

@@ -187,7 +187,19 @@ async function boot() {
     app.use(express.static(path.join(process.cwd(), "client/build")));
 
     app.get("*", (req, res) => {
-      res.sendFile(path.join(process.cwd(), "client/build", "index.html"));
+      // Unmatched /api/* requests are a real 404, not a client-side route —
+      // don't fall through to the SPA index.html for these.
+      if (req.path.startsWith('/api')) {
+        return res.status(404).json({ error: 'Not found.' });
+      }
+      res.sendFile(path.join(process.cwd(), "client/build", "index.html"), (err) => {
+        // Only reached if the file is missing/unreadable (e.g. frontend not
+        // built on this machine yet) — respond cleanly instead of letting
+        // Express's default error handler leak the local filesystem path.
+        if (err && !res.headersSent) {
+          res.status(404).json({ error: 'Not found.' });
+        }
+      });
     });
 
     app.listen(PORT, () => {

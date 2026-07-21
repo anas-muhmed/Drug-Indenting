@@ -9,6 +9,7 @@ import { getConn } from '../db/pool.js';
 import { requireAuth, requireRole } from '../middleware/requireAuth.js';
 import { normalizeGenericCombo } from '../utils/pureHelpers.js';
 import { saveApprovalRemarks } from '../utils/auditHelpers.js';
+import { ROLES } from '../utils/workflow.js';
 
 const router = express.Router();
 
@@ -621,7 +622,7 @@ router.post('/saveGenericItem', requireAuth, async (req, res) => {
 
 });
 
-router.post('/getPatientInfo', requireRole('doctor'), async (req, res) => {
+router.post('/getPatientInfo', requireRole(ROLES.DOCTOR), async (req, res) => {
   const conn = await getConn();
 
   try {

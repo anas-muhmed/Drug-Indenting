@@ -11,7 +11,7 @@ import express from 'express';
 import oracledb from 'oracledb';
 import { getConn } from '../db/pool.js';
 import { requireAuth, requireRole } from '../middleware/requireAuth.js';
-import { NEXT_STAGE, STAGE_LABELS, getApproverRoleForStage } from '../utils/workflow.js';
+import { NEXT_STAGE, STAGE_LABELS, getApproverRoleForStage, ROLES } from '../utils/workflow.js';
 import { computeAltDerived, formatEffectiveEntryRow } from '../utils/pureHelpers.js';
 import { writeAudit, createNotification, saveApprovalRemarks } from '../utils/auditHelpers.js';
 
@@ -30,7 +30,7 @@ router.post('/', requireAuth, async (req, res) => {
   // Only doctors/HODs create requests, and only as themselves — without
   // this, any authenticated user's token could submit a request with an
   // arbitrary doctor_id, impersonating any doctor.
-  if (!['doctor', 'hod'].includes(req.user.role)) {
+  if (![ROLES.DOCTOR, ROLES.HOD].includes(req.user.role)) {
     return res.status(403).json({ error: 'Only doctors and HODs can submit drug requests.' });
   }
   if (req.user.id !== Number(doctor_id)) {
@@ -139,11 +139,13 @@ router.post('/', requireAuth, async (req, res) => {
       });
     }
 
-    // Fetch creator role & department to determine workflow
-    const creatorRes = await conn.execute(`SELECT role, department FROM users WHERE user_id = :id`, { id: doctor_id });
+    // Fetch creator role, department & name to determine workflow and to
+    // address notifications correctly (see notification-text fix below).
+    const creatorRes = await conn.execute(`SELECT role, department, name FROM users WHERE user_id = :id`, { id: doctor_id });
     if (creatorRes.rows.length === 0) return res.status(400).json({ error: 'User not found.' });
     const creatorRole = creatorRes.rows[0].ROLE;
     const creatorDept = creatorRes.rows[0].DEPARTMENT;
+    const creatorName = creatorRes.rows[0].NAME;
 
     // Initialize workflow variables
     let initialStatus = 'HOD_APPROVED';
@@ -151,7 +153,7 @@ router.post('/', requireAuth, async (req, res) => {
     let hodId = null;
 
     // Determine workflow based on role
-    if (creatorRole && creatorRole.toLowerCase() === 'doctor') {
+    if (creatorRole && creatorRole.toLowerCase() === ROLES.DOCTOR) {
       // Only attempt HOD routing if the doctor has a department set
       if (creatorDept && creatorDept.trim() !== '') {
         const hodRes = await conn.execute(
@@ -175,12 +177,12 @@ router.post('/', requireAuth, async (req, res) => {
         initialStatus = 'HOD_APPROVED';
         initialStage = 'PharmacistInitialReview';
       }
-    } else if (creatorRole && creatorRole.toLowerCase() === 'hod') {
+    } else if (creatorRole && creatorRole.toLowerCase() === ROLES.HOD) {
       initialStatus = 'HOD_APPROVED';
       initialStage = 'PharmacistInitialReview';
     }
 
-    const isHOD = creatorRole && creatorRole.toLowerCase() === 'hod';
+    const isHOD = creatorRole && creatorRole.toLowerCase() === ROLES.HOD;
 
     const insertResult = await conn.execute(
       `INSERT INTO drug_requests (
@@ -235,11 +237,11 @@ router.post('/', requireAuth, async (req, res) => {
     await writeAudit(conn, requestId, 'SUBMITTED', doctor_id, null, initialStage,
       `Source: ${sourceLabel} | Class: ${formulary_request_type}`);
 
-    if (creatorRole && creatorRole.toLowerCase() === 'doctor' && hodId) {
+    if (creatorRole && creatorRole.toLowerCase() === ROLES.DOCTOR && hodId) {
       await createNotification(conn, hodId, requestId,
-        `${classLabel} New ${sourceLabel} drug request #${requestId} submitted by Dr. ${creatorDept}. Awaiting HOD approval.`
+        `${classLabel} New ${sourceLabel} drug request #${requestId} submitted by Dr. ${creatorName || 'Unknown'}. Awaiting HOD approval.`
       );
-    } else if (creatorRole && creatorRole.toLowerCase() === 'hod') {
+    } else if (creatorRole && creatorRole.toLowerCase() === ROLES.HOD) {
       const pharmUsers = await conn.execute(`SELECT user_id FROM users WHERE UPPER(role) = 'PHARMACIST' AND is_active = 1`);
       for (const row of pharmUsers.rows) {
         await createNotification(conn, row.USER_ID, requestId,
@@ -248,7 +250,9 @@ router.post('/', requireAuth, async (req, res) => {
       }
     } else {
       const phUsers = await conn.execute(`SELECT user_id FROM users WHERE UPPER(role) = 'PHARMACYHEAD' AND is_active = 1`);
-      const submitterText = `Dr. ${creatorDept || ''}`;
+      // Not necessarily a doctor here (falls through when creator is
+      // neither 'doctor' nor 'hod'), so no "Dr." prefix — just their name.
+      const submitterText = creatorName || 'a colleague';
       for (const row of phUsers.rows) {
         await createNotification(conn, row.USER_ID, requestId,
           `${classLabel} New ${sourceLabel} drug request #${requestId} submitted by ${submitterText}. Drug: ${brand_name}. Awaiting your review.`
@@ -313,7 +317,7 @@ router.get('/:role/:userId', requireAuth, async (req, res) => {
     let query = '';
     let binds = {};
 
-    if (normalizedRole === 'doctor') {
+    if (normalizedRole === ROLES.DOCTOR) {
 
       query = `
         SELECT dr.*, u.name AS doctor_name, u.department AS doctor_dept, u_dtc.name AS dtc_reviewer_name
@@ -325,7 +329,7 @@ router.get('/:role/:userId', requireAuth, async (req, res) => {
 
       binds = { userId };
 
-    } else if (normalizedRole === 'hod') {
+    } else if (normalizedRole === ROLES.HOD) {
 
       query = `
         SELECT dr.*, u.name AS doctor_name, u.department AS doctor_dept, u_dtc.name AS dtc_reviewer_name
@@ -340,7 +344,7 @@ router.get('/:role/:userId', requireAuth, async (req, res) => {
 
       binds = { userId };
 
-    } else if (normalizedRole === 'pharmacyhead') {
+    } else if (normalizedRole === ROLES.PHARMACY_HEAD) {
 
       query = `
         SELECT dr.*, u.name AS doctor_name, u.department AS doctor_dept, u_dtc.name AS dtc_reviewer_name
@@ -354,7 +358,7 @@ router.get('/:role/:userId', requireAuth, async (req, res) => {
         OR dr.is_emergency = 1
       `;
 
-    } else if (normalizedRole === 'pharmacist') {
+    } else if (normalizedRole === ROLES.PHARMACIST) {
 
       query = `
         SELECT dr.*, u.name AS doctor_name, u.department AS doctor_dept, u_dtc.name AS dtc_reviewer_name
@@ -380,7 +384,7 @@ router.get('/:role/:userId', requireAuth, async (req, res) => {
 
       binds = { userId };
 
-    } else if (normalizedRole === 'dtccommittee') {
+    } else if (normalizedRole === ROLES.DTC_COMMITTEE) {
 
       query = `
         SELECT dr.*, u.name AS doctor_name, u.department AS doctor_dept, u_dtc.name AS dtc_reviewer_name
@@ -397,7 +401,7 @@ router.get('/:role/:userId', requireAuth, async (req, res) => {
         )
       `;
 
-    } else if (normalizedRole === 'ceo') {
+    } else if (normalizedRole === ROLES.CEO) {
 
       query = `
         SELECT dr.*, u.name AS doctor_name, u.department AS doctor_dept, u_dtc.name AS dtc_reviewer_name
@@ -974,7 +978,7 @@ router.put('/:id/initial-review-approve', requireAuth, async (req, res) => {
   }
 });
 
-router.post('/pharmacist', requireRole('pharmacist'), async (req, res) => {
+router.post('/pharmacist', requireRole(ROLES.PHARMACIST), async (req, res) => {
   const conn = await getConn();
   try {
     const {
@@ -1082,7 +1086,7 @@ router.post('/emergency', requireAuth, async (req, res) => {
     request_source_type
   } = req.body;
 
-  if (!['doctor', 'hod'].includes(req.user.role)) {
+  if (![ROLES.DOCTOR, ROLES.HOD].includes(req.user.role)) {
     return res.status(403).json({ error: 'Only doctors and HODs can submit emergency requests.' });
   }
   if (req.user.id !== Number(doctor_id)) {
@@ -1132,7 +1136,7 @@ router.post('/emergency', requireAuth, async (req, res) => {
     const creatorDept = creatorRes.rows[0].DEPARTMENT;
 
     let hodId = null;
-    if (creatorRole && creatorRole.toLowerCase() === 'doctor') {
+    if (creatorRole && creatorRole.toLowerCase() === ROLES.DOCTOR) {
       if (creatorDept && creatorDept.trim() !== '') {
         const hodRes = await conn.execute(
           `SELECT user_id FROM users WHERE UPPER(role) = 'HOD' AND UPPER(TRIM(department)) = UPPER(TRIM(:dept)) AND is_active = 1`,
@@ -1196,7 +1200,7 @@ router.post('/emergency', requireAuth, async (req, res) => {
   }
 });
 
-router.post('/:id/place_order', requireRole('pharmacist'), async (req, res) => {
+router.post('/:id/place_order', requireRole(ROLES.PHARMACIST), async (req, res) => {
   const conn = await getConn();
   try {
     const requestId = parseInt(req.params.id);
@@ -1224,7 +1228,7 @@ router.post('/:id/place_order', requireRole('pharmacist'), async (req, res) => {
   }
 });
 
-router.put('/:id/mark-inventory-added', requireRole('pharmacist'), async (req, res) => {
+router.put('/:id/mark-inventory-added', requireRole(ROLES.PHARMACIST), async (req, res) => {
   const conn = await getConn();
   try {
     const requestId = parseInt(req.params.id);
@@ -1269,7 +1273,7 @@ router.put('/:id/mark-inventory-added', requireRole('pharmacist'), async (req, r
   }
 });
 
-router.post('/:requestId/mark-inventory-received', requireRole('pharmacist'), async (req, res) => {
+router.post('/:requestId/mark-inventory-received', requireRole(ROLES.PHARMACIST), async (req, res) => {
   const conn = await getConn();
   try {
     const requestId = parseInt(req.params.requestId);
@@ -1352,7 +1356,7 @@ router.post('/:requestId/mark-inventory-received', requireRole('pharmacist'), as
   }
 });
 
-router.put('/:id/revert-to-pharmacist', requireRole('pharmacyhead'), async (req, res) => {
+router.put('/:id/revert-to-pharmacist', requireRole(ROLES.PHARMACY_HEAD), async (req, res) => {
   const conn = await getConn();
   try {
     const requestId = parseInt(req.params.id);
@@ -1418,7 +1422,7 @@ router.put('/:id/revert-to-pharmacist', requireRole('pharmacyhead'), async (req,
   }
 });
 
-router.put('/:id/resubmit-correction', requireRole('pharmacist'), async (req, res) => {
+router.put('/:id/resubmit-correction', requireRole(ROLES.PHARMACIST), async (req, res) => {
   const conn = await getConn();
   try {
     const requestId = parseInt(req.params.id);
