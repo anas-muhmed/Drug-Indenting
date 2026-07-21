@@ -6,6 +6,10 @@ import jwt from 'jsonwebtoken';
 
 const TOKEN_EXPIRY = '10h'; // ~one hospital work shift
 
+// bcrypt cost factor, shared across every route that hashes a password
+// (register, admin routes, change-password, change-password-force).
+export const SALT_ROUNDS = 12;
+
 function getSecret() {
   const secret = process.env.JWT_SECRET;
   if (!secret) {

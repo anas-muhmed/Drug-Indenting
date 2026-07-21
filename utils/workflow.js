@@ -62,3 +62,36 @@ export const STAGE_APPROVER_ROLE = {
 export function getApproverRoleForStage(stage) {
   return STAGE_APPROVER_ROLE[stage] || null;
 }
+
+// Where an approval sends a request next — moved here from server.js
+// unchanged (same keys/values), so route files can import it instead of
+// server.js defining it locally.
+export const NEXT_STAGE = {
+  HOD: 'PharmacistInitialReview',          // HOD approve → Pharmacist Initial Review
+  PharmacistInitialReview: 'PharmacyHead', // Pharmacist Initial Review approve → PharmacyHead
+  PharmacyHead: 'DTCCommittee',
+  DTCCommittee: 'Pharmacist',              // DTC first-pass → Pharmacist analysis
+  Pharmacist: 'PharmacyHeadReview2',       // Pharmacist submits alternatives → PH review
+  PharmacyHeadReview2: 'DTCFinal',         // PH approves → DTC final
+  PharmacistCorrection: 'PharmacyHeadReview2', // Pharmacist resubmits corrected sheet → PH
+  DTCFinal: 'CEO',                         // DTC final → CEO
+  CEO: 'PharmacistOrder',                  // CEO final → Pharmacist Order Placement
+  EmergencyDTC: 'PharmacistOrder',         // Emergency DTC approve → Pharmacist
+};
+
+export const STAGE_LABELS = {
+  HOD: 'Head of Department',
+  PharmacistInitialReview: 'Pharmacist (Initial Review)',
+  PharmacyHead: 'Pharmacy Head',
+  DTCCommittee: 'DTC Committee',
+  Pharmacist: 'Pharmacist',
+  PharmacyHeadReview2: 'Pharmacy Head (Review 2)',
+  PharmacistCorrection: 'Pharmacist (Correction Required)',
+  DTCFinal: 'DTC Committee (Final)',
+  CEO: 'CEO',
+  Final: 'Final Approval',
+  Rejected: 'Rejected',
+  EmergencyDTC: 'DTC Committee (Emergency)',
+  PharmacistOrder: 'Pharmacist (Order Placement)',
+  OrderPlaced: 'Order Placed',
+};

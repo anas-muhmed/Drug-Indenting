@@ -1,6 +1,29 @@
 // Pure, dependency-free helper functions extracted from server.js.
 // No database, no network, no side effects — safe to unit test directly.
 
+export function formatEffectiveEntryRow(row) {
+  let remarksText = row.REMARKS || '';
+  let extraFields = {};
+  if (remarksText && remarksText.startsWith('{') && remarksText.endsWith('}')) {
+    try {
+      extraFields = JSON.parse(remarksText);
+    } catch (e) {
+      // Keep as text if not valid JSON
+    }
+  }
+
+  return {
+    ...extraFields,
+    entry_id: row.ENTRY_ID,
+    request_id: row.REQUEST_ID,
+    drug_name: row.DRUG_NAME || extraFields.drug_name || '',
+    effective_created_at: row.EFFECTIVE_CREATED_AT || extraFields.effective_created_at || '',
+    remarks: extraFields.remarks !== undefined ? extraFields.remarks : remarksText,
+    created_by: row.CREATED_BY,
+    created_at: row.CREATED_AT
+  };
+}
+
 export function normalizeGenericCombo(str) {
   return str
     .split(/\+|,|&|\/|\s+and\s+/i)   // split on delimiters
