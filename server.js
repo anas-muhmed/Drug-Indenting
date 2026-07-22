@@ -59,13 +59,17 @@ const PORT = process.env.PORT || 5000;
 
 app.use(express.json());
 
-// Stricter limit on login/register specifically -- these are the two
-// public, unauthenticated routes, so they're the obvious brute-force
-// target. Registered before the general limiter so it's the one that
-// actually trips first for these two paths.
+// Both limits are configurable via env vars, defaulting to the real,
+// secure values below -- so forgetting to set anything fails safe
+// (strict), never silently insecure. During active manual testing (many
+// logins across a handful of shared test accounts, repeated re-testing
+// in one sitting), the default login limit is easy to trip legitimately;
+// on a machine doing that kind of testing, raise AUTH_RATE_LIMIT_MAX in
+// its own .env (e.g. to 500) rather than changing this file -- the
+// moment this goes toward real go-live, just leave it unset again.
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: Number(process.env.AUTH_RATE_LIMIT_MAX) || 20,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many attempts. Please try again in a few minutes.' },
@@ -79,7 +83,7 @@ app.use('/api/register', authLimiter);
 // use. /health is outside /api, so monitoring polling it isn't affected.
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 300,
+  max: Number(process.env.API_RATE_LIMIT_MAX) || 300,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests. Please try again in a few minutes.' },
