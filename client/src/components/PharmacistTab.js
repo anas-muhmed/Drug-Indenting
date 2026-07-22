@@ -613,6 +613,22 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
     setDraftName('');
     setDraftSaved(false);
     setShowComparisonSheet(false);
+    setEffectiveDrugEntries([]);
+    // Load this request's own effective-entries data from pass 1 (Initial
+    // Review), if any -- ComparisonSheet's Existing Details table falls
+    // back to this when there's no existingDetails/draft data yet, so the
+    // drug identified during Initial Review's "Search Existing Drugs"
+    // carries forward here instead of the pharmacist having to search
+    // again from scratch. Separate from the draft-loading below and not
+    // guarded by the same try/catch, since a missing draft is expected and
+    // fine, but this data genuinely should exist for any request that
+    // passed through Initial Review.
+    try {
+      const altsRes = await axios.get(`${API}/alternatives/${req.REQUEST_ID}`);
+      setEffectiveDrugEntries(altsRes.data?.effective_drug_entries || []);
+    } catch (err) {
+      console.error('Failed to load effective drug entries for analysis:', err);
+    }
     // Auto-load existing draft if present
     try {
       const r = await axios.get(`${API}/pharmacist/drafts/for-request/${req.REQUEST_ID}/${currentUser.USER_ID}`);
