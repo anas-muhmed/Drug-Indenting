@@ -292,12 +292,35 @@ async function boot() {
     // requests finish, then close the DB pool -- instead of the process
     // (and every in-progress request's DB connection) getting yanked out
     // mid-request on every restart/deploy.
+    //
+    // httpServer.close() only *starts* closing -- it stops accepting new
+    // connections and calls its callback once every existing connection has
+    // ended, but it does not return a promise, so it must be wrapped and
+    // genuinely awaited here. Found and fixed a real bug during remote
+    // verification: the first version of this function fired
+    // httpServer.close() without awaiting it and immediately moved on to
+    // close the DB pool and exit -- verified directly with a reproduction
+    // (a slow in-flight request against a real close() call) that the pool
+    // closed and the process would have exited *before* the in-flight
+    // request finished, exactly defeating the point of a graceful shutdown.
+    // The forceTimeout exists so one stuck/keep-alive connection can't hang
+    // shutdown forever.
     let shuttingDown = false;
     async function shutdown(signal) {
       if (shuttingDown) return;
       shuttingDown = true;
       logger.info(`${signal} received -- shutting down gracefully...`);
-      httpServer.close(() => logger.info('HTTP server closed.'));
+
+      await new Promise((resolve) => {
+        let timeoutId;
+        const finish = () => { clearTimeout(timeoutId); resolve(); };
+        httpServer.close(() => { logger.info('HTTP server closed.'); finish(); });
+        timeoutId = setTimeout(() => {
+          logger.warn('HTTP server did not close within 10s -- forcing shutdown.');
+          finish();
+        }, 10000);
+      });
+
       try {
         await closePool();
         logger.info('Oracle DB pool closed.');
