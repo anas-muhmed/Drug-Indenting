@@ -18,7 +18,7 @@ router.get('/summary', requireRole(ROLES.CEO, 'dtc', ROLES.DTC_COMMITTEE), async
         COUNT(*) AS total_requests,
         SUM(CASE WHEN status = 'Pending' THEN 1 ELSE 0 END) AS total_pending,
         SUM(CASE WHEN status IN ('Approved','HOD_APPROVED','APPROVED_PENDING_ORDER','EMERGENCY_APPROVED','INVENTORY_RECEIVED') THEN 1 ELSE 0 END) AS total_approved,
-        SUM(CASE WHEN status IN ('Rejected','HOD_REJECTED','PHARMACIST_REJECTED','PHARMACY_HEAD_REJECTED','PHARMACY_HEAD_REJECTED_PENDING_DTC','CEO_REJECTED','EMERGENCY_REJECTED') THEN 1 ELSE 0 END) AS total_rejected,
+        SUM(CASE WHEN status IN ('Rejected','HOD_REJECTED','PHARMACIST_REJECTED','PHARMACY_HEAD_REJECTED','PHARMACY_HEAD_REJECTED_PENDING_DTC','PHARMACIST_REJECTED_PENDING_DTC','CEO_REJECTED','EMERGENCY_REJECTED') THEN 1 ELSE 0 END) AS total_rejected,
         SUM(CASE WHEN status IN ('EMERGENCY_PENDING_DTC','EMERGENCY_APPROVED','EMERGENCY_REJECTED') THEN 1 ELSE 0 END) AS total_emergency,
         SUM(CASE WHEN status IN ('ORDER_PLACED','INVENTORY_RECEIVED') OR current_stage = 'OrderPlaced' THEN 1 ELSE 0 END) AS total_order_placed,
         SUM(CASE WHEN current_stage = 'Final' THEN 1 ELSE 0 END) AS total_final_approved,
@@ -507,7 +507,7 @@ router.get('/drilldown', requireRole(ROLES.CEO, 'dtc', ROLES.DTC_COMMITTEE), asy
       } else if (key === 'total_approved') {
         whereClause = "dr.status IN ('Approved','HOD_APPROVED','APPROVED_PENDING_ORDER','EMERGENCY_APPROVED','INVENTORY_RECEIVED')";
       } else if (key === 'total_rejected') {
-        whereClause = "dr.status IN ('Rejected','HOD_REJECTED','PHARMACIST_REJECTED','PHARMACY_HEAD_REJECTED','PHARMACY_HEAD_REJECTED_PENDING_DTC','CEO_REJECTED','EMERGENCY_REJECTED')";
+        whereClause = "dr.status IN ('Rejected','HOD_REJECTED','PHARMACIST_REJECTED','PHARMACY_HEAD_REJECTED','PHARMACY_HEAD_REJECTED_PENDING_DTC','PHARMACIST_REJECTED_PENDING_DTC','CEO_REJECTED','EMERGENCY_REJECTED')";
       } else if (key === 'total_emergency') {
         whereClause = "dr.status IN ('EMERGENCY_PENDING_DTC','EMERGENCY_APPROVED','EMERGENCY_REJECTED')";
       } else if (key === 'total_order_placed') {
@@ -529,7 +529,7 @@ router.get('/drilldown', requireRole(ROLES.CEO, 'dtc', ROLES.DTC_COMMITTEE), asy
       }
     } else if (type === 'stage') {
       if (key === 'Rejected') {
-        whereClause = "dr.current_stage = 'Rejected' OR dr.status IN ('Rejected','HOD_REJECTED','PHARMACIST_REJECTED','PHARMACY_HEAD_REJECTED','PHARMACY_HEAD_REJECTED_PENDING_DTC','CEO_REJECTED','EMERGENCY_REJECTED')";
+        whereClause = "dr.current_stage = 'Rejected' OR dr.status IN ('Rejected','HOD_REJECTED','PHARMACIST_REJECTED','PHARMACY_HEAD_REJECTED','PHARMACY_HEAD_REJECTED_PENDING_DTC','PHARMACIST_REJECTED_PENDING_DTC','CEO_REJECTED','EMERGENCY_REJECTED')";
       } else if (key === 'EmergencyDTC') {
         whereClause = "dr.current_stage = 'EmergencyDTC' OR dr.status IN ('EMERGENCY_PENDING_DTC','EMERGENCY_APPROVED','EMERGENCY_REJECTED')";
       } else {

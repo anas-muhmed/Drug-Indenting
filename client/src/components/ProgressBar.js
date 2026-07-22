@@ -158,6 +158,7 @@ export const STATUS_BADGE_MAP = {
   PHARMACY_HEAD_REJECTED: <span className="badge badge-rejected">❌ Rejected by DTC Committee</span>,
   CEO_REJECTED: <span className="badge badge-rejected">❌ Rejected by DTC Committee</span>,
   PHARMACY_HEAD_REJECTED_PENDING_DTC: <span className="badge badge-pending" style={{ background: '#fef2f2', color: '#991b1b', border: '1px solid #fca5a5' }}>⏳ Pending DTC (PH Rejected)</span>,
+  PHARMACIST_REJECTED_PENDING_DTC: <span className="badge badge-pending" style={{ background: '#fef2f2', color: '#991b1b', border: '1px solid #fca5a5' }}>⏳ Pending DTC (Pharmacist Rejected)</span>,
   EMERGENCY_PENDING_DTC: <span className="badge" style={{ background: '#fef3c7', color: '#92400e' }}>⏳ Emergency Pending</span>,
   EMERGENCY_APPROVED: <span className="badge" style={{ background: '#dcfce7', color: '#166534' }}>✅ Emergency Approved</span>,
   EMERGENCY_REJECTED: <span className="badge" style={{ background: '#fee2e2', color: '#991b1b' }}>❌ Emergency Rejected</span>,
@@ -169,7 +170,7 @@ export const STATUS_BADGE_MAP = {
 
 export function getStatusBadge(status, role) {
   const normRole = String(role || '').toUpperCase();
-  if ((normRole === 'DOCTOR' || normRole === 'HOD') && status === 'PHARMACY_HEAD_REJECTED_PENDING_DTC') {
+  if ((normRole === 'DOCTOR' || normRole === 'HOD') && (status === 'PHARMACY_HEAD_REJECTED_PENDING_DTC' || status === 'PHARMACIST_REJECTED_PENDING_DTC')) {
     return <span className="badge badge-pending" style={{ background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd' }}>⏳ Under DTC Review</span>;
   }
   return STATUS_BADGE_MAP[status] || <span className="badge badge-info">{status}</span>;

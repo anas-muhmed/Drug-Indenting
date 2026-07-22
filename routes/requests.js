@@ -395,7 +395,7 @@ router.get('/:role/:userId', requireAuth, async (req, res) => {
         LEFT JOIN users u_dtc ON u_dtc.user_id = dr.dtc_reviewed_by
         WHERE (
           dr.current_stage IN ('DTCCommittee','DTCFinal')
-          AND dr.status IN ('Pending', 'PHARMACY_HEAD_REJECTED_PENDING_DTC')
+          AND dr.status IN ('Pending', 'PHARMACY_HEAD_REJECTED_PENDING_DTC', 'PHARMACIST_REJECTED_PENDING_DTC')
         )
         OR (
           dr.current_stage = 'EmergencyDTC'
@@ -528,7 +528,7 @@ router.put('/:id/approve', requireAuth, async (req, res) => {
     if (!reqResult.rows.length) return res.status(404).json({ error: 'Request not found.' });
 
     const dr = reqResult.rows[0];
-    if (dr.STATUS !== 'Pending' && dr.STATUS !== 'EMERGENCY_PENDING_DTC' && dr.STATUS !== 'PENDING_HOD' && dr.STATUS !== 'HOD_APPROVED' && dr.STATUS !== 'PHARMACY_HEAD_REJECTED_PENDING_DTC') return res.status(400).json({ error: 'Request is no longer pending.' });
+    if (dr.STATUS !== 'Pending' && dr.STATUS !== 'EMERGENCY_PENDING_DTC' && dr.STATUS !== 'PENDING_HOD' && dr.STATUS !== 'HOD_APPROVED' && dr.STATUS !== 'PHARMACY_HEAD_REJECTED_PENDING_DTC' && dr.STATUS !== 'PHARMACIST_REJECTED_PENDING_DTC') return res.status(400).json({ error: 'Request is no longer pending.' });
 
     const fromStage = dr.CURRENT_STAGE;
 
@@ -697,7 +697,7 @@ router.put('/:id/reject', requireAuth, async (req, res) => {
     if (!reqResult.rows.length) return res.status(404).json({ error: 'Request not found.' });
 
     const dr = reqResult.rows[0];
-    if (dr.STATUS !== 'Pending' && dr.STATUS !== 'EMERGENCY_PENDING_DTC' && dr.STATUS !== 'PENDING_HOD' && dr.STATUS !== 'HOD_APPROVED' && dr.STATUS !== 'PHARMACY_HEAD_REJECTED_PENDING_DTC') return res.status(400).json({ error: 'Request is no longer pending.' });
+    if (dr.STATUS !== 'Pending' && dr.STATUS !== 'EMERGENCY_PENDING_DTC' && dr.STATUS !== 'PENDING_HOD' && dr.STATUS !== 'HOD_APPROVED' && dr.STATUS !== 'PHARMACY_HEAD_REJECTED_PENDING_DTC' && dr.STATUS !== 'PHARMACIST_REJECTED_PENDING_DTC') return res.status(400).json({ error: 'Request is no longer pending.' });
 
     const fromStage = dr.CURRENT_STAGE;
 
@@ -721,9 +721,14 @@ router.put('/:id/reject', requireAuth, async (req, res) => {
     let toStage = 'Rejected';
 
     if (fromStage === 'HOD') rejectStatus = 'HOD_REJECTED';
+    // Pharmacist and Pharmacy Head don't have real reject authority during
+    // this first pass -- only DTC's decision is final here (HOD is the only
+    // stage where a reject truly ends the request). A "reject" at either of
+    // these stages instead forwards to DTC for the actual decision, exactly
+    // like Pharmacy Head's case just below.
     else if (fromStage === 'PharmacistInitialReview') {
-      rejectStatus = 'Rejected';
-      toStage = 'Rejected';
+      rejectStatus = 'PHARMACIST_REJECTED_PENDING_DTC';
+      toStage = 'DTCCommittee';
     } else if (fromStage === 'PharmacyHead') {
       rejectStatus = 'PHARMACY_HEAD_REJECTED_PENDING_DTC';
       toStage = 'DTCCommittee';
@@ -746,14 +751,16 @@ router.put('/:id/reject', requireAuth, async (req, res) => {
 
     await writeAudit(conn, requestId, 'REJECTED', performed_by, fromStage, toStage, remarks);
 
-    if (fromStage === 'PharmacyHead') {
+    if (fromStage === 'PharmacyHead' || fromStage === 'PharmacistInitialReview') {
+      const rejectedByLabel = fromStage === 'PharmacyHead' ? 'Pharmacy Head' : 'Pharmacist';
       const dtcUsers = await conn.execute(`SELECT user_id FROM users WHERE UPPER(role) IN ('DTC', 'DTCCOMMITTEE') AND is_active = 1`);
       for (const row of dtcUsers.rows) {
         await createNotification(conn, row.USER_ID, requestId,
-          `Drug request #${requestId} (${dr.BRAND_NAME}) was rejected by Pharmacy Head and forwarded for your final review. Reason: ${remarks}`
+          `Drug request #${requestId} (${dr.BRAND_NAME}) was rejected by ${rejectedByLabel} and forwarded for your final review. Reason: ${remarks}`
         );
       }
-      // Notify Doctor & HOD neutrally
+      // Notify Doctor & HOD neutrally -- this isn't actually a final
+      // rejection, so don't tell them it was "rejected".
       await createNotification(conn, dr.DOCTOR_ID, requestId,
         `Your drug request #${requestId} (${dr.BRAND_NAME}) has been forwarded to DTC Committee for further review.`
       );
@@ -763,7 +770,8 @@ router.put('/:id/reject', requireAuth, async (req, res) => {
         );
       }
     } else {
-      // For all other stages (including PharmacistInitialReview, DTC, CEO) — notify the Doctor
+      // For all other stages (HOD, DTC, CEO) — a reject here is genuinely
+      // final, so notify the Doctor it was actually rejected.
       await createNotification(conn, dr.DOCTOR_ID, requestId,
         `Your drug request #${requestId} (${dr.BRAND_NAME}) has been rejected by ${STAGE_LABELS[fromStage] || fromStage}. Reason: ${remarks}`
       );
