@@ -11,7 +11,7 @@ import express from 'express';
 import oracledb from 'oracledb';
 import { getConn } from '../db/pool.js';
 import { requireAuth, requireRole } from '../middleware/requireAuth.js';
-import { NEXT_STAGE, STAGE_LABELS, getApproverRoleForStage, ROLES } from '../utils/workflow.js';
+import { NEXT_STAGE, STAGE_LABELS, getApproverRoleForStage, ROLES, rolesMatch } from '../utils/workflow.js';
 import { computeAltDerived, formatEffectiveEntryRow } from '../utils/pureHelpers.js';
 import { writeAudit, createNotification, saveApprovalRemarks } from '../utils/auditHelpers.js';
 
@@ -294,20 +294,12 @@ router.get('/:role/:userId', requireAuth, async (req, res) => {
   const { role, userId } = req.params;
   const normalizedRole = role?.toLowerCase();
 
-  // 'dtc' and 'dtccommittee' are the same real role stored two different
-  // ways (see AdminDashboard.js's ORDERED_ROLES, and the same alias
-  // already handled in routes/dtc.js and routes/analytics.js) -- some
-  // users are genuinely stored as the short form. The frontend always
-  // requests this route as '.../DTCCommittee/:userId', so without this,
-  // any DTC user actually stored as role='dtc' gets a 403 here even
-  // though they're legitimately the person they claim to be.
-  const isDtcAliasMatch = (req.user.role === 'dtc' && normalizedRole === ROLES.DTC_COMMITTEE) ||
-    (req.user.role === ROLES.DTC_COMMITTEE && normalizedRole === 'dtc');
-
   // A token can only be used to view that same person's own requests —
   // without this, any logged-in user's valid token could read anyone
-  // else's requests just by changing the URL's role/userId.
-  if ((req.user.role !== normalizedRole && !isDtcAliasMatch) || req.user.id !== Number(userId)) {
+  // else's requests just by changing the URL's role/userId. Uses
+  // rolesMatch() rather than strict equality because of the 'dtc'/
+  // 'dtccommittee' alias — see utils/workflow.js.
+  if (!rolesMatch(req.user.role, normalizedRole) || req.user.id !== Number(userId)) {
     return res.status(403).json({ success: false, message: 'You are not authorized to view these requests.' });
   }
 
@@ -544,7 +536,7 @@ router.put('/:id/approve', requireAuth, async (req, res) => {
     // CURRENT stage may approve it — e.g. only 'hod' can approve while it
     // sits at the HOD stage, only 'ceo' once it reaches CEO, etc.
     const approverRole = getApproverRoleForStage(fromStage);
-    if (!approverRole || req.user.role !== approverRole) {
+    if (!approverRole || !rolesMatch(req.user.role, approverRole)) {
       return res.status(403).json({ error: 'You are not authorized to approve this request at its current stage.' });
     }
 
@@ -710,7 +702,7 @@ router.put('/:id/reject', requireAuth, async (req, res) => {
     const fromStage = dr.CURRENT_STAGE;
 
     const approverRole = getApproverRoleForStage(fromStage);
-    if (!approverRole || req.user.role !== approverRole) {
+    if (!approverRole || !rolesMatch(req.user.role, approverRole)) {
       return res.status(403).json({ error: 'You are not authorized to reject this request at its current stage.' });
     }
 
@@ -865,7 +857,7 @@ router.put('/:id/initial-review-approve', requireAuth, async (req, res) => {
     }
 
     const approverRole = getApproverRoleForStage(dr.CURRENT_STAGE);
-    if (!approverRole || req.user.role !== approverRole) {
+    if (!approverRole || !rolesMatch(req.user.role, approverRole)) {
       return res.status(403).json({ error: 'You are not authorized to review this request.' });
     }
     if (dr.STATUS !== 'HOD_APPROVED' && dr.STATUS !== 'Pending') {

@@ -63,6 +63,22 @@ export function getApproverRoleForStage(stage) {
   return STAGE_APPROVER_ROLE[stage] || null;
 }
 
+// 'dtc' is a legacy short form of 'dtccommittee' that some real user
+// records genuinely use (see AdminDashboard.js's ORDERED_ROLES, which
+// lists both as separate valid values a user account can hold) — not a
+// typo, an actual second spelling of the same role. getApproverRoleForStage
+// and every URL/token role check always produce/expect the canonical
+// ROLES.DTC_COMMITTEE spelling, so a user stored as 'dtc' would otherwise
+// fail every one of these comparisons: viewing their own queue, approving,
+// rejecting, and reviewing at any DTC-controlled stage. Use this instead
+// of `===`/`!==` anywhere a stored user role is compared against a
+// required/expected role.
+export function rolesMatch(userRole, requiredRole) {
+  if (userRole === requiredRole) return true;
+  const DTC_ALIASES = ['dtc', ROLES.DTC_COMMITTEE];
+  return DTC_ALIASES.includes(userRole) && DTC_ALIASES.includes(requiredRole);
+}
+
 // Where an approval sends a request next — moved here from server.js
 // unchanged (same keys/values), so route files can import it instead of
 // server.js defining it locally.
