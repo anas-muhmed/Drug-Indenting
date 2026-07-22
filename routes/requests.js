@@ -1451,13 +1451,39 @@ router.put('/:id/resubmit-correction', requireRole(ROLES.PHARMACIST), async (req
 
     // Save corrected alternatives if provided
     if (alternatives && alternatives.length > 0) {
+      // Capture any existing Pharmacy Head negotiation data BEFORE deleting
+      // drug_alternatives below. drug_alternative_negotiations.alternative_id
+      // is ON DELETE CASCADE against drug_alternatives.alt_id, so without
+      // this, every pharmacist correction would silently and permanently
+      // destroy any rate/MRP/GST discount Pharmacy Head had already
+      // negotiated -- with no warning to anyone. Matched by normalized
+      // brand+manufacturer, since alt_id itself doesn't survive the
+      // delete+reinsert (the corrected list may reorder/add/remove rows).
+      const matchKey = (brand, mfr) => `${String(brand || '').trim().toLowerCase()}|${String(mfr || '').trim().toLowerCase()}`;
+      const priorNegRes = await conn.execute(
+        `SELECT da.brand_name, da.manufacturer,
+                dn.negotiated_mrp, dn.negotiated_rate, dn.negotiated_gst,
+                dn.negotiated_scheme_qty, dn.negotiated_scheme_offer,
+                dn.negotiated_net_rate, dn.negotiated_profit_margin,
+                dn.negotiated_absolute_margin, dn.negotiated_total_margin,
+                dn.negotiated_by, dn.negotiated_at, dn.negotiation_remarks
+           FROM drug_alternatives da
+           JOIN drug_alternative_negotiations dn ON dn.alternative_id = da.alt_id
+          WHERE da.request_id = :requestId`,
+        { requestId }
+      );
+      const priorNegByKey = new Map();
+      for (const row of priorNegRes.rows) {
+        priorNegByKey.set(matchKey(row.BRAND_NAME, row.MANUFACTURER), row);
+      }
+
       await conn.execute(
         `DELETE FROM drug_alternatives WHERE request_id = :requestId`,
         { requestId }
       );
       for (const alt of alternatives) {
         const d = computeAltDerived(alt);
-        await conn.execute(
+        const insertAltRes = await conn.execute(
           `INSERT INTO drug_alternatives (
              request_id, brand_name, manufacturer, marketer,
              mrp_per_pack, rate_per_pack, gst_percent,
@@ -1476,7 +1502,7 @@ router.put('/:id/resubmit-correction', requireRole(ROLES.PHARMACIST), async (req
              :stock, :purchase_quantity,
              :consultant, :sale_qty, :pack, :introduced_on,
              :comparison_type, :remark, :submitted_by
-           )`,
+           ) RETURNING alt_id INTO :altId`,
           {
             request_id: requestId,
             brand_name: alt.brand_name || null,
@@ -1502,9 +1528,43 @@ router.put('/:id/resubmit-correction', requireRole(ROLES.PHARMACIST), async (req
             introduced_on: alt.introduced_on || 'New Item',
             comparison_type: comparison_type || 'new_generic',
             remark: alt.remark || null,
-            submitted_by: performed_by
+            submitted_by: performed_by,
+            altId: { type: oracledb.NUMBER, dir: oracledb.BIND_OUT }
           }
         );
+
+        const newAltId = insertAltRes.outBinds.altId[0];
+        const priorNeg = priorNegByKey.get(matchKey(alt.brand_name, alt.manufacturer));
+        if (priorNeg) {
+          await conn.execute(
+            `INSERT INTO drug_alternative_negotiations (
+               alternative_id, negotiated_mrp, negotiated_rate, negotiated_gst,
+               negotiated_scheme_qty, negotiated_scheme_offer, negotiated_net_rate,
+               negotiated_profit_margin, negotiated_absolute_margin, negotiated_total_margin,
+               negotiated_by, negotiated_at, negotiation_remarks
+             ) VALUES (
+               :alternative_id, :negotiated_mrp, :negotiated_rate, :negotiated_gst,
+               :negotiated_scheme_qty, :negotiated_scheme_offer, :negotiated_net_rate,
+               :negotiated_profit_margin, :negotiated_absolute_margin, :negotiated_total_margin,
+               :negotiated_by, :negotiated_at, :negotiation_remarks
+             )`,
+            {
+              alternative_id: newAltId,
+              negotiated_mrp: priorNeg.NEGOTIATED_MRP,
+              negotiated_rate: priorNeg.NEGOTIATED_RATE,
+              negotiated_gst: priorNeg.NEGOTIATED_GST,
+              negotiated_scheme_qty: priorNeg.NEGOTIATED_SCHEME_QTY,
+              negotiated_scheme_offer: priorNeg.NEGOTIATED_SCHEME_OFFER,
+              negotiated_net_rate: priorNeg.NEGOTIATED_NET_RATE,
+              negotiated_profit_margin: priorNeg.NEGOTIATED_PROFIT_MARGIN,
+              negotiated_absolute_margin: priorNeg.NEGOTIATED_ABSOLUTE_MARGIN,
+              negotiated_total_margin: priorNeg.NEGOTIATED_TOTAL_MARGIN,
+              negotiated_by: priorNeg.NEGOTIATED_BY,
+              negotiated_at: priorNeg.NEGOTIATED_AT,
+              negotiation_remarks: priorNeg.NEGOTIATION_REMARKS
+            }
+          );
+        }
       }
     }
 
