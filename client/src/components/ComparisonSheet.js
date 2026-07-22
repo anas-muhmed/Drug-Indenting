@@ -681,6 +681,8 @@ export default function ComparisonSheet({
   onSubmit,
   onSaveDraft,
   submitting = false,
+  altErr = '',
+  correctionErr = '',
 
   // pharmacy_head mode
   onSave,
@@ -1776,6 +1778,30 @@ export default function ComparisonSheet({
           gap: '8px',
         }}>
           {draftAlert.type === 'success' ? '✅' : '❌'} {draftAlert.msg}
+        </div>
+      )}
+
+      {(altErr || correctionErr) && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 10000,
+          padding: '12px 24px',
+          borderRadius: '8px',
+          background: '#fee2e2',
+          color: '#991b1b',
+          border: '1.5px solid #f87171',
+          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)',
+          fontWeight: 600,
+          fontSize: '0.85rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          maxWidth: '90vw',
+        }}>
+          ❌ {altErr || correctionErr}
         </div>
       )}
 

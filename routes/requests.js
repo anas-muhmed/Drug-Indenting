@@ -11,7 +11,7 @@ import express from 'express';
 import oracledb from 'oracledb';
 import { getConn } from '../db/pool.js';
 import { requireAuth, requireRole } from '../middleware/requireAuth.js';
-import { NEXT_STAGE, STAGE_LABELS, getApproverRoleForStage, ROLES } from '../utils/workflow.js';
+import { NEXT_STAGE, STAGE_LABELS, getApproverRoleForStage, ROLES, rolesMatch } from '../utils/workflow.js';
 import { computeAltDerived, formatEffectiveEntryRow } from '../utils/pureHelpers.js';
 import { writeAudit, createNotification, saveApprovalRemarks } from '../utils/auditHelpers.js';
 
@@ -294,20 +294,12 @@ router.get('/:role/:userId', requireAuth, async (req, res) => {
   const { role, userId } = req.params;
   const normalizedRole = role?.toLowerCase();
 
-  // 'dtc' and 'dtccommittee' are the same real role stored two different
-  // ways (see AdminDashboard.js's ORDERED_ROLES, and the same alias
-  // already handled in routes/dtc.js and routes/analytics.js) -- some
-  // users are genuinely stored as the short form. The frontend always
-  // requests this route as '.../DTCCommittee/:userId', so without this,
-  // any DTC user actually stored as role='dtc' gets a 403 here even
-  // though they're legitimately the person they claim to be.
-  const isDtcAliasMatch = (req.user.role === 'dtc' && normalizedRole === ROLES.DTC_COMMITTEE) ||
-    (req.user.role === ROLES.DTC_COMMITTEE && normalizedRole === 'dtc');
-
   // A token can only be used to view that same person's own requests —
   // without this, any logged-in user's valid token could read anyone
-  // else's requests just by changing the URL's role/userId.
-  if ((req.user.role !== normalizedRole && !isDtcAliasMatch) || req.user.id !== Number(userId)) {
+  // else's requests just by changing the URL's role/userId. Uses
+  // rolesMatch() rather than strict equality because of the 'dtc'/
+  // 'dtccommittee' alias — see utils/workflow.js.
+  if (!rolesMatch(req.user.role, normalizedRole) || req.user.id !== Number(userId)) {
     return res.status(403).json({ success: false, message: 'You are not authorized to view these requests.' });
   }
 
@@ -403,7 +395,7 @@ router.get('/:role/:userId', requireAuth, async (req, res) => {
         LEFT JOIN users u_dtc ON u_dtc.user_id = dr.dtc_reviewed_by
         WHERE (
           dr.current_stage IN ('DTCCommittee','DTCFinal')
-          AND dr.status IN ('Pending', 'PHARMACY_HEAD_REJECTED_PENDING_DTC')
+          AND dr.status IN ('Pending', 'PHARMACY_HEAD_REJECTED_PENDING_DTC', 'PHARMACIST_REJECTED_PENDING_DTC')
         )
         OR (
           dr.current_stage = 'EmergencyDTC'
@@ -536,7 +528,7 @@ router.put('/:id/approve', requireAuth, async (req, res) => {
     if (!reqResult.rows.length) return res.status(404).json({ error: 'Request not found.' });
 
     const dr = reqResult.rows[0];
-    if (dr.STATUS !== 'Pending' && dr.STATUS !== 'EMERGENCY_PENDING_DTC' && dr.STATUS !== 'PENDING_HOD' && dr.STATUS !== 'HOD_APPROVED' && dr.STATUS !== 'PHARMACY_HEAD_REJECTED_PENDING_DTC') return res.status(400).json({ error: 'Request is no longer pending.' });
+    if (dr.STATUS !== 'Pending' && dr.STATUS !== 'EMERGENCY_PENDING_DTC' && dr.STATUS !== 'PENDING_HOD' && dr.STATUS !== 'HOD_APPROVED' && dr.STATUS !== 'PHARMACY_HEAD_REJECTED_PENDING_DTC' && dr.STATUS !== 'PHARMACIST_REJECTED_PENDING_DTC') return res.status(400).json({ error: 'Request is no longer pending.' });
 
     const fromStage = dr.CURRENT_STAGE;
 
@@ -544,7 +536,7 @@ router.put('/:id/approve', requireAuth, async (req, res) => {
     // CURRENT stage may approve it — e.g. only 'hod' can approve while it
     // sits at the HOD stage, only 'ceo' once it reaches CEO, etc.
     const approverRole = getApproverRoleForStage(fromStage);
-    if (!approverRole || req.user.role !== approverRole) {
+    if (!approverRole || !rolesMatch(req.user.role, approverRole)) {
       return res.status(403).json({ error: 'You are not authorized to approve this request at its current stage.' });
     }
 
@@ -705,12 +697,12 @@ router.put('/:id/reject', requireAuth, async (req, res) => {
     if (!reqResult.rows.length) return res.status(404).json({ error: 'Request not found.' });
 
     const dr = reqResult.rows[0];
-    if (dr.STATUS !== 'Pending' && dr.STATUS !== 'EMERGENCY_PENDING_DTC' && dr.STATUS !== 'PENDING_HOD' && dr.STATUS !== 'HOD_APPROVED' && dr.STATUS !== 'PHARMACY_HEAD_REJECTED_PENDING_DTC') return res.status(400).json({ error: 'Request is no longer pending.' });
+    if (dr.STATUS !== 'Pending' && dr.STATUS !== 'EMERGENCY_PENDING_DTC' && dr.STATUS !== 'PENDING_HOD' && dr.STATUS !== 'HOD_APPROVED' && dr.STATUS !== 'PHARMACY_HEAD_REJECTED_PENDING_DTC' && dr.STATUS !== 'PHARMACIST_REJECTED_PENDING_DTC') return res.status(400).json({ error: 'Request is no longer pending.' });
 
     const fromStage = dr.CURRENT_STAGE;
 
     const approverRole = getApproverRoleForStage(fromStage);
-    if (!approverRole || req.user.role !== approverRole) {
+    if (!approverRole || !rolesMatch(req.user.role, approverRole)) {
       return res.status(403).json({ error: 'You are not authorized to reject this request at its current stage.' });
     }
 
@@ -729,9 +721,14 @@ router.put('/:id/reject', requireAuth, async (req, res) => {
     let toStage = 'Rejected';
 
     if (fromStage === 'HOD') rejectStatus = 'HOD_REJECTED';
+    // Pharmacist and Pharmacy Head don't have real reject authority during
+    // this first pass -- only DTC's decision is final here (HOD is the only
+    // stage where a reject truly ends the request). A "reject" at either of
+    // these stages instead forwards to DTC for the actual decision, exactly
+    // like Pharmacy Head's case just below.
     else if (fromStage === 'PharmacistInitialReview') {
-      rejectStatus = 'Rejected';
-      toStage = 'Rejected';
+      rejectStatus = 'PHARMACIST_REJECTED_PENDING_DTC';
+      toStage = 'DTCCommittee';
     } else if (fromStage === 'PharmacyHead') {
       rejectStatus = 'PHARMACY_HEAD_REJECTED_PENDING_DTC';
       toStage = 'DTCCommittee';
@@ -754,14 +751,16 @@ router.put('/:id/reject', requireAuth, async (req, res) => {
 
     await writeAudit(conn, requestId, 'REJECTED', performed_by, fromStage, toStage, remarks);
 
-    if (fromStage === 'PharmacyHead') {
+    if (fromStage === 'PharmacyHead' || fromStage === 'PharmacistInitialReview') {
+      const rejectedByLabel = fromStage === 'PharmacyHead' ? 'Pharmacy Head' : 'Pharmacist';
       const dtcUsers = await conn.execute(`SELECT user_id FROM users WHERE UPPER(role) IN ('DTC', 'DTCCOMMITTEE') AND is_active = 1`);
       for (const row of dtcUsers.rows) {
         await createNotification(conn, row.USER_ID, requestId,
-          `Drug request #${requestId} (${dr.BRAND_NAME}) was rejected by Pharmacy Head and forwarded for your final review. Reason: ${remarks}`
+          `Drug request #${requestId} (${dr.BRAND_NAME}) was rejected by ${rejectedByLabel} and forwarded for your final review. Reason: ${remarks}`
         );
       }
-      // Notify Doctor & HOD neutrally
+      // Notify Doctor & HOD neutrally -- this isn't actually a final
+      // rejection, so don't tell them it was "rejected".
       await createNotification(conn, dr.DOCTOR_ID, requestId,
         `Your drug request #${requestId} (${dr.BRAND_NAME}) has been forwarded to DTC Committee for further review.`
       );
@@ -771,7 +770,8 @@ router.put('/:id/reject', requireAuth, async (req, res) => {
         );
       }
     } else {
-      // For all other stages (including PharmacistInitialReview, DTC, CEO) — notify the Doctor
+      // For all other stages (HOD, DTC, CEO) — a reject here is genuinely
+      // final, so notify the Doctor it was actually rejected.
       await createNotification(conn, dr.DOCTOR_ID, requestId,
         `Your drug request #${requestId} (${dr.BRAND_NAME}) has been rejected by ${STAGE_LABELS[fromStage] || fromStage}. Reason: ${remarks}`
       );
@@ -865,7 +865,7 @@ router.put('/:id/initial-review-approve', requireAuth, async (req, res) => {
     }
 
     const approverRole = getApproverRoleForStage(dr.CURRENT_STAGE);
-    if (!approverRole || req.user.role !== approverRole) {
+    if (!approverRole || !rolesMatch(req.user.role, approverRole)) {
       return res.status(403).json({ error: 'You are not authorized to review this request.' });
     }
     if (dr.STATUS !== 'HOD_APPROVED' && dr.STATUS !== 'Pending') {
@@ -1459,13 +1459,39 @@ router.put('/:id/resubmit-correction', requireRole(ROLES.PHARMACIST), async (req
 
     // Save corrected alternatives if provided
     if (alternatives && alternatives.length > 0) {
+      // Capture any existing Pharmacy Head negotiation data BEFORE deleting
+      // drug_alternatives below. drug_alternative_negotiations.alternative_id
+      // is ON DELETE CASCADE against drug_alternatives.alt_id, so without
+      // this, every pharmacist correction would silently and permanently
+      // destroy any rate/MRP/GST discount Pharmacy Head had already
+      // negotiated -- with no warning to anyone. Matched by normalized
+      // brand+manufacturer, since alt_id itself doesn't survive the
+      // delete+reinsert (the corrected list may reorder/add/remove rows).
+      const matchKey = (brand, mfr) => `${String(brand || '').trim().toLowerCase()}|${String(mfr || '').trim().toLowerCase()}`;
+      const priorNegRes = await conn.execute(
+        `SELECT da.brand_name, da.manufacturer,
+                dn.negotiated_mrp, dn.negotiated_rate, dn.negotiated_gst,
+                dn.negotiated_scheme_qty, dn.negotiated_scheme_offer,
+                dn.negotiated_net_rate, dn.negotiated_profit_margin,
+                dn.negotiated_absolute_margin, dn.negotiated_total_margin,
+                dn.negotiated_by, dn.negotiated_at, dn.negotiation_remarks
+           FROM drug_alternatives da
+           JOIN drug_alternative_negotiations dn ON dn.alternative_id = da.alt_id
+          WHERE da.request_id = :requestId`,
+        { requestId }
+      );
+      const priorNegByKey = new Map();
+      for (const row of priorNegRes.rows) {
+        priorNegByKey.set(matchKey(row.BRAND_NAME, row.MANUFACTURER), row);
+      }
+
       await conn.execute(
         `DELETE FROM drug_alternatives WHERE request_id = :requestId`,
         { requestId }
       );
       for (const alt of alternatives) {
         const d = computeAltDerived(alt);
-        await conn.execute(
+        const insertAltRes = await conn.execute(
           `INSERT INTO drug_alternatives (
              request_id, brand_name, manufacturer, marketer,
              mrp_per_pack, rate_per_pack, gst_percent,
@@ -1484,7 +1510,7 @@ router.put('/:id/resubmit-correction', requireRole(ROLES.PHARMACIST), async (req
              :stock, :purchase_quantity,
              :consultant, :sale_qty, :pack, :introduced_on,
              :comparison_type, :remark, :submitted_by
-           )`,
+           ) RETURNING alt_id INTO :altId`,
           {
             request_id: requestId,
             brand_name: alt.brand_name || null,
@@ -1510,9 +1536,43 @@ router.put('/:id/resubmit-correction', requireRole(ROLES.PHARMACIST), async (req
             introduced_on: alt.introduced_on || 'New Item',
             comparison_type: comparison_type || 'new_generic',
             remark: alt.remark || null,
-            submitted_by: performed_by
+            submitted_by: performed_by,
+            altId: { type: oracledb.NUMBER, dir: oracledb.BIND_OUT }
           }
         );
+
+        const newAltId = insertAltRes.outBinds.altId[0];
+        const priorNeg = priorNegByKey.get(matchKey(alt.brand_name, alt.manufacturer));
+        if (priorNeg) {
+          await conn.execute(
+            `INSERT INTO drug_alternative_negotiations (
+               alternative_id, negotiated_mrp, negotiated_rate, negotiated_gst,
+               negotiated_scheme_qty, negotiated_scheme_offer, negotiated_net_rate,
+               negotiated_profit_margin, negotiated_absolute_margin, negotiated_total_margin,
+               negotiated_by, negotiated_at, negotiation_remarks
+             ) VALUES (
+               :alternative_id, :negotiated_mrp, :negotiated_rate, :negotiated_gst,
+               :negotiated_scheme_qty, :negotiated_scheme_offer, :negotiated_net_rate,
+               :negotiated_profit_margin, :negotiated_absolute_margin, :negotiated_total_margin,
+               :negotiated_by, :negotiated_at, :negotiation_remarks
+             )`,
+            {
+              alternative_id: newAltId,
+              negotiated_mrp: priorNeg.NEGOTIATED_MRP,
+              negotiated_rate: priorNeg.NEGOTIATED_RATE,
+              negotiated_gst: priorNeg.NEGOTIATED_GST,
+              negotiated_scheme_qty: priorNeg.NEGOTIATED_SCHEME_QTY,
+              negotiated_scheme_offer: priorNeg.NEGOTIATED_SCHEME_OFFER,
+              negotiated_net_rate: priorNeg.NEGOTIATED_NET_RATE,
+              negotiated_profit_margin: priorNeg.NEGOTIATED_PROFIT_MARGIN,
+              negotiated_absolute_margin: priorNeg.NEGOTIATED_ABSOLUTE_MARGIN,
+              negotiated_total_margin: priorNeg.NEGOTIATED_TOTAL_MARGIN,
+              negotiated_by: priorNeg.NEGOTIATED_BY,
+              negotiated_at: priorNeg.NEGOTIATED_AT,
+              negotiation_remarks: priorNeg.NEGOTIATION_REMARKS
+            }
+          );
+        }
       }
     }
 

@@ -22,6 +22,7 @@ const STATUS_BADGE = {
   ORDER_PLACED: <span className="badge" style={{ background: '#dbeafe', color: '#1e40af' }}>📦 Order Placed</span>,
   APPROVED_PENDING_ORDER: <span className="badge badge-approved">✅ Approved (Pending Order)</span>,
   PHARMACY_HEAD_REJECTED_PENDING_DTC: <span className="badge badge-pending" style={{ background: '#fef2f2', color: '#991b1b', border: '1px solid #fca5a5' }}>⏳ Pending DTC (PH Rejected)</span>,
+  PHARMACIST_REJECTED_PENDING_DTC: <span className="badge badge-pending" style={{ background: '#fef2f2', color: '#991b1b', border: '1px solid #fca5a5' }}>⏳ Pending DTC (Pharmacist Rejected)</span>,
 };
 
 const STAGE_LABEL = {
@@ -765,7 +766,7 @@ export default function Dashboard({ role, userId, refresh }) {
                         <td>{r.DOCTOR_NAME || '—'}</td>
                         <td>
                           {
-                            (role === 'DOCTOR' || role === 'HOD' || role === 'Doctor' || role === 'HOD') && r.STATUS === 'PHARMACY_HEAD_REJECTED_PENDING_DTC'
+                            (role === 'DOCTOR' || role === 'HOD' || role === 'Doctor' || role === 'HOD') && (r.STATUS === 'PHARMACY_HEAD_REJECTED_PENDING_DTC' || r.STATUS === 'PHARMACIST_REJECTED_PENDING_DTC')
                               ? <span className="badge badge-pending" style={{ background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd' }}>⏳ Under DTC Review</span>
                               : (STATUS_BADGE[r.STATUS] || r.STATUS)
                           }

@@ -595,12 +595,14 @@ export default function DTCCommitteeTab({ currentUser, onNotificationsRead }) {
         </thead>
         <tbody>
           {rows.map(r => {
-            const isRejected = r.STATUS === "PHARMACY_HEAD_REJECTED_PENDING_DTC"; return (
+            const isRejectedByPH = r.STATUS === "PHARMACY_HEAD_REJECTED_PENDING_DTC";
+            const isRejectedByPharmacist = r.STATUS === "PHARMACIST_REJECTED_PENDING_DTC";
+            const isRejected = isRejectedByPH || isRejectedByPharmacist; return (
               <tr key={r.REQUEST_ID} style={isRejected ? { background: "#fef2f2", borderLeft: "4px solid #dc2626" } : {}}>
                 <td className="sticky-col" style={{ fontWeight: 700, color: showEmergencyBadge ? '#dc2626' : 'var(--primary-light)' }}>
                   {showEmergencyBadge ? '🚨 ' : ''}#{r.REQUEST_ID}
                 </td>
-                <td style={{ fontWeight: 600 }}>{r.BRAND_NAME}{isRejected && <span style={{ display: "block", fontSize: "0.7rem", color: "#b91c1c", marginTop: 2, fontWeight: 700 }}>⚠ Rejected by PH</span>}</td>
+                <td style={{ fontWeight: 600 }}>{r.BRAND_NAME}{isRejected && <span style={{ display: "block", fontSize: "0.7rem", color: "#b91c1c", marginTop: 2, fontWeight: 700 }}>⚠ Rejected by {isRejectedByPH ? 'PH' : 'Pharmacist'}</span>}</td>
                 <td style={{ color: 'var(--text-muted)' }}>
                   {r.GENERIC_NAME}
                   <button
