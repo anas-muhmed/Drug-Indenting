@@ -35,10 +35,19 @@ router.get('/:role', async (req, res) => {
       return res.status(403).json({ error: 'Only an admin can view this dashboard.' });
     }
   } else {
+    // 'dtc' and 'dtccommittee' are the same real role stored two
+    // different ways (see AdminDashboard.js's ORDERED_ROLES, and the
+    // same alias handled in routes/dtc.js, routes/analytics.js, and
+    // routes/requests.js's /:role/:userId) -- not currently reachable
+    // via this route (no caller passes 'dtccommittee' here yet), but
+    // fixed for consistency so it doesn't bite later.
+    const isDtcAliasMatch = (decoded.role === 'dtc' && normalizedRole === ROLES.DTC_COMMITTEE) ||
+      (decoded.role === ROLES.DTC_COMMITTEE && normalizedRole === 'dtc');
+
     // Role-level dashboards (pharmacyhead/pharmacist/dtccommittee/ceo) just
     // require your token's role to match; doctor/hod additionally require
     // the userId query param to be you, since those are personal views.
-    if (decoded.type !== 'user' || decoded.role !== normalizedRole) {
+    if (decoded.type !== 'user' || (decoded.role !== normalizedRole && !isDtcAliasMatch)) {
       return res.status(403).json({ error: 'You are not authorized to view this dashboard.' });
     }
     if ((normalizedRole === ROLES.DOCTOR || normalizedRole === ROLES.HOD) && decoded.id !== Number(userId)) {

@@ -294,10 +294,20 @@ router.get('/:role/:userId', requireAuth, async (req, res) => {
   const { role, userId } = req.params;
   const normalizedRole = role?.toLowerCase();
 
+  // 'dtc' and 'dtccommittee' are the same real role stored two different
+  // ways (see AdminDashboard.js's ORDERED_ROLES, and the same alias
+  // already handled in routes/dtc.js and routes/analytics.js) -- some
+  // users are genuinely stored as the short form. The frontend always
+  // requests this route as '.../DTCCommittee/:userId', so without this,
+  // any DTC user actually stored as role='dtc' gets a 403 here even
+  // though they're legitimately the person they claim to be.
+  const isDtcAliasMatch = (req.user.role === 'dtc' && normalizedRole === ROLES.DTC_COMMITTEE) ||
+    (req.user.role === ROLES.DTC_COMMITTEE && normalizedRole === 'dtc');
+
   // A token can only be used to view that same person's own requests —
   // without this, any logged-in user's valid token could read anyone
   // else's requests just by changing the URL's role/userId.
-  if (req.user.role !== normalizedRole || req.user.id !== Number(userId)) {
+  if ((req.user.role !== normalizedRole && !isDtcAliasMatch) || req.user.id !== Number(userId)) {
     return res.status(403).json({ success: false, message: 'You are not authorized to view these requests.' });
   }
 
