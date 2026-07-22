@@ -25,3 +25,17 @@ export async function initDB() {
 export async function getConn() {
   return pool.getConnection();
 }
+
+export function isPoolReady() {
+  return !!pool;
+}
+
+// Drains in-flight connections (up to 10s) then closes the pool -- used on
+// graceful shutdown so in-progress requests get a chance to finish instead
+// of having their DB connection yanked out from under them.
+export async function closePool() {
+  if (pool) {
+    await pool.close(10);
+    pool = undefined;
+  }
+}

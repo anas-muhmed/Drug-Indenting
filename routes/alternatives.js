@@ -8,7 +8,7 @@ import oracledb from 'oracledb';
 import { getConn } from '../db/pool.js';
 import { requireAuth, requireRole } from '../middleware/requireAuth.js';
 import { computeAltDerived, formatEffectiveEntryRow } from '../utils/pureHelpers.js';
-import { writeAudit, createNotification } from '../utils/auditHelpers.js';
+import { writeAudit, createNotificationsBulk } from '../utils/auditHelpers.js';
 import { ROLES } from '../utils/workflow.js';
 
 const router = express.Router();
@@ -120,11 +120,9 @@ router.post('/alternatives/:requestId', requireRole(ROLES.PHARMACIST), async (re
     const phUsers = await conn.execute(
       `SELECT user_id FROM users WHERE UPPER(role) = 'PHARMACYHEAD' AND is_active = 1`
     );
-    for (const row of phUsers.rows) {
-      await createNotification(conn, row.USER_ID, requestId,
-        `Pharmacist submitted ${alternatives.length} alternatives for request #${requestId} (${dr.BRAND_NAME}). Please review.`
-      );
-    }
+    await createNotificationsBulk(conn, phUsers.rows.map(r => r.USER_ID), requestId,
+      `Pharmacist submitted ${alternatives.length} alternatives for request #${requestId} (${dr.BRAND_NAME}). Please review.`
+    );
 
     // Clean up any saved draft for this request (submission is final)
     await conn.execute(
@@ -282,14 +280,12 @@ router.post('/pharmacist/correction-submit/:requestId', requireRole(ROLES.PHARMA
     const phUsers = await conn.execute(
       `SELECT user_id FROM users WHERE UPPER(role) = 'PHARMACYHEAD' AND is_active = 1`
     );
-    for (const row of phUsers.rows) {
-      await createNotification(
-        conn,
-        row.USER_ID,
-        requestId,
-        `✅ Corrected comparison sheet for Request #${requestId} (${dr.BRAND_NAME}) has been resubmitted by Pharmacist. Please review.`
-      );
-    }
+    await createNotificationsBulk(
+      conn,
+      phUsers.rows.map(r => r.USER_ID),
+      requestId,
+      `✅ Corrected comparison sheet for Request #${requestId} (${dr.BRAND_NAME}) has been resubmitted by Pharmacist. Please review.`
+    );
 
     // Clean up analysis drafts
     await conn.execute(

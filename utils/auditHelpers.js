@@ -11,6 +11,20 @@ export async function createNotification(conn, userId, requestId, message) {
   );
 }
 
+// Same insert as createNotification, but for every recipient in one round
+// trip via executeMany() instead of one execute() call per recipient --
+// notification fan-out to a whole role (every DTC member, every pharmacist,
+// etc.) was previously N sequential round trips for N recipients.
+export async function createNotificationsBulk(conn, userIds, requestId, message) {
+  if (!userIds || userIds.length === 0) return;
+  const binds = userIds.map(userId => ({ userId, requestId, message }));
+  await conn.executeMany(
+    `INSERT INTO notifications (user_id, request_id, message)
+     VALUES (:userId, :requestId, :message)`,
+    binds
+  );
+}
+
 export async function writeAudit(conn, requestId, action, performedBy, fromStage, toStage, remarks) {
   await conn.execute(
     `INSERT INTO audit_logs (request_id, action, performed_by, from_stage, to_stage, remarks)

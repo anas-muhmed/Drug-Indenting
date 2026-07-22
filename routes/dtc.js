@@ -5,7 +5,7 @@
 import express from 'express';
 import { getConn } from '../db/pool.js';
 import { requireRole } from '../middleware/requireAuth.js';
-import { writeAudit, createNotification, saveApprovalRemarks } from '../utils/auditHelpers.js';
+import { writeAudit, createNotification, createNotificationsBulk, saveApprovalRemarks } from '../utils/auditHelpers.js';
 import { ROLES } from '../utils/workflow.js';
 
 const router = express.Router();
@@ -377,11 +377,9 @@ router.post('/final-select/:requestId', requireRole('dtc', ROLES.DTC_COMMITTEE),
     const ceoUsers = await conn.execute(
       `SELECT user_id FROM users WHERE UPPER(role) = 'CEO' AND is_active = 1`
     );
-    for (const row of ceoUsers.rows) {
-      await createNotification(conn, row.USER_ID, requestId,
-        `🏛️ Drug request #${requestId} (${dr.BRAND_NAME}) — DTC has reviewed and forwarded to CEO. Selected drug(s): ${selectedBrandsList}. Awaiting your approval.`
-      );
-    }
+    await createNotificationsBulk(conn, ceoUsers.rows.map(r => r.USER_ID), requestId,
+      `🏛️ Drug request #${requestId} (${dr.BRAND_NAME}) — DTC has reviewed and forwarded to CEO. Selected drug(s): ${selectedBrandsList}. Awaiting your approval.`
+    );
     // Notify doctor
     await createNotification(conn, dr.DOCTOR_ID, requestId,
       `Your drug request #${requestId} has been reviewed by DTC. Selected drug(s): ${selectedBrandsList}. Forwarded to CEO for final approval.`
