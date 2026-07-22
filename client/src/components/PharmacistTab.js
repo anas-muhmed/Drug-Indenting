@@ -871,6 +871,12 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
   };
   const [effectiveDrugEntries, setEffectiveDrugEntries] = useState([]);
   const [selectedIrDrugs, setSelectedIrDrugs] = useState([]);
+  // Tracks which request's "Search Existing Drugs" results are currently
+  // loaded into effectiveDrugEntries, separately from irSelected (which
+  // also controls whether the whole Approve/Reject panel is showing) --
+  // lets openIrPanel tell "search already ran for this row" apart from
+  // "switching to a different row", without popping the panel open early.
+  const [irSearchActiveForRequestId, setIrSearchActiveForRequestId] = useState(null);
 
   const getRowKey = (row) => {
     return [
@@ -1085,19 +1091,17 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
     }
   };
 
-  const openIrPanel = (req, act) => {
-    setIrSelected(req);
-    setIrAction(act);
-    setIrErr('');
-    setSelectedIrDrugs([]);
-    const baseDate = req.EFFECTIVE_CREATED_AT || req.CREATED_AT;
-    let local = '';
-    if (baseDate) {
-      setIrEffectiveDate('');
-    } else {
-      setIrEffectiveDate('');
-    }
-    setIrRemarks('');
+  // Resets effectiveDrugEntries to request `req`'s own saved entries (or a
+  // blank placeholder), but ONLY if `req` isn't already the request whose
+  // data is currently loaded -- shared by both openIrPanel (Add/Approve)
+  // and the "Search Existing Drugs" button, so that whichever one the
+  // pharmacist uses first for a given row, the other doesn't wipe out its
+  // work when used second for that SAME row. Switching to a genuinely
+  // different row still resets normally either way.
+  const syncEffectiveEntriesForRequest = (req) => {
+    const alreadyActiveForThisRequest = irSearchActiveForRequestId === req.REQUEST_ID;
+    setIrSearchActiveForRequestId(req.REQUEST_ID);
+    if (alreadyActiveForThisRequest) return;
 
     if (req.effective_drug_entries && req.effective_drug_entries.length > 0) {
       const mapped = req.effective_drug_entries.map(e => {
@@ -1123,6 +1127,23 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
         }
       ]);
     }
+  };
+
+  const openIrPanel = (req, act) => {
+    setIrSelected(req);
+    setIrAction(act);
+    setIrErr('');
+    setSelectedIrDrugs([]);
+    const baseDate = req.EFFECTIVE_CREATED_AT || req.CREATED_AT;
+    let local = '';
+    if (baseDate) {
+      setIrEffectiveDate('');
+    } else {
+      setIrEffectiveDate('');
+    }
+    setIrRemarks('');
+
+    syncEffectiveEntriesForRequest(req);
   };
 
   const closeIrPanel = () => {
@@ -1354,15 +1375,15 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                       </td>
                       <td style={{ color: 'var(--text-muted)' }}>
                         {r.GENERIC_NAME}
-                        {/* <button
+                        <button
                           type="button"
                           className="btn btn-ghost btn-sm"
                           style={{ marginTop: 4, borderColor: 'var(--primary)', color: 'var(--primary)' }}
-                          onClick={() => getIrGenericDetails(r.GENERIC_NAME)}
+                          onClick={() => { syncEffectiveEntriesForRequest(r); getIrGenericDetails(r.GENERIC_NAME); }}
                           disabled={irGenericLoading}
                         >
                           {irGenericLoading ? <><div className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> Fetching…</> : 'Search Existing Drugs'}
-                        </button> */}
+                        </button>
                       </td>
                       <td>{r.CATEGORY}</td>
                       <td><span className="badge badge-info">{r.REQUEST_TYPE}</span></td>
