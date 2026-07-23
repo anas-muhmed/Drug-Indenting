@@ -698,6 +698,14 @@ export default function PharmacyHeadTab({ currentUser, onNotificationsRead }) {
                       </td>
                     </tr>
                   ))}
+                  {selected.REQUEST_SOURCE_TYPE !== 'NON_PROMOTIONAL' && (
+                    [['Med Rep Name', 'MED_REP_NAME'], ['Med Rep Email', 'MED_REP_EMAIL'], ['Med Rep Phone', 'MED_REP_PHONE']].map(([label, key]) => (
+                      <tr key={key} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <td style={{ padding: '9px 12px', color: 'var(--text-muted)', width: '42%', fontWeight: 600, fontSize: '0.8rem' }}>{label}</td>
+                        <td style={{ padding: '9px 12px', color: 'var(--text)' }}>{selected[key] || '\u2014'}</td>
+                      </tr>
+                    ))
+                  )}
                   <tr style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={{ padding: '9px 12px', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.8rem', verticalAlign: 'top' }}>Clinical Justification</td>
                     <td style={{ padding: '9px 12px', color: 'var(--text)', lineHeight: 1.6 }}>{selected.CLINICAL_JUSTIFICATION}</td>

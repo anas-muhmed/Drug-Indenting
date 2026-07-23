@@ -3516,6 +3516,22 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                           </tr>
                         ))}
                         <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                          <td style={{ padding: '8px 4px', width: '35%', color: 'var(--text-muted)' }}>Request Source</td>
+                          <td style={{ padding: '8px 4px', fontWeight: 500 }}>
+                            {viewReq.REQUEST_SOURCE_TYPE === 'NON_PROMOTIONAL'
+                              ? <span className="badge badge-non-promotional">Clinician initiated</span>
+                              : <span className="badge badge-promotional">Via Medical Representative</span>}
+                          </td>
+                        </tr>
+                        {viewReq.REQUEST_SOURCE_TYPE !== 'NON_PROMOTIONAL' && (
+                          [['Med Rep Name', 'MED_REP_NAME'], ['Med Rep Email', 'MED_REP_EMAIL'], ['Med Rep Phone', 'MED_REP_PHONE']].map(([l, k]) => (
+                            <tr key={k} style={{ borderBottom: '1px solid var(--border)' }}>
+                              <td style={{ padding: '8px 4px', width: '35%', color: 'var(--text-muted)' }}>{l}</td>
+                              <td style={{ padding: '8px 4px', fontWeight: 500 }}>{viewReq[k] || '—'}</td>
+                            </tr>
+                          ))
+                        )}
+                        <tr style={{ borderBottom: '1px solid var(--border)' }}>
                           <td style={{ padding: '8px 4px', width: '35%', color: 'var(--text-muted)' }}>Creator</td>
                           <td style={{ padding: '8px 4px', fontWeight: 500 }}>
                             {viewReq.DOCTOR_NAME} ({viewReq.CREATED_BY_ROLE || 'Doctor'} - {viewReq.DOCTOR_DEPT || ''})

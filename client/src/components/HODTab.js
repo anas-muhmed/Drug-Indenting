@@ -711,6 +711,11 @@ export default function HODTab({ currentUser, onNotificationsRead }) {
                     ['Submitted Role', selected.CREATED_BY_ROLE || 'Doctor'],
                     ['Submitted On', selected.CREATED_AT ? new Date(selected.CREATED_AT).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'],
                     ['Source Type', selected.REQUEST_SOURCE_TYPE === 'NON_PROMOTIONAL' ? 'Clinician initiated' : 'Via Medical Representative'],
+                    ...(selected.REQUEST_SOURCE_TYPE !== 'NON_PROMOTIONAL' ? [
+                      ['Med Rep Name', selected.MED_REP_NAME || '—'],
+                      ['Med Rep Email', selected.MED_REP_EMAIL || '—'],
+                      ['Med Rep Phone', selected.MED_REP_PHONE || '—'],
+                    ] : []),
                     ['Formulary Type', selected.FORMULARY_REQUEST_TYPE === 'FORMULARY' ? 'Formulary Drug Addition Request' : selected.FORMULARY_REQUEST_TYPE === 'NON_FORMULARY' ? 'Non-Formulary Drug Request' : '—'],
                     ['Request Status', selected.STATUS],
                   ].map(([label, val], idx) => (
