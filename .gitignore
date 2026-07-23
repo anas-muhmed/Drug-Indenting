@@ -104,3 +104,11 @@ Desktop.ini
 
 # Personal work diary — local notes only, not for the repo
 diary/
+
+# Personal AI-assistant working notes — same reasoning as the diary above:
+# this is real production code for a real team, so this stuff stays local
+# and personal, never in the shared repo/remote, on any branch, ever.
+AGENTS.md
+.github/copilot-instructions.md
+.github/instructions/
+.github/prompts/
