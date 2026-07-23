@@ -39,6 +39,13 @@ import requestsRouter from './routes/requests.js';
 import miscRouter from './routes/misc.js';
 
 const app = express();
+// Trust exactly one hop of reverse proxy (CRA's dev proxy today, nginx
+// once that's in place) so express-rate-limit can safely read the real
+// client IP from X-Forwarded-For instead of throwing
+// ERR_ERL_UNEXPECTED_X_FORWARDED_FOR. `true` would trust the whole
+// chain blindly, which lets a client spoof X-Forwarded-For to dodge the
+// rate limit -- `1` only trusts the immediate proxy in front of us.
+app.set('trust proxy', 1);
 // contentSecurityPolicy off for now: helmet's default policy is strict
 // enough to risk silently breaking the built React frontend (inline
 // styles, resource loading) in ways that wouldn't show up in these
