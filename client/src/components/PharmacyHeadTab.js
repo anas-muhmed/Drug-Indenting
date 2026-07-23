@@ -24,11 +24,111 @@ const DETAIL_ROWS = [
   ['Effective Created Date', 'EFFECTIVE_CREATED_AT'],
 ];
 
+// Same unified review-timeline logic as DTCCommitteeTab.js/CEOTab.js --
+// merges audit-log rows with the per-stage remarks columns on the request
+// itself, so HOD's (and every other stage's) approval remarks are visible
+// here too, not just at DTC/CEO.
+const getOrderedRemarks = (selected, auditLogs) => {
+  if (!selected) return [];
+  const seen = new Set();
+  const unified = [];
+
+  const getStage = (role, fromStage) => {
+    const r = (role || '').toUpperCase();
+    const f = (fromStage || '').toUpperCase();
+    if (r === 'DOCTOR') return 'Doctor';
+    if (r === 'HOD') return 'HOD';
+    if (r === 'PHARMACIST') return 'Pharmacist';
+    if (r === 'PHARMACYHEAD' || r === 'PHARMACY HEAD') return 'Pharmacy Head';
+    if (r === 'DTC' || r === 'DTCCOMMITTEE') return 'DTC';
+    if (r === 'CEO') return 'CEO';
+
+    if (f.includes('HOD')) return 'HOD';
+    if (f.includes('PHARMACIST')) return 'Pharmacist';
+    if (f.includes('PHARMACYHEAD') || f.includes('PHARMACY HEAD')) return 'Pharmacy Head';
+    if (f.includes('DTC')) return 'DTC';
+    if (f.includes('CEO')) return 'CEO';
+    return null;
+  };
+
+  if (auditLogs && auditLogs.length > 0) {
+    auditLogs.forEach(row => {
+      const text = (row.REMARKS || row.remarks || '').trim();
+      if (!text) return;
+
+      if (text.startsWith('Source: ') && text.includes('Class: ')) return;
+      if (text === 'Drug order placed') return;
+      if (text === 'Pharmacist direct request submitted.') return;
+
+      const stage = getStage(row.PERFORMER_ROLE || row.performer_role, row.FROM_STAGE || row.from_stage);
+      if (!stage) return;
+
+      const key = `${stage}:${text.toLowerCase()}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        unified.push({
+          stage,
+          author: row.PERFORMER_NAME || row.performer_name || stage,
+          text,
+          timestamp: row.LOGGED_AT || row.logged_at
+        });
+      }
+    });
+  }
+
+  const staticRemarks = [
+    { stage: 'Doctor', author: selected.doctor_name || 'Doctor', text: selected.CLINICAL_JUSTIFICATION, timestamp: selected.CREATED_AT },
+    { stage: 'HOD', author: 'HOD', text: selected.HOD_REMARKS, timestamp: selected.HOD_ACTION_TIMESTAMP },
+    { stage: 'Pharmacist', author: 'Pharmacist', text: selected.PHARMACIST_REMARKS, timestamp: null },
+    { stage: 'Pharmacy Head', author: 'Pharmacy Head', text: selected.PH_REMARKS, timestamp: null },
+    { stage: 'Pharmacy Head', author: 'Pharmacy Head', text: selected.PH_REVIEW_REMARKS, timestamp: null },
+    { stage: 'Pharmacy Head', author: 'Pharmacy Head', text: selected.PH_REVIEW2_REMARKS || selected.PH_REMARKS2, timestamp: null },
+    { stage: 'DTC', author: 'DTC Committee', text: selected.DTC_REMARKS, timestamp: null },
+    { stage: 'DTC', author: 'DTC Committee', text: selected.DTC_FINAL_REMARKS, timestamp: null },
+    { stage: 'CEO', author: 'CEO', text: selected.CEO_REMARKS, timestamp: null }
+  ];
+
+  staticRemarks.forEach(item => {
+    const text = (item.text || '').trim();
+    if (!text) return;
+
+    const key = `${item.stage}:${text.toLowerCase()}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      unified.push(item);
+    }
+  });
+
+  const STAGE_ORDER = {
+    'Doctor': 0,
+    'HOD': 1,
+    'Pharmacist': 2,
+    'Pharmacy Head': 3,
+    'DTC': 4,
+    'CEO': 5
+  };
+
+  unified.sort((a, b) => {
+    const orderA = STAGE_ORDER[a.stage];
+    const orderB = STAGE_ORDER[b.stage];
+    if (orderA !== orderB) {
+      return orderA - orderB;
+    }
+    if (a.timestamp && b.timestamp) {
+      return new Date(a.timestamp) - new Date(b.timestamp);
+    }
+    return 0;
+  });
+
+  return unified;
+};
+
 export default function PharmacyHeadTab({ currentUser, onNotificationsRead }) {
   const [view, setView] = useState('pending');
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
+  const [auditLogs, setAuditLogs] = useState([]);
   const [action, setAction] = useState('');
   // Approve-only optional remark
   const [approveRemarks, setApproveRemarks] = useState('');
@@ -145,6 +245,10 @@ export default function PharmacyHeadTab({ currentUser, onNotificationsRead }) {
     setApproveRemarks('');
     setSelectedReasons([]); setCustomRemarks(['']); setRemarkErr('');
     setEffectiveDrugEntries(req.effective_drug_entries || []);
+    setAuditLogs([]);
+    axios.get(`${API}/audit/${req.REQUEST_ID}`)
+      .then(r => setAuditLogs(r.data || []))
+      .catch(err => { console.error('Failed to load audit logs:', err); setAuditLogs([]); });
     const isOrderStage = req.STATUS === 'APPROVED_PENDING_ORDER' || req.STATUS === 'ORDER_PLACED' || req.STATUS === 'EMERGENCY_APPROVED';
     // Load alternatives + existing generic data if this is a review-2 request or order stage
     if (req.CURRENT_STAGE === 'PharmacyHeadReview2' || isOrderStage) {
@@ -234,6 +338,85 @@ export default function PharmacyHeadTab({ currentUser, onNotificationsRead }) {
     setPhRemarksEdit('');
     setEffectiveDrugEntries([]);
   };
+
+  const renderWorkflowRemarks = () => {
+    const orderedRemarks = getOrderedRemarks(selected, auditLogs);
+    if (orderedRemarks.length === 0) return null;
+
+    const getStageColor = (stage) => {
+      switch (stage) {
+        case 'Doctor': return '#2563eb';
+        case 'HOD': return '#0d9488';
+        case 'Pharmacist': return '#d97706';
+        case 'Pharmacy Head': return '#7c3aed';
+        case 'DTC': return '#db2777';
+        case 'CEO': return '#16a34a';
+        default: return '#64748b';
+      }
+    };
+
+    const getStageBgColor = (stage) => {
+      switch (stage) {
+        case 'Doctor': return '#dbeafe';
+        case 'HOD': return '#ccfbf1';
+        case 'Pharmacist': return '#fef3c7';
+        case 'Pharmacy Head': return '#ede9fe';
+        case 'DTC': return '#fce7f3';
+        case 'CEO': return '#dcfce7';
+        default: return '#f1f5f9';
+      }
+    };
+
+    return (
+      <div style={{ marginTop: 24, borderTop: '1px solid var(--border)', paddingTop: 20 }}>
+        <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span>💬</span> Workflow Remarks History
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {orderedRemarks.map((rem, idx) => (
+            <div key={idx} style={{
+              background: 'var(--card-bg, #fff)',
+              border: '1px solid var(--border)',
+              borderLeft: `4px solid ${getStageColor(rem.stage)}`,
+              borderRadius: '8px',
+              padding: '12px 16px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8, marginBottom: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    background: getStageBgColor(rem.stage),
+                    color: getStageColor(rem.stage),
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    textTransform: 'uppercase'
+                  }}>
+                    {rem.stage}
+                  </span>
+                  {rem.author && (
+                    <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text)' }}>
+                      {rem.author}
+                    </span>
+                  )}
+                </div>
+                {rem.timestamp && (
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    {new Date(rem.timestamp).toLocaleString('en-IN')}
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-dark, #334155)', lineHeight: 1.5, whiteSpace: 'pre-line' }}>
+                {rem.text}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   const closePhSheet = () => setShowPhSheet(false);
 
   const savePhComparison = async () => {
@@ -892,6 +1075,7 @@ export default function PharmacyHeadTab({ currentUser, onNotificationsRead }) {
                   </div>
                 );
               })()}
+              {renderWorkflowRemarks()}
             </div>
             <div className="modal-footer" style={{ borderTop: '1px solid var(--border)', margin: 0, padding: '14px 24px' }}>
               <button className="btn btn-ghost" onClick={closeModal}>Close</button>
