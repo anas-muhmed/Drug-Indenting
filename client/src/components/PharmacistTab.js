@@ -4192,6 +4192,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
           correctionErr={altErr}
           onAddAlt={addAlt}
           onBack={() => { setShowComparisonSheet(false); if (isCorrectionMode) setView('corrections'); }}
+          onDrugInfoSaved={(fields) => setAnalysisReq(prev => prev ? { ...prev, ...fields } : prev)}
         />
       )}
 

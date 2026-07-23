@@ -970,6 +970,50 @@ router.put('/:id/initial-review-approve', requireAuth, async (req, res) => {
   }
 });
 
+// Lets Pharmacist/Pharmacy Head correct the generic name, dose/strength,
+// and dosage form directly from the Comparison Sheet header. Every later
+// stage (DTC, CEO, etc.) reads this same drug_requests row (SELECT dr.*),
+// so a correction made here is automatically visible everywhere
+// downstream -- no separate propagation needed, one source of truth.
+router.put('/:id/drug-info', requireRole(ROLES.PHARMACIST, ROLES.PHARMACY_HEAD), async (req, res) => {
+  const conn = await getConn();
+  try {
+    const requestId = parseInt(req.params.id);
+    const { generic_name, dose_strength, dosage_form } = req.body;
+
+    const genericName = typeof generic_name === 'string' && generic_name.trim() !== '' ? generic_name.trim() : null;
+    const doseStrength = typeof dose_strength === 'string' && dose_strength.trim() !== '' ? dose_strength.trim() : null;
+    const dosageForm = typeof dosage_form === 'string' && dosage_form.trim() !== '' ? dosage_form.trim() : null;
+
+    if (!genericName && !doseStrength && !dosageForm) {
+      return res.status(400).json({ error: 'At least one of generic_name, dose_strength, dosage_form is required.' });
+    }
+
+    const reqResult = await conn.execute(
+      `SELECT request_id FROM drug_requests WHERE request_id = :requestId`,
+      { requestId }
+    );
+    if (!reqResult.rows.length) return res.status(404).json({ error: 'Request not found.' });
+
+    await conn.execute(
+      `UPDATE drug_requests
+         SET generic_name  = COALESCE(:genericName, generic_name),
+             dose_strength = COALESCE(:doseStrength, dose_strength),
+             dosage_form   = COALESCE(:dosageForm, dosage_form),
+             updated_at    = CURRENT_TIMESTAMP
+       WHERE request_id = :requestId`,
+      { genericName, doseStrength, dosageForm, requestId }
+    );
+
+    res.json({ message: 'Drug info updated.', generic_name: genericName, dose_strength: doseStrength, dosage_form: dosageForm });
+  } catch (err) {
+    console.error('PUT /:id/drug-info error:', err);
+    res.status(500).json({ error: 'Internal server error.', detail: err.message });
+  } finally {
+    await conn.close();
+  }
+});
+
 router.post('/pharmacist', requireRole(ROLES.PHARMACIST), async (req, res) => {
   const conn = await getConn();
   try {
