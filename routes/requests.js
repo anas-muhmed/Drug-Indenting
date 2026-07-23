@@ -1073,7 +1073,7 @@ router.post('/emergency', requireAuth, async (req, res) => {
     doctor_id, request_type, category, brand_name, generic_name,
     dose_strength, dosage_form, manufacturer, marketer,
     existing_brands, clinical_justification, ai_content,
-    request_source_type
+    request_source_type, med_rep_name, med_rep_email, med_rep_phone
   } = req.body;
 
   if (![ROLES.DOCTOR, ROLES.HOD].includes(req.user.role)) {
@@ -1118,6 +1118,27 @@ router.post('/emergency', requireAuth, async (req, res) => {
     }
 
     const sourceType = (request_source_type || 'NON_PROMOTIONAL').toUpperCase();
+    if (!['PROMOTIONAL', 'NON_PROMOTIONAL'].includes(sourceType)) {
+      return res.status(400).json({ error: 'request_source_type must be PROMOTIONAL or NON_PROMOTIONAL.' });
+    }
+    const isPromotional = sourceType === 'PROMOTIONAL';
+
+    // Same accountability rule as the main POST /api/requests endpoint --
+    // "emergency" only shortens the approval pipeline (skips straight to
+    // EmergencyDTC), it does not exempt a promotional-sourced request from
+    // disclosing who's promoting the drug. This endpoint used to skip this
+    // check entirely and hardcode med_rep_* to NULL regardless of source
+    // type -- confirmed live against the real database that a request
+    // could reach EmergencyDTC tagged PROMOTIONAL with zero med-rep
+    // disclosure before this fix.
+    if (isPromotional) {
+      const repRequired = { med_rep_name, med_rep_email, med_rep_phone };
+      for (const [key, val] of Object.entries(repRequired)) {
+        if (!val || String(val).trim() === '') {
+          return res.status(400).json({ error: `Field '${key}' is required for Promotional requests.` });
+        }
+      }
+    }
 
     // Fetch creator role & department
     const creatorRes = await conn.execute(`SELECT role, department FROM users WHERE user_id = :id`, { id: doctor_id });
@@ -1147,7 +1168,7 @@ router.post('/emergency', requireAuth, async (req, res) => {
          status, current_stage, is_emergency
        ) VALUES (
          :doctor_id, :doctor_id, :created_by_role, :hod_id,
-         NULL, NULL, NULL,
+         :med_rep_name, :med_rep_email, :med_rep_phone,
          :request_type, :category, :request_source_type,
          :brand_name, :generic_name, :dose_strength, :dosage_form,
          :manufacturer, :marketer, :existing_brands, :clinical_justification,
@@ -1158,6 +1179,9 @@ router.post('/emergency', requireAuth, async (req, res) => {
         doctor_id,
         created_by_role: creatorRole,
         hod_id: hodId,
+        med_rep_name: isPromotional ? med_rep_name : null,
+        med_rep_email: isPromotional ? med_rep_email : null,
+        med_rep_phone: isPromotional ? med_rep_phone : null,
         request_type, category,
         request_source_type: sourceType,
         brand_name, generic_name, dose_strength, dosage_form,
