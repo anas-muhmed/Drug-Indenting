@@ -58,3 +58,19 @@ describe('POST /api/dtc/final-select/:requestId', () => {
     expect(res.status).toBe(403);
   });
 });
+
+describe('PUT /api/requests/:id/drug-info', () => {
+  test('no token -> 401', async () => {
+    const res = await request(app).put('/api/requests/1/drug-info').send({ generic_name: 'Test' });
+    expect(res.status).toBe(401);
+  });
+
+  test('a role that is neither pharmacist nor pharmacyhead -> 403', async () => {
+    const token = signToken({ id: 5, role: 'ceo', type: 'user' });
+    const res = await request(app)
+      .put('/api/requests/1/drug-info')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ generic_name: 'Test' });
+    expect(res.status).toBe(403);
+  });
+});
