@@ -13,7 +13,7 @@ import { getConn } from '../db/pool.js';
 import { requireAuth, requireRole } from '../middleware/requireAuth.js';
 import { NEXT_STAGE, STAGE_LABELS, getApproverRoleForStage, ROLES, rolesMatch } from '../utils/workflow.js';
 import { computeAltDerived, formatEffectiveEntryRow } from '../utils/pureHelpers.js';
-import { writeAudit, createNotification, saveApprovalRemarks } from '../utils/auditHelpers.js';
+import { writeAudit, createNotification, createNotificationsBulk, saveApprovalRemarks } from '../utils/auditHelpers.js';
 
 const router = express.Router();
 
@@ -243,21 +243,17 @@ router.post('/', requireAuth, async (req, res) => {
       );
     } else if (creatorRole && creatorRole.toLowerCase() === ROLES.HOD) {
       const pharmUsers = await conn.execute(`SELECT user_id FROM users WHERE UPPER(role) = 'PHARMACIST' AND is_active = 1`);
-      for (const row of pharmUsers.rows) {
-        await createNotification(conn, row.USER_ID, requestId,
-          `${classLabel} New ${sourceLabel} drug request #${requestId} submitted by HOD. Drug: ${brand_name}. Awaiting initial review.`
-        );
-      }
+      await createNotificationsBulk(conn, pharmUsers.rows.map(r => r.USER_ID), requestId,
+        `${classLabel} New ${sourceLabel} drug request #${requestId} submitted by HOD. Drug: ${brand_name}. Awaiting initial review.`
+      );
     } else {
       const phUsers = await conn.execute(`SELECT user_id FROM users WHERE UPPER(role) = 'PHARMACYHEAD' AND is_active = 1`);
       // Not necessarily a doctor here (falls through when creator is
       // neither 'doctor' nor 'hod'), so no "Dr." prefix — just their name.
       const submitterText = creatorName || 'a colleague';
-      for (const row of phUsers.rows) {
-        await createNotification(conn, row.USER_ID, requestId,
-          `${classLabel} New ${sourceLabel} drug request #${requestId} submitted by ${submitterText}. Drug: ${brand_name}. Awaiting your review.`
-        );
-      }
+      await createNotificationsBulk(conn, phUsers.rows.map(r => r.USER_ID), requestId,
+        `${classLabel} New ${sourceLabel} drug request #${requestId} submitted by ${submitterText}. Drug: ${brand_name}. Awaiting your review.`
+      );
     }
 
     res.status(201).json({ message: 'Drug request submitted successfully.', request_id: requestId });
@@ -613,21 +609,17 @@ router.put('/:id/approve', requireAuth, async (req, res) => {
       const pharmUsers = await conn.execute(
         `SELECT user_id FROM users WHERE UPPER(role) = 'PHARMACIST' AND is_active = 1`
       );
-      for (const row of pharmUsers.rows) {
-        await createNotification(conn, row.USER_ID, requestId,
-          `✅ Drug request #${requestId} (${dr.BRAND_NAME}) is FINALLY APPROVED. Please initiate the drug order process.`
-        );
-      }
+      await createNotificationsBulk(conn, pharmUsers.rows.map(r => r.USER_ID), requestId,
+        `✅ Drug request #${requestId} (${dr.BRAND_NAME}) is FINALLY APPROVED. Please initiate the drug order process.`
+      );
     } else {
       if (toStage === 'PharmacistOrder') {
         const orderUsers = await conn.execute(
           `SELECT user_id FROM users WHERE UPPER(role) IN ('PHARMACIST', 'PHARMACYHEAD') AND is_active = 1`
         );
-        for (const row of orderUsers.rows) {
-          await createNotification(conn, row.USER_ID, requestId,
-            `🚨 Emergency request #${requestId} (${dr.BRAND_NAME}) has been APPROVED. Please place the order immediately.`
-          );
-        }
+        await createNotificationsBulk(conn, orderUsers.rows.map(r => r.USER_ID), requestId,
+          `🚨 Emergency request #${requestId} (${dr.BRAND_NAME}) has been APPROVED. Please place the order immediately.`
+        );
       } else {
         // Determine which role(s) to notify based on toStage
         const stageRoleMap = {
@@ -648,11 +640,9 @@ router.put('/:id/approve', requireAuth, async (req, res) => {
             binds = {};
           }
           const nextUsers = await conn.execute(roleQuery, binds);
-          for (const row of nextUsers.rows) {
-            await createNotification(conn, row.USER_ID, requestId,
-              `Drug request #${requestId} (${dr.BRAND_NAME}) approved by ${STAGE_LABELS[fromStage]}. Awaiting your review.`
-            );
-          }
+          await createNotificationsBulk(conn, nextUsers.rows.map(r => r.USER_ID), requestId,
+            `Drug request #${requestId} (${dr.BRAND_NAME}) approved by ${STAGE_LABELS[fromStage]}. Awaiting your review.`
+          );
         }
       }
       let doctorMsg = `Your drug request #${requestId} (${dr.BRAND_NAME}) has been approved by ${STAGE_LABELS[fromStage]} and forwarded to ${STAGE_LABELS[toStage]}.`;
@@ -754,11 +744,9 @@ router.put('/:id/reject', requireAuth, async (req, res) => {
     if (fromStage === 'PharmacyHead' || fromStage === 'PharmacistInitialReview') {
       const rejectedByLabel = fromStage === 'PharmacyHead' ? 'Pharmacy Head' : 'Pharmacist';
       const dtcUsers = await conn.execute(`SELECT user_id FROM users WHERE UPPER(role) IN ('DTC', 'DTCCOMMITTEE') AND is_active = 1`);
-      for (const row of dtcUsers.rows) {
-        await createNotification(conn, row.USER_ID, requestId,
-          `Drug request #${requestId} (${dr.BRAND_NAME}) was rejected by ${rejectedByLabel} and forwarded for your final review. Reason: ${remarks}`
-        );
-      }
+      await createNotificationsBulk(conn, dtcUsers.rows.map(r => r.USER_ID), requestId,
+        `Drug request #${requestId} (${dr.BRAND_NAME}) was rejected by ${rejectedByLabel} and forwarded for your final review. Reason: ${remarks}`
+      );
       // Notify Doctor & HOD neutrally -- this isn't actually a final
       // rejection, so don't tell them it was "rejected".
       await createNotification(conn, dr.DOCTOR_ID, requestId,
@@ -781,21 +769,17 @@ router.put('/:id/reject', requireAuth, async (req, res) => {
       const phUsers = await conn.execute(
         `SELECT user_id FROM users WHERE UPPER(role) = 'PHARMACYHEAD' AND is_active = 1`
       );
-      for (const row of phUsers.rows) {
-        await createNotification(conn, row.USER_ID, requestId,
-          `Drug request #${requestId} (${dr.BRAND_NAME}) was rejected by DTC Committee. Reason: ${remarks}`
-        );
-      }
+      await createNotificationsBulk(conn, phUsers.rows.map(r => r.USER_ID), requestId,
+        `Drug request #${requestId} (${dr.BRAND_NAME}) was rejected by DTC Committee. Reason: ${remarks}`
+      );
     }
     if (fromStage === 'CEO') {
       const dtcUsers = await conn.execute(
         `SELECT user_id FROM users WHERE UPPER(role) IN ('DTC', 'DTCCOMMITTEE') AND is_active = 1`
       );
-      for (const row of dtcUsers.rows) {
-        await createNotification(conn, row.USER_ID, requestId,
-          `Drug request #${requestId} (${dr.BRAND_NAME}) was rejected by DTC Committee. Reason: ${remarks}`
-        );
-      }
+      await createNotificationsBulk(conn, dtcUsers.rows.map(r => r.USER_ID), requestId,
+        `Drug request #${requestId} (${dr.BRAND_NAME}) was rejected by DTC Committee. Reason: ${remarks}`
+      );
     }
 
     // Safe save of manually entered custom remarks to history
@@ -964,11 +948,9 @@ router.put('/:id/initial-review-approve', requireAuth, async (req, res) => {
     const phUsers = await conn.execute(
       `SELECT user_id FROM users WHERE UPPER(role) = 'PHARMACYHEAD' AND is_active = 1`
     );
-    for (const row of phUsers.rows) {
-      await createNotification(conn, row.USER_ID, requestId,
-        `Drug request #${requestId} (${dr.BRAND_NAME}) has passed Pharmacist Initial Review and is awaiting your approval.`
-      );
-    }
+    await createNotificationsBulk(conn, phUsers.rows.map(r => r.USER_ID), requestId,
+      `Drug request #${requestId} (${dr.BRAND_NAME}) has passed Pharmacist Initial Review and is awaiting your approval.`
+    );
 
     // Notify Doctor that request has moved forward (neutral DTC-review message)
     await createNotification(conn, dr.DOCTOR_ID, requestId,
@@ -1075,9 +1057,7 @@ router.post('/pharmacist', requireRole(ROLES.PHARMACIST), async (req, res) => {
 
     // Notify PharmacyHead
     const phUsers = await conn.execute(`SELECT user_id FROM users WHERE UPPER(role) = 'PHARMACYHEAD' AND is_active = 1`);
-    for (const row of phUsers.rows) {
-      await createNotification(conn, row.USER_ID, reqId, `💊 New Pharmacist Direct drug request #${reqId} (${brand_name}) requires your review.`);
-    }
+    await createNotificationsBulk(conn, phUsers.rows.map(r => r.USER_ID), reqId, `💊 New Pharmacist Direct drug request #${reqId} (${brand_name}) requires your review.`);
 
     res.status(201).json({ message: 'Request submitted successfully.', request_id: reqId });
   } catch (err) {
@@ -1194,13 +1174,19 @@ router.post('/emergency', requireAuth, async (req, res) => {
     const notifyUsers = await conn.execute(
       `SELECT user_id, role FROM users WHERE UPPER(role) IN ('DTC','DTCCOMMITTEE','PHARMACYHEAD','PHARMACIST') AND is_active = 1`
     );
-    for (const row of notifyUsers.rows) {
-      const roleUpper = (row.ROLE || '').toUpperCase();
-      const msg = (roleUpper === 'DTC' || roleUpper === 'DTCCOMMITTEE')
-        ? `🚨 EMERGENCY request #${requestId} (${brand_name}) submitted. Requires your IMMEDIATE decision.`
-        : `🚨 EMERGENCY request #${requestId} (${brand_name}) submitted. You have view-only access.`;
-      await createNotification(conn, row.USER_ID, requestId, msg);
-    }
+    // Message varies by role (DTC gets an action prompt, others get
+    // view-only notice), so this is two bulk groups rather than one --
+    // still a fixed, small number of round trips regardless of how many
+    // recipients each group has.
+    const isDtcRole = (row) => ['DTC', 'DTCCOMMITTEE'].includes((row.ROLE || '').toUpperCase());
+    const dtcDecisionMakers = notifyUsers.rows.filter(isDtcRole).map(r => r.USER_ID);
+    const viewOnlyRecipients = notifyUsers.rows.filter(r => !isDtcRole(r)).map(r => r.USER_ID);
+    await createNotificationsBulk(conn, dtcDecisionMakers, requestId,
+      `🚨 EMERGENCY request #${requestId} (${brand_name}) submitted. Requires your IMMEDIATE decision.`
+    );
+    await createNotificationsBulk(conn, viewOnlyRecipients, requestId,
+      `🚨 EMERGENCY request #${requestId} (${brand_name}) submitted. You have view-only access.`
+    );
     res.status(201).json({ message: 'Emergency drug request submitted.', request_id: requestId });
   } catch (err) {
     console.error('POST /api/requests/emergency error:', err);
@@ -1345,17 +1331,13 @@ router.post('/:requestId/mark-inventory-received', requireRole(ROLES.PHARMACIST)
     const ceoUsers = await conn.execute(
       `SELECT user_id FROM users WHERE UPPER(role) = 'CEO' AND is_active = 1`
     );
-    for (const row of ceoUsers.rows) {
-      await createNotification(conn, row.USER_ID, requestId, msg);
-    }
+    await createNotificationsBulk(conn, ceoUsers.rows.map(r => r.USER_ID), requestId, msg);
 
     // 4. Notify Pharmacists
     const pharmUsers = await conn.execute(
       `SELECT user_id FROM users WHERE UPPER(role) = 'PHARMACIST' AND is_active = 1`
     );
-    for (const row of pharmUsers.rows) {
-      await createNotification(conn, row.USER_ID, requestId, msg);
-    }
+    await createNotificationsBulk(conn, pharmUsers.rows.map(r => r.USER_ID), requestId, msg);
 
     res.json({ success: true, message: 'Request marked as inventory received.' });
   } catch (err) {
@@ -1411,11 +1393,9 @@ router.put('/:id/revert-to-pharmacist', requireRole(ROLES.PHARMACY_HEAD), async 
     const pharmUsers = await conn.execute(
       `SELECT user_id FROM users WHERE UPPER(role) = 'PHARMACIST' AND is_active = 1`
     );
-    for (const row of pharmUsers.rows) {
-      await createNotification(conn, row.USER_ID, requestId,
-        `⚠️ Comparison sheet for Request #${requestId} (${dr.BRAND_NAME}) has been reverted by Pharmacy Head for correction. Reason: ${remarks.substring(0, 200)}`
-      );
-    }
+    await createNotificationsBulk(conn, pharmUsers.rows.map(r => r.USER_ID), requestId,
+      `⚠️ Comparison sheet for Request #${requestId} (${dr.BRAND_NAME}) has been reverted by Pharmacy Head for correction. Reason: ${remarks.substring(0, 200)}`
+    );
 
     // Doctor is not notified about internal pharmacist correction loop
 
@@ -1608,11 +1588,9 @@ router.put('/:id/resubmit-correction', requireRole(ROLES.PHARMACIST), async (req
     const phUsers = await conn.execute(
       `SELECT user_id FROM users WHERE UPPER(role) = 'PHARMACYHEAD' AND is_active = 1`
     );
-    for (const row of phUsers.rows) {
-      await createNotification(conn, row.USER_ID, requestId,
-        `✅ Corrected comparison sheet for Request #${requestId} (${dr.BRAND_NAME}) has been resubmitted by Pharmacist. Please review.`
-      );
-    }
+    await createNotificationsBulk(conn, phUsers.rows.map(r => r.USER_ID), requestId,
+      `✅ Corrected comparison sheet for Request #${requestId} (${dr.BRAND_NAME}) has been resubmitted by Pharmacist. Please review.`
+    );
 
     res.json({
       message: `Corrected comparison sheet for Request #${requestId} resubmitted to Pharmacy Head.`,
