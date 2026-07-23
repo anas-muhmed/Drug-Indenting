@@ -1344,6 +1344,22 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
     }
     setIrRemarks('');
 
+    // Search Existing Drugs is now launched from inside this panel (see
+    // getIrGenericDetails call below), but its result state (query,
+    // suggestions, report rows, the popup itself) previously wasn't reset
+    // when switching requests -- so opening Add/Approve for a *different*
+    // request could still show whatever was last searched for a totally
+    // different drug until you clicked Search again. Reset it every time
+    // the panel opens so it always starts clean for the request at hand.
+    setIrShowGenericPopup(false);
+    setIrSearchQuery('');
+    setIrGenericSuggestions([]);
+    setIrSelectedGeneric(null);
+    setIrReportRows([]);
+    setIrReportError('');
+    setIrDosageFilter('');
+    setIrDosageFormFilter('');
+
     syncEffectiveEntriesForRequest(req);
   };
 
@@ -1355,6 +1371,12 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
     setIrErr('');
     setEffectiveDrugEntries([]);
     setSelectedIrDrugs([]);
+    setIrShowGenericPopup(false);
+    setIrSearchQuery('');
+    setIrGenericSuggestions([]);
+    setIrSelectedGeneric(null);
+    setIrReportRows([]);
+    setIrReportError('');
   };
 
   const submitIrApprove = async () => {
