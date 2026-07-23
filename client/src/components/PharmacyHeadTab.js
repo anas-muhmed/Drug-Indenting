@@ -1354,6 +1354,7 @@ export default function PharmacyHeadTab({ currentUser, onNotificationsRead }) {
           onForwardToDTC={forwardToDTC}
           forwarding={forwarding}
           onBack={closePhSheet}
+          onDrugInfoSaved={(fields) => setSelected(prev => prev ? { ...prev, ...fields } : prev)}
         />
       )}
     </div>

@@ -696,10 +696,59 @@ export default function ComparisonSheet({
 
   onBack,
   onAddAlt,
+  onDrugInfoSaved,
 }) {
   const isExisting = compType === 'existing_generic';
   const editable = mode === 'pharmacist' || mode === 'pharmacy_head';
   const today = new Date().toLocaleDateString('en-GB');
+
+  // ── Editable heading: generic name / dose-strength / dosage form ──────
+  // These live on the request row itself (not the alternatives being
+  // compared), so they're saved immediately on blur via their own small
+  // endpoint rather than folded into the much larger alternatives/
+  // negotiation save payloads. Every later stage reads this same
+  // drug_requests row, so a correction here is automatically visible
+  // DTC/CEO onward -- no separate propagation step needed.
+  const [genericNameEdit, setGenericNameEdit] = React.useState(requestInfo.GENERIC_NAME || '');
+  const [doseStrengthEdit, setDoseStrengthEdit] = React.useState(requestInfo.DOSE_STRENGTH || '');
+  const [dosageFormEdit, setDosageFormEdit] = React.useState(requestInfo.DOSAGE_FORM || '');
+  const [drugInfoSaving, setDrugInfoSaving] = React.useState(false);
+
+  // Re-sync local edit state whenever we're actually looking at a
+  // *different* request -- otherwise switching requests without a full
+  // remount would keep showing the previous request's edited values.
+  React.useEffect(() => {
+    setGenericNameEdit(requestInfo.GENERIC_NAME || '');
+    setDoseStrengthEdit(requestInfo.DOSE_STRENGTH || '');
+    setDosageFormEdit(requestInfo.DOSAGE_FORM || '');
+  }, [requestInfo.REQUEST_ID]);
+
+  const saveDrugInfo = async () => {
+    if (!editable || !requestInfo.REQUEST_ID) return;
+    const changed = genericNameEdit !== (requestInfo.GENERIC_NAME || '')
+      || doseStrengthEdit !== (requestInfo.DOSE_STRENGTH || '')
+      || dosageFormEdit !== (requestInfo.DOSAGE_FORM || '');
+    if (!changed) return;
+    setDrugInfoSaving(true);
+    try {
+      await axios.put(`/api/requests/${requestInfo.REQUEST_ID}/drug-info`, {
+        generic_name: genericNameEdit,
+        dose_strength: doseStrengthEdit,
+        dosage_form: dosageFormEdit,
+      });
+      if (onDrugInfoSaved) {
+        onDrugInfoSaved({
+          GENERIC_NAME: genericNameEdit,
+          DOSE_STRENGTH: doseStrengthEdit,
+          DOSAGE_FORM: dosageFormEdit,
+        });
+      }
+    } catch (err) {
+      console.error('Failed to save drug info from comparison sheet heading:', err);
+    } finally {
+      setDrugInfoSaving(false);
+    }
+  };
 
   const wrapperRef = React.useRef(null);
   const sheetRef = React.useRef(null);
@@ -2550,10 +2599,55 @@ export default function ComparisonSheet({
           {/* Hospital Header */}
           <div style={{ background: '#1e3a5f', color: '#fff', textAlign: 'center', padding: '12px 20px' }}>
             <div style={{ fontWeight: 800, fontSize: '1rem', letterSpacing: '0.03em' }}>{HOSPITAL}</div>
-            <div style={{ fontSize: '0.78rem', marginTop: 4, opacity: 0.85 }}>
-              ITEM-GENERIC: {requestInfo.BRAND_NAME || '—'} — {requestInfo.GENERIC_NAME || '—'}
+            <div style={{ fontSize: '0.8rem', marginTop: 6, fontWeight: 700 }}>
+              {requestInfo.BRAND_NAME || '—'}
             </div>
-            <div style={{ fontSize: '0.72rem', marginTop: 2, opacity: 0.75 }}>
+            <div style={{ fontSize: '0.74rem', marginTop: 6, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+              <span>
+                Generic Name:{' '}
+                {editable ? (
+                  <input
+                    value={genericNameEdit}
+                    onChange={e => setGenericNameEdit(e.target.value)}
+                    onBlur={saveDrugInfo}
+                    style={{
+                      background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.35)',
+                      borderRadius: 4, color: '#fff', padding: '2px 6px', fontSize: '0.74rem', width: 150
+                    }}
+                  />
+                ) : (genericNameEdit || '—')}
+              </span>
+              <span>
+                Dosage:{' '}
+                {editable ? (
+                  <input
+                    value={doseStrengthEdit}
+                    onChange={e => setDoseStrengthEdit(e.target.value)}
+                    onBlur={saveDrugInfo}
+                    style={{
+                      background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.35)',
+                      borderRadius: 4, color: '#fff', padding: '2px 6px', fontSize: '0.74rem', width: 90
+                    }}
+                  />
+                ) : (doseStrengthEdit || '—')}
+              </span>
+              <span>
+                Dosage Form:{' '}
+                {editable ? (
+                  <input
+                    value={dosageFormEdit}
+                    onChange={e => setDosageFormEdit(e.target.value)}
+                    onBlur={saveDrugInfo}
+                    style={{
+                      background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.35)',
+                      borderRadius: 4, color: '#fff', padding: '2px 6px', fontSize: '0.74rem', width: 100
+                    }}
+                  />
+                ) : (dosageFormEdit || '—')}
+              </span>
+              {drugInfoSaving && <span style={{ fontSize: '0.68rem', opacity: 0.8 }}>Saving…</span>}
+            </div>
+            <div style={{ fontSize: '0.72rem', marginTop: 6, opacity: 0.75 }}>
               Comparison Sheet • Prepared on: {today}
             </div>
           </div>
