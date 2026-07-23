@@ -38,6 +38,105 @@ const EMPTY_EXISTING = {
   margin_comparison: '', existing_drug_details: '',
 };
 
+// Same unified review-timeline logic as DTCCommitteeTab.js/CEOTab.js --
+// merges audit-log rows with the per-stage remarks columns on the request
+// itself, so HOD's (and every other stage's) approval remarks are visible
+// here too, not just at DTC/CEO.
+const getOrderedRemarks = (selected, auditLogs) => {
+  if (!selected) return [];
+  const seen = new Set();
+  const unified = [];
+
+  const getStage = (role, fromStage) => {
+    const r = (role || '').toUpperCase();
+    const f = (fromStage || '').toUpperCase();
+    if (r === 'DOCTOR') return 'Doctor';
+    if (r === 'HOD') return 'HOD';
+    if (r === 'PHARMACIST') return 'Pharmacist';
+    if (r === 'PHARMACYHEAD' || r === 'PHARMACY HEAD') return 'Pharmacy Head';
+    if (r === 'DTC' || r === 'DTCCOMMITTEE') return 'DTC';
+    if (r === 'CEO') return 'CEO';
+
+    if (f.includes('HOD')) return 'HOD';
+    if (f.includes('PHARMACIST')) return 'Pharmacist';
+    if (f.includes('PHARMACYHEAD') || f.includes('PHARMACY HEAD')) return 'Pharmacy Head';
+    if (f.includes('DTC')) return 'DTC';
+    if (f.includes('CEO')) return 'CEO';
+    return null;
+  };
+
+  if (auditLogs && auditLogs.length > 0) {
+    auditLogs.forEach(row => {
+      const text = (row.REMARKS || row.remarks || '').trim();
+      if (!text) return;
+
+      if (text.startsWith('Source: ') && text.includes('Class: ')) return;
+      if (text === 'Drug order placed') return;
+      if (text === 'Pharmacist direct request submitted.') return;
+
+      const stage = getStage(row.PERFORMER_ROLE || row.performer_role, row.FROM_STAGE || row.from_stage);
+      if (!stage) return;
+
+      const key = `${stage}:${text.toLowerCase()}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        unified.push({
+          stage,
+          author: row.PERFORMER_NAME || row.performer_name || stage,
+          text,
+          timestamp: row.LOGGED_AT || row.logged_at
+        });
+      }
+    });
+  }
+
+  const staticRemarks = [
+    { stage: 'Doctor', author: selected.doctor_name || 'Doctor', text: selected.CLINICAL_JUSTIFICATION, timestamp: selected.CREATED_AT },
+    { stage: 'HOD', author: 'HOD', text: selected.HOD_REMARKS, timestamp: selected.HOD_ACTION_TIMESTAMP },
+    { stage: 'Pharmacist', author: 'Pharmacist', text: selected.PHARMACIST_REMARKS, timestamp: null },
+    { stage: 'Pharmacy Head', author: 'Pharmacy Head', text: selected.PH_REMARKS, timestamp: null },
+    { stage: 'Pharmacy Head', author: 'Pharmacy Head', text: selected.PH_REVIEW_REMARKS, timestamp: null },
+    { stage: 'Pharmacy Head', author: 'Pharmacy Head', text: selected.PH_REVIEW2_REMARKS || selected.PH_REMARKS2, timestamp: null },
+    { stage: 'DTC', author: 'DTC Committee', text: selected.DTC_REMARKS, timestamp: null },
+    { stage: 'DTC', author: 'DTC Committee', text: selected.DTC_FINAL_REMARKS, timestamp: null },
+    { stage: 'CEO', author: 'CEO', text: selected.CEO_REMARKS, timestamp: null }
+  ];
+
+  staticRemarks.forEach(item => {
+    const text = (item.text || '').trim();
+    if (!text) return;
+
+    const key = `${item.stage}:${text.toLowerCase()}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      unified.push(item);
+    }
+  });
+
+  const STAGE_ORDER = {
+    'Doctor': 0,
+    'HOD': 1,
+    'Pharmacist': 2,
+    'Pharmacy Head': 3,
+    'DTC': 4,
+    'CEO': 5
+  };
+
+  unified.sort((a, b) => {
+    const orderA = STAGE_ORDER[a.stage];
+    const orderB = STAGE_ORDER[b.stage];
+    if (orderA !== orderB) {
+      return orderA - orderB;
+    }
+    if (a.timestamp && b.timestamp) {
+      return new Date(a.timestamp) - new Date(b.timestamp);
+    }
+    return 0;
+  });
+
+  return unified;
+};
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const extractDosage = (name = '') => {
   const match = name.match(/(\d+(?:\.\d+)?\s*(?:mg|ml|mcg|g|iu|meg|%|units?))/i);
@@ -174,6 +273,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
   // View-only modal
   const [viewReq, setViewReq] = useState(null);
   const [existingAlts, setExistingAlts] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
 
   // ── Inventory Add-to-HIS state ──────────────────────────────
   const [invNewItem, setInvNewItem] = useState(false);          // checkbox
@@ -209,6 +309,10 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
     setCompAlts([]);
     setCompEgd({});
     setCompExistingDetails([]);
+    setAuditLogs([]);
+    axios.get(`${API}/audit/${req.REQUEST_ID}`)
+      .then(r => setAuditLogs(r.data || []))
+      .catch(err => { console.error('Failed to load audit logs:', err); setAuditLogs([]); });
     try {
       const isOrderStage = req.STATUS === 'APPROVED_PENDING_ORDER' || req.STATUS === 'EMERGENCY_APPROVED' || req.STATUS === 'ORDER_PLACED' || req.STATUS === 'INVENTORY_RECEIVED';
       if (isOrderStage) {
@@ -291,6 +395,84 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
         setExistingAlts(r.data?.alternatives || []);
       }
     } catch { setExistingAlts([]); setFinalApprovedDrug(null); }
+  };
+
+  const renderWorkflowRemarks = () => {
+    const orderedRemarks = getOrderedRemarks(viewReq, auditLogs);
+    if (orderedRemarks.length === 0) return null;
+
+    const getStageColor = (stage) => {
+      switch (stage) {
+        case 'Doctor': return '#2563eb';
+        case 'HOD': return '#0d9488';
+        case 'Pharmacist': return '#d97706';
+        case 'Pharmacy Head': return '#7c3aed';
+        case 'DTC': return '#db2777';
+        case 'CEO': return '#16a34a';
+        default: return '#64748b';
+      }
+    };
+
+    const getStageBgColor = (stage) => {
+      switch (stage) {
+        case 'Doctor': return '#dbeafe';
+        case 'HOD': return '#ccfbf1';
+        case 'Pharmacist': return '#fef3c7';
+        case 'Pharmacy Head': return '#ede9fe';
+        case 'DTC': return '#fce7f3';
+        case 'CEO': return '#dcfce7';
+        default: return '#f1f5f9';
+      }
+    };
+
+    return (
+      <div style={{ marginTop: 24, borderTop: '1px solid var(--border)', paddingTop: 20 }}>
+        <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span>💬</span> Workflow Remarks History
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {orderedRemarks.map((rem, idx) => (
+            <div key={idx} style={{
+              background: 'var(--card-bg, #fff)',
+              border: '1px solid var(--border)',
+              borderLeft: `4px solid ${getStageColor(rem.stage)}`,
+              borderRadius: '8px',
+              padding: '12px 16px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8, marginBottom: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    background: getStageBgColor(rem.stage),
+                    color: getStageColor(rem.stage),
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    textTransform: 'uppercase'
+                  }}>
+                    {rem.stage}
+                  </span>
+                  {rem.author && (
+                    <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text)' }}>
+                      {rem.author}
+                    </span>
+                  )}
+                </div>
+                {rem.timestamp && (
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    {new Date(rem.timestamp).toLocaleString('en-IN')}
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-dark, #334155)', lineHeight: 1.5, whiteSpace: 'pre-line' }}>
+                {rem.text}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   // Prefill inventory form from final DTC drug data
@@ -1135,9 +1317,12 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
       });
       setEffectiveDrugEntries(mapped);
     } else {
+      // Pre-fill with the drug the doctor/HOD actually submitted, so the
+      // pharmacist sees it in this panel immediately rather than an empty
+      // row -- effective date stays blank/mutable, they can still adjust it.
       setEffectiveDrugEntries([
         {
-          drug_name: '',
+          drug_name: req.BRAND_NAME || '',
           effective_created_at: '',
           remarks: ''
         }
@@ -1391,15 +1576,6 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                       </td>
                       <td style={{ color: 'var(--text-muted)' }}>
                         {r.GENERIC_NAME}
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-sm"
-                          style={{ marginTop: 4, borderColor: 'var(--primary)', color: 'var(--primary)' }}
-                          onClick={() => { syncEffectiveEntriesForRequest(r); getIrGenericDetails(r.GENERIC_NAME); }}
-                          disabled={irGenericLoading}
-                        >
-                          {irGenericLoading ? <><div className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> Fetching…</> : 'Search Existing Drugs'}
-                        </button>
                       </td>
                       <td>{r.CATEGORY}</td>
                       <td><span className="badge badge-info">{r.REQUEST_TYPE}</span></td>
@@ -1443,6 +1619,20 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
               {irAction === 'approve' && (
                 <>
 
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+                    <span style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      🔍 Search Existing Drugs
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      style={{ borderColor: 'var(--primary)', color: 'var(--primary)' }}
+                      onClick={() => getIrGenericDetails(irSelected.GENERIC_NAME)}
+                      disabled={irGenericLoading}
+                    >
+                      {irGenericLoading ? <><div className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> Fetching…</> : 'Search Existing Drugs'}
+                    </button>
+                  </div>
 
                   <div style={{ marginTop: 20, marginBottom: 20 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
@@ -3549,6 +3739,7 @@ export default function PharmacistTab({ currentUser, onNotificationsRead }) {
                         <AlternativesTable alts={existingAlts} />
                       </div>
                     )}
+                    {renderWorkflowRemarks()}
                   </>
                 );
               })()}
